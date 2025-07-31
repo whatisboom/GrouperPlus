@@ -2,7 +2,7 @@
 ## Title: GrouperPlus
 ## Notes: A basic World of Warcraft addon
 ## Author: YourName
-## Version: 0.1
+## Version: 0.2.0
 ## SavedVariables: GrouperDB
 
 libs\LibStub\LibStub.lua
