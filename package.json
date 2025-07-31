@@ -6,7 +6,7 @@
   "scripts": {
     "build": "./build.sh",
     "deploy": "node deploy.js",
-    "build-and-deploy": "npm run build && npm run deploy"
+    "build-and-deploy": "./deploy-full.sh"
   },
   "dependencies": {
     "form-data": "^4.0.0"
