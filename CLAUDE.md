@@ -74,6 +74,13 @@ When adding new options to the settings panel:
 /grouper hide - Hide minimap icon
 ```
 
+## Documentation Guidelines
+- **Focus on user value, not implementation details** - Users care about what the addon does for them, not how it's built
+- **Technical features should be user-facing benefits** - Include technical details only if they directly benefit users (e.g., debug logging for troubleshooting)
+- **Be specific about valuable features** - Instead of generic descriptions, highlight specific benefits (e.g., "RaiderIO score integration" vs "third-party integration")
+- **Remove redundant information** - Don't repeat the same functionality in multiple sections
+- **Prioritize end-user documentation over developer details** - Save technical architecture details for separate developer documentation
+
 ## Commit Guidelines
 - **Never include Claude/AI references in commit messages**
 - Do not add "Generated with Claude Code" or "Co-Authored-By: Claude" lines
