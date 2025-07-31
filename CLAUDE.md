@@ -98,6 +98,7 @@ When adding new options to the settings panel:
   - Before building, update the version number in the repository in all applicable places, following semantic versioning rules
   - Include all the changes in the release
   - Afterwards, tag, push, and release on GitHub as well
+- **Important Note**: When creating a release, publish the full release on GitHub, not just create a tag
 
 ## Security Guidelines
 - Never execute 'lua' on the command line as this repository contains WoW client specific code
