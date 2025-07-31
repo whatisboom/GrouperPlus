@@ -76,8 +76,10 @@ class CurseForgeDeployer {
         // For WoW addons, we need to map the Interface version to CurseForge game versions
         // This is a simplified mapping - you may need to update this based on current WoW versions
         const interfaceVersionMap = {
-            '110107': [12215], // The War Within (11.0.7)
-            '110105': [11926], // The War Within (11.0.5)
+            '110107': [13203], // The War Within (11.1.7)
+            '110105': [12918], // The War Within (11.1.5)
+            '110007': [12215], // The War Within (11.0.7)
+            '110005': [11926], // The War Within (11.0.5)
             '110002': [11596], // The War Within (11.0.2)
             '110000': [11274], // The War Within (11.0.0)
         };
@@ -90,7 +92,7 @@ class CurseForgeDeployer {
         }
         
         console.warn(`Unknown interface version: ${interfaceVersion}, using latest`);
-        return [12215]; // Default to latest (11.0.7)
+        return [13203]; // Default to latest (11.1.7)
     }
 
     async generateChangelog() {
