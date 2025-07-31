@@ -85,6 +85,7 @@ When adding new options to the settings panel:
 - **Never include Claude/AI references in commit messages**
 - Do not add "Generated with Claude Code" or "Co-Authored-By: Claude" lines
 - Keep commit messages clean and professional
+- Always use commit message format "type(scope): description"
 
 ## Future Considerations
 - When adding new features, always consider the debug logging requirements

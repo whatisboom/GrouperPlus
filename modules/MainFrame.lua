@@ -151,14 +151,6 @@ local function CreateMainFrame()
     titleBar:SetHeight(32)
     titleBar:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 12, -12)
     titleBar:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", -12, -12)
-    titleBar:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true,
-        tileSize = 32,
-        edgeSize = 16,
-        insets = { left = 5, right = 5, top = 5, bottom = 5 }
-    })
     
     local title = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
@@ -202,14 +194,6 @@ local function CreateMainFrame()
     leftPanel:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 0, -5)
     leftPanel:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 12, 12)
     leftPanel:SetWidth(320)
-    leftPanel:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true,
-        tileSize = 32,
-        edgeSize = 16,
-        insets = { left = 5, right = 5, top = 5, bottom = 5 }
-    })
     
     local memberHeader = leftPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     memberHeader:SetPoint("TOP", leftPanel, "TOP", 0, -10)

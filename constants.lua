@@ -18,7 +18,7 @@ local LOG_LEVEL = {
 
 local defaults = {
     profile = {
-        debugLevel = "INFO",
+        debugLevel = "WARN",
         minimap = {
             hide = false,
             minimapPos = 225,
