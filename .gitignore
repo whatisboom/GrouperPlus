@@ -1,0 +1,221 @@
+# World of Warcraft Addon Development
+# =====================================
+
+# WoW Cache and Temporary Files
+*.cache
+*.old
+*.bak
+WTF/
+Cache/
+Logs/
+
+# Development and IDE Files
+# =====================================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# IntelliJ/JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+\#*\#
+.\#*
+
+# OS Specific Files
+# =====================================
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+.directory
+.Trash-*
+
+# Build and Package Files
+# =====================================
+
+# Package files that CurseForge auto-generates
+*.zip
+*.7z
+*.rar
+
+# Build directories
+build/
+dist/
+release/
+releases/
+packages/
+
+# CurseForge Specific Exclusions
+# =====================================
+
+# Files that might cause rejection
+*.exe
+*.dll
+*.so
+*.dylib
+*.bat
+*.sh
+*.com
+*.jar
+
+# Potentially problematic scripts
+*.ps1
+*.vbs
+*.js
+*.py
+*.rb
+
+# Binary and compiled files
+*.pyc
+*.pyo
+*.class
+*.o
+*.obj
+
+# Development Documentation
+# =====================================
+
+# Keep CLAUDE.md as it's project-specific
+# !CLAUDE.md
+
+# Local development notes
+TODO.txt
+TODO.md
+NOTES.txt
+NOTES.md
+dev-notes/
+local-notes/
+
+# Version Control
+# =====================================
+
+# Git
+.git/
+.gitattributes
+.gitmodules
+
+# SVN
+.svn/
+
+# Mercurial
+.hg/
+
+# Testing and Coverage
+# =====================================
+
+# Test results
+test-results/
+coverage/
+*.log
+
+# WoW Addon Packager
+# =====================================
+
+# BigWigs Packager
+.release/
+.pkgmeta
+
+# CurseForge packager generated files
+CHANGELOG.txt
+CHANGELOG.md
+
+# Sensitive Information
+# =====================================
+
+# Private keys and credentials
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# Personal configuration
+personal-config/
+my-settings/
+
+# Backup Files
+# =====================================
+
+# Backup folders
+backup/
+backups/
+*.backup
+
+# Temporary Files
+# =====================================
+
+# General temp files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Libraries (if using external package manager)
+# =====================================
+
+# Only include libs that are part of the addon
+# node_modules/
+# bower_components/
+
+# Misc Development Files
+# =====================================
+
+# Patch files
+*.patch
+*.diff
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Archive files (except addon releases)
+*.tar
+*.tar.gz
+*.tgz
+
+# Image source files (keep compiled textures)
+*.psd
+*.ai
+*.xcf
+
+# Video files
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+
+# Audio source files (keep .ogg/.mp3 for addon)
+*.wav
+*.flac
+*.m4a
