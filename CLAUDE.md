@@ -94,6 +94,10 @@ When adding new options to the settings panel:
 
 ## Release Preparation
 - Before creating a release or tag, update appropriate files (toc, etc) to mirror the new version
+- **Release Workflow**:
+  - Before building, update the version number in the repository in all applicable places, following semantic versioning rules
+  - Include all the changes in the release
+  - Afterwards, tag, push, and release on GitHub as well
 
 ## Security Guidelines
 - Never execute 'lua' on the command line as this repository contains WoW client specific code

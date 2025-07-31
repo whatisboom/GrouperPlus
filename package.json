@@ -1,0 +1,27 @@
+{
+  "name": "grouperplus",
+  "version": "0.3.0",
+  "description": "World of Warcraft addon for enhanced group management",
+  "main": "deploy.js",
+  "scripts": {
+    "build": "./build.sh",
+    "deploy": "node deploy.js",
+    "build-and-deploy": "npm run build && npm run deploy"
+  },
+  "dependencies": {
+    "form-data": "^4.0.0"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/whatisboom/GrouperPlus.git"
+  },
+  "keywords": [
+    "world-of-warcraft",
+    "addon",
+    "guild",
+    "group-management"
+  ],
+  "author": "YourName",
+  "license": "MIT"
+}
