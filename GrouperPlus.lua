@@ -3,44 +3,8 @@ addon = addon or {}
 
 local AceDB = LibStub("AceDB-3.0")
 
-local defaults = {
-    profile = {
-        debugLevel = "INFO",
-        minimap = {
-            hide = false,
-            minimapPos = 225,
-        },
-        mainFrame = {
-            point = "CENTER",
-            relativePoint = "CENTER",
-            x = 0,
-            y = 0
-        },
-        raiderIO = {
-            enabled = true,
-            showInTooltips = true
-        }
-    }
-}
-
 local db
 local settings
-
-local DEBUG_LEVELS = {
-    ERROR = 1,
-    WARN = 2,
-    INFO = 3,
-    DEBUG = 4,
-    TRACE = 5
-}
-
-local LOG_LEVEL = {
-    ERROR = "ERROR",
-    WARN = "WARN",
-    INFO = "INFO",
-    DEBUG = "DEBUG",
-    TRACE = "TRACE"
-}
 
 local function Debug(level, ...)
     if not settings then return end
@@ -48,16 +12,16 @@ local function Debug(level, ...)
     level = level or "DEBUG"
     level = string.upper(level)
     
-    if not DEBUG_LEVELS[level] then
+    if not addon.DEBUG_LEVELS[level] then
         level = "DEBUG"
     end
     
     local currentLevel = string.upper(settings.debugLevel)
-    if not DEBUG_LEVELS[currentLevel] then
+    if not addon.DEBUG_LEVELS[currentLevel] then
         currentLevel = "INFO"
     end
     
-    if DEBUG_LEVELS[level] <= DEBUG_LEVELS[currentLevel] then
+    if addon.DEBUG_LEVELS[level] <= addon.DEBUG_LEVELS[currentLevel] then
         local args = {...}
         local message = ""
         
@@ -74,8 +38,6 @@ end
 
 -- Export to addon namespace for use in modules
 addon.Debug = Debug
-addon.LOG_LEVEL = LOG_LEVEL
-addon.DEBUG_LEVELS = DEBUG_LEVELS
 
 local LibDBIcon = LibStub("LibDBIcon-1.0")
 
@@ -85,17 +47,17 @@ local minimapLDB = {
     icon = "Interface\\Icons\\INV_Misc_GroupLooking",
     OnClick = function(self, button)
         if button == "LeftButton" then
-            Debug(LOG_LEVEL.INFO, "Minimap icon clicked with left button")
+            Debug(addon.LOG_LEVEL.INFO, "Minimap icon clicked with left button")
             if addon.ToggleMainFrame then
                 addon:ToggleMainFrame()
             else
-                Debug(LOG_LEVEL.WARN, "MainFrame module not yet loaded")
+                Debug(addon.LOG_LEVEL.WARN, "MainFrame module not yet loaded")
             end
         elseif button == "RightButton" then
             if addon.dropdownFrame then
                 ToggleDropDownMenu(1, nil, addon.dropdownFrame, self, 0, 0)
             else
-                Debug(LOG_LEVEL.WARN, "Dropdown menu not yet initialized")
+                Debug(addon.LOG_LEVEL.WARN, "Dropdown menu not yet initialized")
             end
         end
     end,
@@ -111,7 +73,7 @@ local minimapLDB = {
 local function InitializeMinimap()
     if LibDBIcon and not LibDBIcon:IsRegistered("GrouperPlus") and settings then
         LibDBIcon:Register("GrouperPlus", minimapLDB, settings.minimap)
-        Debug(LOG_LEVEL.INFO, "Minimap icon registered successfully")
+        Debug(addon.LOG_LEVEL.INFO, "Minimap icon registered successfully")
     end
 end
 
@@ -124,21 +86,20 @@ frame:SetScript("OnEvent", function(self, event, ...)
         local loadedAddonName = ...
         if loadedAddonName == addonName then
             GrouperDB = GrouperDB or {}
-            db = AceDB:New("GrouperDB", defaults, true)
+            db = AceDB:New("GrouperDB", addon.defaults, true)
             settings = db.profile
             
             -- Export to addon namespace
             addon.db = db
             addon.settings = settings
             addon.Debug = Debug
-            addon.LOG_LEVEL = LOG_LEVEL
             
-            Debug(LOG_LEVEL.INFO, "GrouperPlus addon loaded successfully!")
-            Debug(LOG_LEVEL.DEBUG, "Settings initialized with debugLevel:", settings.debugLevel)
+            Debug(addon.LOG_LEVEL.INFO, "GrouperPlus addon loaded successfully!")
+            Debug(addon.LOG_LEVEL.DEBUG, "Settings initialized with debugLevel:", settings.debugLevel)
             InitializeMinimap()
         end
     elseif event == "PLAYER_LOGIN" then
-        Debug(LOG_LEVEL.INFO, "Welcome to GrouperPlus!")
+        Debug(addon.LOG_LEVEL.INFO, "Welcome to GrouperPlus!")
     end
 end)
 
@@ -149,38 +110,38 @@ SlashCmdList["GROUPER"] = function(msg)
     if command == "minimap" or command == "show" then
         settings.minimap.hide = false
         LibDBIcon:Show("GrouperPlus")
-        Debug(LOG_LEVEL.INFO, "Minimap button shown")
+        Debug(addon.LOG_LEVEL.INFO, "Minimap button shown")
     elseif command == "hide" then
         settings.minimap.hide = true
         LibDBIcon:Hide("GrouperPlus")
-        Debug(LOG_LEVEL.INFO, "Minimap button hidden")
+        Debug(addon.LOG_LEVEL.INFO, "Minimap button hidden")
     elseif command == "main" or command == "frame" or command == "gui" then
         if addon.ShowMainFrame then
             addon:ShowMainFrame()
-            Debug(LOG_LEVEL.INFO, "Main frame shown via slash command")
+            Debug(addon.LOG_LEVEL.INFO, "Main frame shown via slash command")
         else
-            Debug(LOG_LEVEL.WARN, "MainFrame module not yet loaded")
+            Debug(addon.LOG_LEVEL.WARN, "MainFrame module not yet loaded")
         end
     elseif command == "toggle" then
         if addon.ToggleMainFrame then
             addon:ToggleMainFrame()
-            Debug(LOG_LEVEL.INFO, "Main frame toggled via slash command")
+            Debug(addon.LOG_LEVEL.INFO, "Main frame toggled via slash command")
         else
-            Debug(LOG_LEVEL.WARN, "MainFrame module not yet loaded")
+            Debug(addon.LOG_LEVEL.WARN, "MainFrame module not yet loaded")
         end
     elseif command == "test" or command == "raiderio" then
         if addon.RaiderIOIntegration then
             addon.RaiderIOIntegration:TestPlayer()
-            Debug(LOG_LEVEL.INFO, "RaiderIO test completed - check debug output")
+            Debug(addon.LOG_LEVEL.INFO, "RaiderIO test completed - check debug output")
         else
-            Debug(LOG_LEVEL.WARN, "RaiderIO integration module not yet loaded")
+            Debug(addon.LOG_LEVEL.WARN, "RaiderIO integration module not yet loaded")
         end
     else
-        Debug(LOG_LEVEL.INFO, "GrouperPlus commands:")
-        Debug(LOG_LEVEL.INFO, "/grouper show - Show minimap button")
-        Debug(LOG_LEVEL.INFO, "/grouper hide - Hide minimap button")
-        Debug(LOG_LEVEL.INFO, "/grouper main - Show main frame")
-        Debug(LOG_LEVEL.INFO, "/grouper toggle - Toggle main frame")
-        Debug(LOG_LEVEL.INFO, "/grouper test - Test RaiderIO integration")
+        Debug(addon.LOG_LEVEL.INFO, "GrouperPlus commands:")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper show - Show minimap button")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper hide - Hide minimap button")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper main - Show main frame")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper toggle - Toggle main frame")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper test - Test RaiderIO integration")
     end
 end

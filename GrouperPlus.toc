@@ -10,6 +10,7 @@ libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 libs\AceDB-3.0\AceDB-3.0.lua
 libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
+constants.lua
 GrouperPlus.lua
 modules\MinimapMenu.lua
 modules\OptionsPanel.lua
