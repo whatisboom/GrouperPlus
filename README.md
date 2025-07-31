@@ -28,7 +28,15 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 
 ## Installation
 
-1. Download or clone this repository
+### Option 1: Download Release (Recommended)
+1. Go to the [Releases page](https://github.com/whatisboom/GrouperPlus/releases)
+2. Download the latest release archive
+3. Extract the `GrouperPlus` folder to your `World of Warcraft/_retail_/Interface/AddOns/` directory
+4. Restart World of Warcraft or type `/reload` in-game
+5. The addon will automatically appear on your minimap
+
+### Option 2: Clone Repository (Development)
+1. Clone this repository: `git clone https://github.com/whatisboom/GrouperPlus.git`
 2. Place the `GrouperPlus` folder in your `World of Warcraft/_retail_/Interface/AddOns/` directory
 3. Restart World of Warcraft or type `/reload` in-game
 4. The addon will automatically appear on your minimap
