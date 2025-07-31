@@ -91,3 +91,9 @@ When adding new options to the settings panel:
 - When adding new features, always consider the debug logging requirements
 - Test thoroughly with different debug levels to ensure logging is appropriate
 - Maintain compatibility with the new Settings API introduced in Dragonflight
+
+## Release Preparation
+- Before creating a release or tag, update appropriate files (toc, etc) to mirror the new version
+
+## Security Guidelines
+- Never execute 'lua' on the command line as this repository contains WoW client specific code
