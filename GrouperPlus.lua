@@ -136,6 +136,22 @@ SlashCmdList["GROUPER"] = function(msg)
         else
             Debug(addon.LOG_LEVEL.WARN, "RaiderIO integration module not yet loaded")
         end
+    elseif command == "autoform" or command == "auto" then
+        if addon.AutoFormGroups then
+            print("GrouperPlus: SLASH COMMAND - Triggering auto-formation")
+            addon:AutoFormGroups()
+        else
+            Debug(addon.LOG_LEVEL.WARN, "AutoFormGroups function not yet loaded")
+        end
+    elseif command == "button" or command == "check" then
+        local button = _G["GrouperPlusAutoFormButton"]
+        if button then
+            print("GrouperPlus: Button found! Enabled:", button:IsEnabled(), "Shown:", button:IsShown(), "Visible:", button:IsVisible())
+            print("GrouperPlus: Manually triggering button click...")
+            button:Click()
+        else
+            print("GrouperPlus: Button not found! Frame might not be created yet.")
+        end
     else
         Debug(addon.LOG_LEVEL.INFO, "GrouperPlus commands:")
         Debug(addon.LOG_LEVEL.INFO, "/grouper show - Show minimap button")

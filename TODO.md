@@ -3,12 +3,13 @@
 ## Ideas and Future Tasks
 
 ### Automatic Group Formation
-- [ ] Auto-form groups based on mythic plus rating
-- [ ] Respect role limits (1 tank, 1 healer, 3 DPS) when auto-forming
-- [ ] Balance groups by skill level/rating
+- [x] Auto-form groups based on mythic plus rating
+- [x] Respect role limits (1 tank, 1 healer, 3 DPS) when auto-forming
+- [x] Balance groups by skill level/rating
+- [ ] Consider class composition and synergies when forming groups
 
 ### Role Management
-- [ ] Add role limits per group (1 tank, 1 healer, 3 DPS per group)
+- [x] Add role limits per group (1 tank, 1 healer, 3 DPS per group)
 - [ ] Configurable role caps in options panel
 
 ### Inter-Addon Communication
@@ -23,7 +24,26 @@
 - [ ] Consider utility distribution when forming groups
 
 ### Display Control
-- [ ] Control player position/ordering within dynamic group display
-- [ ] Role-based positioning (tanks first, healers, then DPS)
+- [x] Control player position/ordering within dynamic group display
+- [x] Role-based positioning (tanks first, healers, then DPS)
+- [x] Update dynamic lists to show user rating text
+
+### Advanced Filtering
+- [ ] Search and filter members by class
+- [ ] Filter by specialization
+- [ ] Filter by item level
+
+### Activity Scheduling
+- [ ] Calendar integration for planning guild events
+- [ ] Schedule and track guild activities
+
+### Export Functionality
+- [ ] Export group compositions to various formats
+- [ ] Export member availability data
+- [ ] Share group setups with others
+
+### Integrations
+- [ ] Expand data sources beyond RaiderIO
+- [ ] Additional third-party addon integrations
 
 <!-- Add items here as they come up -->

@@ -15,4 +15,5 @@ GrouperPlus.lua
 modules\MinimapMenu.lua
 modules\OptionsPanel.lua
 modules\RaiderIOIntegration.lua
+modules\AutoFormation.lua
 modules\MainFrame.lua

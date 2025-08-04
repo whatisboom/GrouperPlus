@@ -6,6 +6,7 @@ local mainFrame = nil
 local memberList = {}
 local scrollFrame = nil
 local scrollChild = nil
+local loadingMessage = nil
 local groupsContainer = nil
 local dynamicGroups = {}
 local draggedMember = nil
@@ -18,10 +19,12 @@ local MAX_GROUP_SIZE = 5
 local CreateDragFrame, ShowDragFrame, HideDragFrame, UpdateDragFramePosition
 local AddMemberToGroup, RemoveMemberFromGroup, RemoveMemberFromPlayerList, AddMemberBackToPlayerList
 local CreateNewGroup, EnsureEmptyGroupExists, CalculateGroupLayout, RepositionAllGroups
+local ReorganizeGroupByRole, CheckRoleLimits
 
 local function UpdateGuildMemberList()
     addon.Debug("DEBUG", "UpdateGuildMemberList: Starting guild roster update")
     addon.Debug("DEBUG", "UpdateGuildMemberList: Current membersInGroups count:", next(membersInGroups) and "has members" or "empty")
+    
     
     table.wipe(memberList)
     
@@ -47,6 +50,12 @@ local function UpdateGuildMemberList()
                 addon.Debug("TRACE", "UpdateGuildMemberList: Added member", name, "level", level, "class:", classFileName or class, "localized:", class)
             else
                 addon.Debug("INFO", "UpdateGuildMemberList: Skipped member", name, "- already in group")
+            end
+        else
+            if not online then
+                addon.Debug("TRACE", "UpdateGuildMemberList: Skipped member", name, "- offline")
+            elseif level ~= MAX_LEVEL then
+                addon.Debug("TRACE", "UpdateGuildMemberList: Skipped member", name, "- level", level, "(not max level", MAX_LEVEL, ")")
             end
         end
     end
@@ -151,38 +160,82 @@ local function UpdateMemberDisplay()
     end
     
     local members = UpdateGuildMemberList()
+    addon.Debug("DEBUG", "UpdateMemberDisplay: Retrieved", #members, "available members from guild list")
     
-    -- Hide all existing rows first and clear their content
-    if scrollChild.rows then
-        for i = 1, #scrollChild.rows do
-            if scrollChild.rows[i] then
-                scrollChild.rows[i]:Hide()
-                -- Clear the row content to prevent showing stale data
-                scrollChild.rows[i].text:SetText("")
-                scrollChild.rows[i].scoreText:SetText("")
-                scrollChild.rows[i].memberName = nil
-                addon.Debug("TRACE", "UpdateMemberDisplay: Hid and cleared row", i)
+    -- Show/hide loading message based on member availability
+    -- Only show loading message if we're in a guild but have no guild roster data at all
+    local totalGuildMembers = GetNumGuildMembers()
+    local shouldShowLoading = #members == 0 and IsInGuild() and totalGuildMembers == 0
+    
+    if shouldShowLoading then
+        addon.Debug("INFO", "UpdateMemberDisplay: No guild roster data loaded - showing loading message")
+        if loadingMessage then
+            loadingMessage:Show()
+            loadingMessage:SetText("Loading guild members...")
+        end
+        -- Hide all existing rows since we're showing loading message
+        if scrollChild and scrollChild.rows then
+            for i = 1, #scrollChild.rows do
+                if scrollChild.rows[i] then
+                    scrollChild.rows[i]:Hide()
+                end
             end
+        end
+        return
+    else
+        -- Hide loading message when we have guild data (even if all members are assigned to groups)
+        if loadingMessage then
+            loadingMessage:Hide()
+        end
+        if #members == 0 and totalGuildMembers > 0 then
+            addon.Debug("DEBUG", "UpdateMemberDisplay: All eligible members are assigned to groups")
+        else
+            addon.Debug("DEBUG", "UpdateMemberDisplay: Have member data or not in guild - proceeding with display")
         end
     end
     
-    for i, member in ipairs(members) do
-        local row = scrollChild.rows and scrollChild.rows[i]
-        if not row then
-            addon.Debug("DEBUG", "UpdateMemberDisplay: Creating new row for member", i, ":", member.name)
-            row = CreateMemberRow(scrollChild, i)
-            if not scrollChild.rows then
-                scrollChild.rows = {}
-            end
-            scrollChild.rows[i] = row
-            addon.Debug("DEBUG", "UpdateMemberDisplay: Created row for", member.name, "EnableMouse:", row:IsMouseEnabled(), "DragEnabled:", row:IsMouseMotionEnabled())
-        else
-            addon.Debug("DEBUG", "UpdateMemberDisplay: Reusing existing row for member", i, ":", member.name)
-            -- Reposition the row in case the index changed
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 5, -((i - 1) * 22) - 5)
-            row:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", -5, -((i - 1) * 22) - 5)
+    
+    
+    -- Initialize scrollChild.rows if it doesn't exist
+    if not scrollChild.rows then
+        scrollChild.rows = {}
+    end
+    
+    -- Hide all existing rows first and clear their content
+    addon.Debug("DEBUG", "UpdateMemberDisplay: Hiding", #scrollChild.rows, "existing rows")
+    for i = 1, #scrollChild.rows do
+        if scrollChild.rows[i] then
+            scrollChild.rows[i]:Hide()
+            -- Clear the row content to prevent showing stale data
+            scrollChild.rows[i].text:SetText("")
+            scrollChild.rows[i].scoreText:SetText("")
+            scrollChild.rows[i].memberName = nil
+            addon.Debug("TRACE", "UpdateMemberDisplay: Hid and cleared row", i)
         end
+    end
+    
+    -- Now process each member and assign to rows
+    for i, member in ipairs(members) do
+        addon.Debug("DEBUG", "UpdateMemberDisplay: Processing member", i, ":", member.name)
+        
+        -- Get or create row for this position
+        local row = scrollChild.rows[i]
+        if not row then
+            addon.Debug("DEBUG", "UpdateMemberDisplay: Creating new row at position", i, "for member:", member.name)
+            row = CreateMemberRow(scrollChild, i)
+            scrollChild.rows[i] = row
+        else
+            addon.Debug("DEBUG", "UpdateMemberDisplay: Reusing existing row at position", i, "for member:", member.name)
+        end
+        
+        -- Always reposition and reset the row completely
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 5, -((i - 1) * 22) - 5)
+        row:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", -5, -((i - 1) * 22) - 5)
+        
+        -- Ensure row interaction is enabled
+        row:EnableMouse(true)
+        row:RegisterForDrag("LeftButton")
         
         local classColor = nil
         if member.class then
@@ -199,9 +252,44 @@ local function UpdateMemberDisplay()
             row.text:SetTextColor(1, 1, 1)
             addon.Debug("WARN", "UpdateMemberDisplay: No class color found for", member.name, "class:", member.class or "nil", "- using white")
         end
-        row.text:SetText(member.name)
+        -- Force complete text element reset and proper setup
+        row.text:Hide()       -- Hide first
+        row.text:SetText("")  -- Clear text
+        row.text:Show()       -- Show again
+        row.text:SetText(member.name)  -- Set the text
         row.memberName = member.name
         addon.Debug("DEBUG", "UpdateMemberDisplay: Set memberName for row", i, "to:", member.name)
+        
+        -- Force text positioning and parent refresh
+        row.text:ClearAllPoints()
+        row.text:SetPoint("LEFT", row, "LEFT", 5, 0)
+        row.text:SetParent(row)  -- Ensure proper parent relationship
+        
+        -- Verify the text was actually set and force row recreation if needed
+        local actualText = row.text:GetText()
+        if actualText ~= member.name then
+            addon.Debug("ERROR", "Row", i, "text verification failed for", member.name, "- recreating row")
+            -- Destroy the problematic row and create a new one
+            row:Hide()
+            row:SetParent(nil)
+            row = CreateMemberRow(scrollChild, i)
+            scrollChild.rows[i] = row
+            
+            -- Set up the new row completely
+            local classColor = nil
+            if member.class then
+                classColor = RAID_CLASS_COLORS[member.class] or (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[member.class])
+            end
+            if classColor then
+                row.text:SetTextColor(classColor.r, classColor.g, classColor.b)
+            else
+                row.text:SetTextColor(1, 1, 1)
+            end
+            row.text:SetText(member.name)
+            row.memberName = member.name
+            
+            addon.Debug("INFO", "Recreated row", i, "for", member.name)
+        end
         
         if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
             local formattedScore = addon.RaiderIOIntegration:GetFormattedScoreWithFallback(member.name)
@@ -213,23 +301,29 @@ local function UpdateMemberDisplay()
         end
         
         row:Show()
-        addon.Debug("TRACE", "UpdateMemberDisplay: Showed row", i, "for", member.name)
+        addon.Debug("TRACE", "UpdateMemberDisplay: Showed row", i, "for", member.name, "at position", string.format("y=%.0f", -((i - 1) * 22) - 5))
+        
+        
     end
     
     scrollChild:SetHeight(math.max(#members * 22 + 10, scrollFrame:GetHeight()))
     
+    -- Force a complete UI refresh to ensure all text elements render correctly
+    C_Timer.After(0.01, function()
+        if scrollChild and scrollChild.rows then
+            for i = 1, #members do
+                local row = scrollChild.rows[i]
+                if row and row.text then
+                    row.text:SetText(row.text:GetText())  -- Force text refresh
+                end
+            end
+        end
+    end)
+    
     local totalRows = scrollChild.rows and #scrollChild.rows or 0
     addon.Debug("DEBUG", "UpdateMemberDisplay: Display updated with", #members, "members, total rows created:", totalRows)
     
-    -- Debug: Check which rows are visible
-    if scrollChild.rows then
-        for i = 1, #scrollChild.rows do
-            if scrollChild.rows[i] then
-                local isShown = scrollChild.rows[i]:IsShown()
-                addon.Debug("TRACE", "Row", i, "shown:", isShown)
-            end
-        end
-    end
+    
 end
 
 CreateDragFrame = function()
@@ -349,8 +443,14 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
         memberFrame.bg:SetColorTexture(0.2, 0.2, 0.3, 0.3)
         memberFrame.bg:Hide()
         
+        memberFrame.roleText = memberFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        memberFrame.roleText:SetPoint("LEFT", memberFrame, "LEFT", 5, 0)
+        memberFrame.roleText:SetJustifyH("LEFT")
+        memberFrame.roleText:SetText("")
+        memberFrame.roleText:SetWidth(35)
+        
         memberFrame.text = memberFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        memberFrame.text:SetPoint("LEFT", memberFrame, "LEFT", 5, 0)
+        memberFrame.text:SetPoint("LEFT", memberFrame.roleText, "RIGHT", 5, 0)
         memberFrame.text:SetJustifyH("LEFT")
         memberFrame.text:SetText("Empty")
         memberFrame.text:SetTextColor(0.5, 0.5, 0.5)
@@ -572,6 +672,50 @@ EnsureEmptyGroupExists = function()
     end
 end
 
+RemoveExcessEmptyGroups = function()
+    addon.Debug("DEBUG", "RemoveExcessEmptyGroups: Checking for excess empty groups")
+    
+    local emptyGroupIndices = {}
+    
+    -- Find all empty groups
+    for i, group in ipairs(dynamicGroups) do
+        local memberCount = 0
+        for j = 1, MAX_GROUP_SIZE do
+            if group.members[j] then
+                memberCount = memberCount + 1
+            end
+        end
+        if memberCount == 0 then
+            table.insert(emptyGroupIndices, i)
+            addon.Debug("DEBUG", "RemoveExcessEmptyGroups: Found empty group at index", i)
+        end
+    end
+    
+    -- Keep only one empty group, remove the rest
+    if #emptyGroupIndices > 1 then
+        addon.Debug("INFO", "RemoveExcessEmptyGroups: Found", #emptyGroupIndices, "empty groups, removing", #emptyGroupIndices - 1)
+        
+        -- Remove excess empty groups (keep the first one)
+        for i = #emptyGroupIndices, 2, -1 do
+            local groupIndex = emptyGroupIndices[i]
+            local groupFrame = dynamicGroups[groupIndex]
+            
+            -- Hide and cleanup the group frame
+            if groupFrame then
+                groupFrame:Hide()
+                groupFrame:SetParent(nil)
+            end
+            
+            -- Remove from dynamicGroups array
+            table.remove(dynamicGroups, groupIndex)
+            addon.Debug("DEBUG", "RemoveExcessEmptyGroups: Removed empty group at index", groupIndex)
+        end
+        
+        -- Reposition remaining groups
+        RepositionAllGroups()
+    end
+end
+
 CalculateGroupLayout = function()
     if not groupsContainer then
         return 0, 0, 0
@@ -643,6 +787,12 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     addon.Debug("INFO", "AddMemberToGroup: ENTRY - Adding", memberName, "to group", groupIndex, "slot", slotIndex)
     addon.Debug("DEBUG", "AddMemberToGroup: dynamicGroups count:", #dynamicGroups)
     
+    -- Check if member is already in a group (unless being moved between groups)
+    if membersInGroups[memberName] and not (draggedMember and draggedMember.fromGroup) then
+        addon.Debug("ERROR", "AddMemberToGroup: Member", memberName, "is already in a group - RETURNING FALSE")
+        return false
+    end
+    
     if not dynamicGroups[groupIndex] then
         addon.Debug("ERROR", "AddMemberToGroup: Invalid group index", groupIndex, "- RETURNING FALSE")
         return false
@@ -681,8 +831,24 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
         end
         return false
     end
-    addon.Debug("DEBUG", "AddMemberToGroup: Member found, proceeding to add")
+    addon.Debug("DEBUG", "AddMemberToGroup: Member found, proceeding to validate")
     
+    -- Ensure member has role information before validation
+    if not memberInfo.role and addon.AutoFormation then
+        memberInfo.role = addon.AutoFormation:GetPlayerRole(memberInfo)
+        addon.Debug("DEBUG", "AddMemberToGroup: Detected role for", memberInfo.name, ":", memberInfo.role)
+    end
+    
+    -- Check role limits BEFORE making any changes
+    local canAdd, reason = CheckRoleLimits(groupIndex, memberInfo.role)
+    if not canAdd then
+        addon.Debug("ERROR", "AddMemberToGroup: Cannot add", memberInfo.name, "to group", groupIndex, "-", reason)
+        print("|cFFFF0000GrouperPlus:|r " .. reason)
+        return false
+    end
+    
+    -- Now it's safe to add the member
+    addon.Debug("DEBUG", "AddMemberToGroup: Role limit check passed, adding member")
     addon.Debug("DEBUG", "AddMemberToGroup: Setting member info in group.members[", slotIndex, "]")
     group.members[slotIndex] = memberInfo
     
@@ -721,10 +887,146 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
         addon.Debug("ERROR", "AddMemberToGroup: memberFrame is nil!")
     end
     
+    -- Ensure member has score information
+    if not memberInfo.score and addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
+        local profile = addon.RaiderIOIntegration:GetProfile(memberInfo.name)
+        if profile and profile.mythicKeystoneProfile then
+            memberInfo.score = profile.mythicKeystoneProfile.currentScore or 0
+            addon.Debug("DEBUG", "AddMemberToGroup: Found RaiderIO score for", memberInfo.name, ":", memberInfo.score)
+        else
+            memberInfo.score = 0
+        end
+    end
+    
     addon.Debug("DEBUG", "AddMemberToGroup: Calling EnsureEmptyGroupExists")
     EnsureEmptyGroupExists()
-    addon.Debug("INFO", "AddMemberToGroup: Successfully added", memberName, "to group", groupIndex, "slot", slotIndex, "- RETURNING TRUE")
+    
+    -- Apply role-based positioning after adding the member
+    addon.Debug("DEBUG", "AddMemberToGroup: About to call ReorganizeGroupByRole for group", groupIndex)
+    addon.Debug("DEBUG", "AddMemberToGroup: Member info before reorganize - name:", memberInfo and memberInfo.name or "nil", "role:", memberInfo and memberInfo.role or "nil", "score:", memberInfo and memberInfo.score or "nil")
+    ReorganizeGroupByRole(groupIndex)
+    
+    addon.Debug("INFO", "AddMemberToGroup: Successfully added", memberName, "to group", groupIndex, "with role-based positioning - RETURNING TRUE")
     return true
+end
+
+local function GetRolePriority(role)
+    -- Define role priorities for sorting (lower number = higher priority)
+    local priorities = {
+        TANK = 1,
+        HEALER = 2,
+        DPS = 3
+    }
+    return priorities[role] or 999
+end
+
+CheckRoleLimits = function(groupIndex, newMemberRole)
+    -- Role limits removed - allow any composition
+    if not dynamicGroups[groupIndex] then
+        return false, "Invalid group"
+    end
+    
+    addon.Debug("DEBUG", "CheckRoleLimits: Role limits disabled, allowing", newMemberRole, "in group", groupIndex)
+    return true
+end
+
+ReorganizeGroupByRole = function(groupIndex)
+    addon.Debug("INFO", "ReorganizeGroupByRole: Reorganizing group", groupIndex, "by role")
+    
+    if not dynamicGroups[groupIndex] then
+        addon.Debug("ERROR", "ReorganizeGroupByRole: Invalid group index", groupIndex)
+        return
+    end
+    
+    local group = dynamicGroups[groupIndex]
+    local members = {}
+    
+    -- Collect all current members
+    for slotIndex = 1, MAX_GROUP_SIZE do
+        if group.members[slotIndex] then
+            local member = group.members[slotIndex]
+            -- Ensure role is set
+            if not member.role and addon.AutoFormation then
+                member.role = addon.AutoFormation:GetPlayerRole(member)
+                addon.Debug("DEBUG", "ReorganizeGroupByRole: Detected role for", member.name, ":", member.role)
+            end
+            addon.Debug("DEBUG", "ReorganizeGroupByRole: Member", member.name, "has role:", member.role or "NONE")
+            table.insert(members, member)
+        end
+    end
+    
+    -- Sort members by role priority
+    addon.Debug("DEBUG", "ReorganizeGroupByRole: Sorting", #members, "members by role")
+    table.sort(members, function(a, b)
+        local priorityA = GetRolePriority(a.role)
+        local priorityB = GetRolePriority(b.role)
+        addon.Debug("TRACE", "Comparing", a.name, "(", a.role, "priority:", priorityA, ") vs", b.name, "(", b.role, "priority:", priorityB, ")")
+        if priorityA == priorityB then
+            -- If same role, sort by score if available
+            local scoreA = a.score or 0
+            local scoreB = b.score or 0
+            return scoreA > scoreB
+        end
+        return priorityA < priorityB
+    end)
+    addon.Debug("DEBUG", "ReorganizeGroupByRole: Sorting complete")
+    
+    -- Clear all slots
+    for slotIndex = 1, MAX_GROUP_SIZE do
+        group.members[slotIndex] = nil
+        local memberFrame = group.memberFrames[slotIndex]
+        if memberFrame then
+            memberFrame.bg:Hide()
+            memberFrame.text:SetText("Empty")
+            memberFrame.text:SetTextColor(0.5, 0.5, 0.5)
+            memberFrame.roleText:SetText("")
+            memberFrame.removeBtn:Hide()
+        end
+    end
+    
+    -- Re-add members in sorted order
+    for i, member in ipairs(members) do
+        group.members[i] = member
+        local memberFrame = group.memberFrames[i]
+        if memberFrame then
+            memberFrame.bg:Show()
+            memberFrame.text:SetText(member.name)
+            
+            -- Display role
+            local roleDisplay = ""
+            local roleColor = {r = 1, g = 1, b = 1}
+            if member.role == "TANK" then
+                roleDisplay = "[T]"
+                roleColor = {r = 0.78, g = 0.61, b = 0.43} -- Tank brown
+            elseif member.role == "HEALER" then
+                roleDisplay = "[H]"
+                roleColor = {r = 0.0, g = 1.0, b = 0.59} -- Healer green
+            elseif member.role == "DPS" then
+                roleDisplay = "[D]"
+                roleColor = {r = 0.77, g = 0.12, b = 0.23} -- DPS red
+            end
+            memberFrame.roleText:SetText(roleDisplay)
+            memberFrame.roleText:SetTextColor(roleColor.r, roleColor.g, roleColor.b)
+            
+            local classColor = nil
+            if member.class then
+                classColor = RAID_CLASS_COLORS[member.class] or (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[member.class])
+            end
+            
+            if classColor then
+                memberFrame.text:SetTextColor(classColor.r, classColor.g, classColor.b)
+            else
+                memberFrame.text:SetTextColor(1, 1, 1)
+            end
+            
+            memberFrame.removeBtn:Show()
+        end
+    end
+    
+    addon.Debug("INFO", "ReorganizeGroupByRole: Reorganized group", groupIndex, "- new order:")
+    for i, member in ipairs(members) do
+        addon.Debug("DEBUG", "  Slot", i, ":", member.name, "role:", member.role or "unknown")
+    end
 end
 
 RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate)
@@ -758,6 +1060,7 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate)
         memberFrame.bg:Hide()
         memberFrame.text:SetText("Empty")
         memberFrame.text:SetTextColor(0.5, 0.5, 0.5)
+        memberFrame.roleText:SetText("")
         memberFrame.removeBtn:Hide()
     end
     
@@ -765,16 +1068,26 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate)
         AddMemberBackToPlayerList(memberInfo)
     end
     
-    addon.Debug("INFO", "RemoveMemberFromGroup: Successfully removed", memberName, "from group", groupIndex, "slot", slotIndex)
+    -- Reorganize the group to maintain role-based positioning
+    ReorganizeGroupByRole(groupIndex)
+    
+    -- Check and remove excess empty groups (keep only one)
+    RemoveExcessEmptyGroups()
+    
+    addon.Debug("INFO", "RemoveMemberFromGroup: Successfully removed", memberName, "from group", groupIndex, "and reorganized by role")
     return true
 end
 
 RemoveMemberFromPlayerList = function(memberName)
     addon.Debug("INFO", "RemoveMemberFromPlayerList: Member", memberName, "now tracked in groups - will be excluded from next UpdateMemberDisplay")
+    
     addon.Debug("DEBUG", "RemoveMemberFromPlayerList: About to call UpdateMemberDisplay")
-    -- No need to manually remove from memberList since UpdateGuildMemberList will handle this
-    UpdateMemberDisplay()
-    addon.Debug("DEBUG", "RemoveMemberFromPlayerList: UpdateMemberDisplay call completed")
+    -- Defer the display update to ensure drag operations are fully complete
+    C_Timer.After(0.01, function()
+        -- No need to manually remove from memberList since UpdateGuildMemberList will handle this
+        UpdateMemberDisplay()
+        addon.Debug("DEBUG", "RemoveMemberFromPlayerList: Deferred UpdateMemberDisplay call completed")
+    end)
 end
 
 AddMemberBackToPlayerList = function(memberInfo)
@@ -873,12 +1186,38 @@ local function CreateMainFrame()
     leftPanel:SetWidth(320)
     
     local memberHeader = leftPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    memberHeader:SetPoint("TOP", leftPanel, "TOP", 0, -10)
+    memberHeader:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -10)
+    memberHeader:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -30, -10)
     memberHeader:SetText("Online Members (Lvl " .. MAX_LEVEL .. ")")
+    memberHeader:SetJustifyH("CENTER")
+    
+    -- Auto-formation buttons
+    local autoFormButton = CreateFrame("Button", "GrouperPlusAutoFormButton", leftPanel, "UIPanelButtonTemplate")
+    autoFormButton:SetSize(120, 22)
+    autoFormButton:SetPoint("TOPLEFT", memberHeader, "BOTTOMLEFT", 0, -8)
+    autoFormButton:SetText("Auto-Form")
+    autoFormButton:EnableMouse(true)
+    autoFormButton:SetFrameLevel(leftPanel:GetFrameLevel() + 10)
+    print("GrouperPlus: Auto-Form button created successfully!")
+    addon.Debug("DEBUG", "Created Auto-Form button with name:", autoFormButton:GetName())
+    autoFormButton:SetScript("OnClick", function()
+        print("GrouperPlus: Auto-Form button clicked!")
+        addon:AutoFormGroups()
+    end)
+    addon.Debug("DEBUG", "Auto-Form button click handler set")
+    
+    local clearButton = CreateFrame("Button", nil, leftPanel, "UIPanelButtonTemplate")
+    clearButton:SetSize(120, 22)
+    clearButton:SetPoint("TOPRIGHT", memberHeader, "BOTTOMRIGHT", 0, -8)
+    clearButton:SetText("Clear Groups")
+    clearButton:SetScript("OnClick", function()
+        addon.Debug("INFO", "Clear groups button clicked")
+        addon:ClearAllGroups()
+    end)
     
     local columnHeader = CreateFrame("Frame", nil, leftPanel)
-    columnHeader:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -30)
-    columnHeader:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -30, -30)
+    columnHeader:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -60)
+    columnHeader:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -30, -60)
     columnHeader:SetHeight(15)
     
     local nameHeader = columnHeader:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -892,12 +1231,19 @@ local function CreateMainFrame()
     scoreHeader:SetTextColor(0.8, 0.8, 0.8)
     
     scrollFrame = CreateFrame("ScrollFrame", nil, leftPanel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -50)
+    scrollFrame:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -80)
     scrollFrame:SetPoint("BOTTOMRIGHT", leftPanel, "BOTTOMRIGHT", -30, 8)
     
     scrollChild = CreateFrame("Frame", nil, scrollFrame)
     scrollChild:SetSize(scrollFrame:GetWidth(), 1)
     scrollFrame:SetScrollChild(scrollChild)
+    
+    -- Create loading message
+    loadingMessage = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    loadingMessage:SetPoint("CENTER", scrollChild, "TOP", 0, -50)
+    loadingMessage:SetText("Loading guild members...")
+    loadingMessage:SetTextColor(0.8, 0.8, 0.8)
+    loadingMessage:Hide() -- Initially hidden
     
     local rightPanel = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
     rightPanel:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 340, -5)
@@ -956,8 +1302,14 @@ local function CreateMainFrame()
     mainFrame:SetScript("OnEvent", function(self, event)
         if event == "GUILD_ROSTER_UPDATE" then
             addon.Debug("DEBUG", "CreateMainFrame: GUILD_ROSTER_UPDATE event received")
-            UpdateMemberDisplay()
-            UpdateGroupsDisplay()
+            local members = UpdateGuildMemberList()
+            if #members > 0 then
+                addon.Debug("INFO", "CreateMainFrame: GUILD_ROSTER_UPDATE found", #members, "members - updating display")
+                UpdateMemberDisplay()
+                UpdateGroupsDisplay()
+            else
+                addon.Debug("DEBUG", "CreateMainFrame: GUILD_ROSTER_UPDATE still shows 0 members")
+            end
         end
     end)
     
@@ -972,14 +1324,20 @@ local function CreateMainFrame()
     end)
     
     mainFrame:SetScript("OnShow", function()
-        addon.Debug("INFO", "CreateMainFrame: Main frame shown")
+        addon.Debug("INFO", "CreateMainFrame: OnShow script triggered!")
         addon.Debug("DEBUG", "CreateMainFrame: Initializing drag and drop system")
         draggedMember = nil
         HideDragFrame()
+        
+        -- Request fresh roster data first
         C_GuildInfo.GuildRoster()
+        
+        -- Force immediate update (will show loading message if no data available)
+        addon.Debug("DEBUG", "CreateMainFrame: Forcing immediate member list update from OnShow")
         UpdateMemberDisplay()
         UpdateGroupsDisplay()
-        addon.Debug("DEBUG", "CreateMainFrame: Frame shown complete, memberList count:", #memberList, "dynamicGroups count:", #dynamicGroups)
+        
+        addon.Debug("DEBUG", "CreateMainFrame: OnShow complete, update performed (loading message shown if needed)")
     end)
     
     mainFrame:SetScript("OnUpdate", function(self, elapsed)
@@ -987,6 +1345,12 @@ local function CreateMainFrame()
             UpdateDragFramePosition()
         end
     end)
+    
+    -- Perform initial update to show loading message if needed
+    addon.Debug("DEBUG", "CreateMainFrame: Performing initial member list update")
+    C_GuildInfo.GuildRoster()
+    UpdateMemberDisplay()
+    UpdateGroupsDisplay()
     
     addon.Debug("INFO", "CreateMainFrame: Main frame created successfully")
     addon.Debug("DEBUG", "CreateMainFrame: Frame size:", mainFrame:GetWidth(), "x", mainFrame:GetHeight())
@@ -1007,7 +1371,7 @@ function addon:ShowMainFrame()
         addon.Debug("DEBUG", "ShowMainFrame: Calling Show() on main frame")
         mainFrame:Show()
         addon.Debug("DEBUG", "ShowMainFrame: Frame visibility after Show():", mainFrame:IsVisible(), "shown:", mainFrame:IsShown())
-        C_GuildInfo.GuildRoster()
+        addon.Debug("DEBUG", "ShowMainFrame: Guild roster request will be handled by OnShow script")
     else
         addon.Debug("ERROR", "ShowMainFrame: mainFrame is nil after creation attempt")
     end
@@ -1034,4 +1398,117 @@ function addon:ToggleMainFrame()
     else
         self:ShowMainFrame()
     end
+end
+
+function addon:AutoFormGroups()
+    print("GrouperPlus: AutoFormGroups function called")
+    addon.Debug("INFO", "AutoFormGroups: Starting auto-formation process")
+    
+    if not self.AutoFormation then
+        addon.Debug("ERROR", "AutoFormGroups: AutoFormation module not loaded")
+        print("GrouperPlus: Auto-formation module not available")
+        return
+    end
+    
+    -- Clear existing groups before auto-formation
+    addon.Debug("DEBUG", "AutoFormGroups: Clearing existing groups")
+    self:ClearAllGroups()
+    
+    -- Get available members from the member list
+    if not memberList or #memberList == 0 then
+        addon.Debug("WARN", "AutoFormGroups: No members available for auto-formation")
+        print("GrouperPlus: No guild members available. Please wait for the guild roster to load, then try again.")
+        -- Try to refresh the guild roster
+        C_GuildInfo.GuildRoster()
+        return
+    end
+    
+    addon.Debug("INFO", "AutoFormGroups: Found", #memberList, "available members")
+    
+    -- Create balanced groups using the auto-formation algorithm
+    local groups = self.AutoFormation:CreateBalancedGroups(memberList, 5)
+    
+    if not groups or #groups == 0 then
+        addon.Debug("WARN", "AutoFormGroups: No valid groups could be formed")
+        print("GrouperPlus: Unable to form balanced groups with current members")
+        return
+    end
+    
+    addon.Debug("INFO", "AutoFormGroups: Created", #groups, "balanced groups")
+    
+    -- Apply the groups to the UI
+    for i, group in ipairs(groups) do
+        addon.Debug("DEBUG", "AutoFormGroups: Processing group", i, "with", #group, "members")
+        
+        -- Ensure we have enough group frames
+        while #dynamicGroups < i do
+            CreateNewGroup()
+            addon.Debug("DEBUG", "AutoFormGroups: Created new group frame, total groups:", #dynamicGroups)
+        end
+        
+        -- Add members to the group  
+        for j, member in ipairs(group) do
+            addon.Debug("INFO", "AutoFormGroups: Adding member", j, ":", member.name, "to group", i, "slot", j)
+            addon.Debug("DEBUG", "Member details - name:", member.name, "class:", member.class, "score:", member.score, "role:", member.role)
+            
+            local success = AddMemberToGroup(member.name, i, j)
+            addon.Debug("DEBUG", "AddMemberToGroup result:", success)
+            
+            if not success then
+                addon.Debug("ERROR", "Failed to add", member.name, "to group", i, "slot", j)
+            end
+        end
+        
+        addon.Debug("INFO", "AutoFormGroups: Completed group", i, "- members should now be visible")
+    end
+    
+    -- Update the UI
+    UpdateMemberDisplay()
+    RepositionAllGroups()
+    
+    print("GrouperPlus: Auto-formed", #groups, "balanced groups")
+    addon.Debug("INFO", "AutoFormGroups: Auto-formation completed successfully")
+end
+
+function addon:ClearAllGroups()
+    addon.Debug("INFO", "ClearAllGroups: Clearing all group assignments")
+    
+    -- Move all members back to the available pool
+    for memberName, _ in pairs(membersInGroups) do
+        addon.Debug("DEBUG", "ClearAllGroups: Returning", memberName, "to available pool")
+        membersInGroups[memberName] = nil
+    end
+    
+    -- Clear all group member frames
+    for _, groupFrame in ipairs(dynamicGroups) do
+        if groupFrame.members then
+            table.wipe(groupFrame.members)
+        end
+        -- Clear all member frame displays
+        if groupFrame.memberFrames then
+            for i = 1, MAX_GROUP_SIZE do
+                local memberFrame = groupFrame.memberFrames[i]
+                if memberFrame then
+                    memberFrame.bg:Hide()
+                    memberFrame.text:SetText("Empty")
+                    memberFrame.text:SetTextColor(0.5, 0.5, 0.5)
+                    memberFrame.roleText:SetText("")
+                    memberFrame.removeBtn:Hide()
+                end
+            end
+        end
+    end
+    
+    -- Reset group member counts
+    for _, groupFrame in ipairs(dynamicGroups) do
+        if groupFrame.memberCount then
+            groupFrame.memberCount:SetText("0/5")
+        end
+    end
+    
+    -- Update the member list to show all available members again
+    UpdateMemberDisplay()
+    RepositionAllGroups()
+    
+    addon.Debug("DEBUG", "ClearAllGroups: All groups cleared successfully")
 end

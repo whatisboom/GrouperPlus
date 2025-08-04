@@ -73,13 +73,7 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 
 ## Planned Features
 
-- **Smart Group Formation** - Automated group creation based on roles, RaiderIO score, and class composition
-- **Role Management** - Tank/Healer/DPS filtering and role-based group suggestions
-- **Advanced Filtering** - Search and filter options by class, spec, item level, and achievements
-- **Activity Scheduling** - Calendar integration for planning guild events and activities
-- **Export Functionality** - Export group compositions and member availability data
-- **Cross-Realm Support** - Enhanced functionality for cross-realm guild members
-- **Integration Expansions** - Additional third-party addon integrations (WarcraftLogs, etc.)
+See [TODO.md](TODO.md) for the complete list of planned features and development roadmap.
 
 ## Requirements
 

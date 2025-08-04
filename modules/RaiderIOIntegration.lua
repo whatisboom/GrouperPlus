@@ -24,27 +24,12 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         local hasGetScoreColor = RaiderIO and RaiderIO.GetScoreColor ~= nil
         local enabled = addon.settings and addon.settings.raiderIO and addon.settings.raiderIO.enabled
         
-        Debug(LOG_LEVEL.INFO, "RaiderIO diagnostic:")
-        Debug(LOG_LEVEL.INFO, "  RaiderIO exists:", raiderIOExists)
-        Debug(LOG_LEVEL.INFO, "  Has GetProfile:", hasGetProfile)
-        Debug(LOG_LEVEL.INFO, "  Has GetPlayerProfile:", hasGetPlayerProfile)
-        Debug(LOG_LEVEL.INFO, "  Has GetScoreColor:", hasGetScoreColor)
-        Debug(LOG_LEVEL.INFO, "  Settings enabled:", enabled)
-        
-        if raiderIOExists and RaiderIO then
-            Debug(LOG_LEVEL.INFO, "  RaiderIO version:", RaiderIO.version or "unknown")
-            if RaiderIO.API then
-                Debug(LOG_LEVEL.INFO, "  Has API module:", true)
-            end
-        end
-        
         local available = raiderIOExists and (hasGetProfile or hasGetPlayerProfile)
         Debug(LOG_LEVEL.DEBUG, "RaiderIO availability result:", available, "enabled:", enabled)
         return available and enabled
     end
     
     function RaiderIOIntegration:GetProfile(unitOrName)
-        Debug(LOG_LEVEL.DEBUG, "Getting RaiderIO profile for unit/name:", unitOrName)
         
         if not self:IsAvailable() then
             Debug(LOG_LEVEL.WARN, "RaiderIO not available")
@@ -53,66 +38,33 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         
         -- Try GetProfile first
         if RaiderIO.GetProfile then
-            Debug(LOG_LEVEL.INFO, "Calling RaiderIO.GetProfile for:", unitOrName)
             local success, profile = pcall(RaiderIO.GetProfile, unitOrName)
-            Debug(LOG_LEVEL.INFO, "GetProfile result - Success:", success, "Profile exists:", profile ~= nil)
             if success and profile then
-                Debug(LOG_LEVEL.INFO, "Profile details - Name:", profile.name, "hasRenderableData:", profile.hasRenderableData)
-                if profile.mythicKeystoneProfile then
-                    Debug(LOG_LEVEL.INFO, "Has mythicKeystoneProfile:", true)
-                    Debug(LOG_LEVEL.INFO, "Current score:", profile.mythicKeystoneProfile.currentScore)
-                else
-                    Debug(LOG_LEVEL.INFO, "Has mythicKeystoneProfile:", false)
-                end
                 -- Check if we have usable M+ data instead of relying on hasRenderableData
                 if profile.mythicKeystoneProfile and profile.mythicKeystoneProfile.currentScore then
-                    Debug(LOG_LEVEL.INFO, "Successfully retrieved profile via GetProfile for:", profile.name or unitOrName)
                     return profile
                 elseif profile.hasRenderableData then
-                    Debug(LOG_LEVEL.INFO, "Profile has renderable data but no M+ score for:", unitOrName)
                     return profile
-                else
-                    Debug(LOG_LEVEL.INFO, "GetProfile returned profile but no usable M+ data for:", unitOrName)
                 end
-            else
-                Debug(LOG_LEVEL.INFO, "GetProfile failed for", unitOrName, "- Error:", profile or "unknown")
             end
         end
         
         -- Try GetPlayerProfile as fallback
         if RaiderIO.GetPlayerProfile then
-            Debug(LOG_LEVEL.INFO, "Calling RaiderIO.GetPlayerProfile for:", unitOrName)
             local success, profile = pcall(RaiderIO.GetPlayerProfile, unitOrName)
-            Debug(LOG_LEVEL.INFO, "GetPlayerProfile result - Success:", success, "Profile exists:", profile ~= nil)
             if success and profile then
-                Debug(LOG_LEVEL.INFO, "Profile details - Name:", profile.name, "hasRenderableData:", profile.hasRenderableData)
-                if profile.mythicKeystoneProfile then
-                    Debug(LOG_LEVEL.INFO, "Has mythicKeystoneProfile:", true)
-                    Debug(LOG_LEVEL.INFO, "Current score:", profile.mythicKeystoneProfile.currentScore)
-                else
-                    Debug(LOG_LEVEL.INFO, "Has mythicKeystoneProfile:", false)
-                end
                 -- Check if we have usable M+ data instead of relying on hasRenderableData
                 if profile.mythicKeystoneProfile and profile.mythicKeystoneProfile.currentScore then
-                    Debug(LOG_LEVEL.INFO, "Successfully retrieved profile via GetPlayerProfile for:", profile.name or unitOrName)
                     return profile
                 elseif profile.hasRenderableData then
-                    Debug(LOG_LEVEL.INFO, "Profile has renderable data but no M+ score for:", unitOrName)
                     return profile
-                else
-                    Debug(LOG_LEVEL.INFO, "GetPlayerProfile returned profile but no usable M+ data for:", unitOrName)
                 end
-            else
-                Debug(LOG_LEVEL.INFO, "GetPlayerProfile failed for", unitOrName, "- Error:", profile or "unknown")
             end
         end
-        
-        Debug(LOG_LEVEL.DEBUG, "No valid profile found for:", unitOrName)
         return nil, "No valid profile found"
     end
     
     function RaiderIOIntegration:GetMythicPlusScore(unitOrName)
-        Debug(LOG_LEVEL.DEBUG, "Getting M+ score for unit/name:", unitOrName)
         
         local profile, err = self:GetProfile(unitOrName)
         if not profile then
@@ -121,16 +73,12 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         
         if profile.mythicKeystoneProfile and profile.mythicKeystoneProfile.currentScore then
             local score = profile.mythicKeystoneProfile.currentScore
-            Debug(LOG_LEVEL.INFO, "M+ score for", profile.name or unitOrName, ":", score)
             return score
         end
-        
-        Debug(LOG_LEVEL.DEBUG, "No M+ data available for unit/name:", unitOrName)
         return nil, "No M+ data"
     end
     
     function RaiderIOIntegration:GetFormattedScoreWithFallback(characterName)
-        Debug(LOG_LEVEL.DEBUG, "Getting formatted score with fallback for:", characterName)
         
         local namesToTry = {}
         
@@ -149,38 +97,23 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         end
         
         for _, nameVariant in ipairs(namesToTry) do
-            Debug(LOG_LEVEL.INFO, "Trying name variant:", nameVariant)
             local score, err = self:GetMythicPlusScore(nameVariant)
-            Debug(LOG_LEVEL.INFO, "Result for", nameVariant, "- Score:", score, "Error:", err)
             if score then
                 if self:IsAvailable() and RaiderIO.GetScoreColor then
                     local success, r, g, b = pcall(RaiderIO.GetScoreColor, score)
                     if success and r and g and b then
-                        local formattedScore = string.format("|cff%02x%02x%02x%d|r", r*255, g*255, b*255, score)
-                        Debug(LOG_LEVEL.DEBUG, "Formatted score for", nameVariant, ":", formattedScore)
-                        return formattedScore
-                    else
-                        Debug(LOG_LEVEL.WARN, "GetScoreColor failed for score", score, "- Error:", r)
+                        return string.format("|cff%02x%02x%02x%d|r", r*255, g*255, b*255, score)
                     end
                 end
-                
-                local fallbackScore = tostring(score)
-                Debug(LOG_LEVEL.DEBUG, "Fallback score formatting for", nameVariant, ":", fallbackScore)
-                return fallbackScore
-            else
-                Debug(LOG_LEVEL.INFO, "No score for", nameVariant, "- Reason:", err or "unknown")
+                return tostring(score)
             end
         end
-        
-        Debug(LOG_LEVEL.DEBUG, "No valid score found for any name variant of:", characterName, "- returning 0")
         
         -- Return formatted 0 instead of nil
         if self:IsAvailable() and RaiderIO.GetScoreColor then
             local success, r, g, b = pcall(RaiderIO.GetScoreColor, 0)
             if success and r and g and b then
-                local formattedScore = string.format("|cff%02x%02x%02x%d|r", r*255, g*255, b*255, 0)
-                Debug(LOG_LEVEL.DEBUG, "Formatted 0 score:", formattedScore)
-                return formattedScore
+                return string.format("|cff%02x%02x%02x%d|r", r*255, g*255, b*255, 0)
             end
         end
         
@@ -257,13 +190,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         end
         
         local success, result = pcall(RaiderIO.ShowProfile, tooltip, unit)
-        if success then
-            Debug(LOG_LEVEL.DEBUG, "Successfully added RaiderIO tooltip info")
-            return result
-        else
-            Debug(LOG_LEVEL.ERROR, "Failed to add RaiderIO tooltip info:", result)
-            return false
-        end
+        return success and result or false
     end
     
     function RaiderIOIntegration:GetGroupMemberScores()
@@ -344,8 +271,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
                 return
             end
             
-            Debug(LOG_LEVEL.TRACE, "Adding RaiderIO info to tooltip for unit:", unit)
-            RaiderIOIntegration:AddToTooltip(tooltip, unit)
+                RaiderIOIntegration:AddToTooltip(tooltip, unit)
         end
         
         GameTooltip:HookScript("OnShow", function(self)
