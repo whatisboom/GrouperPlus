@@ -590,10 +590,18 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
             addon.Debug("INFO", "=== OnReceiveDrag ENTRY ===")
             local slotIndex = i  -- Capture the slot index in local scope
             addon.Debug("INFO", "Group slot OnReceiveDrag: group", groupIndex, "slot", slotIndex, "draggedMember:", draggedMember and draggedMember.name or "nil")
-            addon.Debug("DEBUG", "OnReceiveDrag condition check: draggedMember exists:", draggedMember ~= nil)
-            addon.Debug("DEBUG", "OnReceiveDrag condition check: slot empty:", not groupFrame.members[slotIndex])
-            if draggedMember and not groupFrame.members[slotIndex] then
-                addon.Debug("INFO", "Dropped member", draggedMember.name, "on group", groupIndex, "slot", slotIndex)
+            
+            if not draggedMember then
+                addon.Debug("WARN", "OnReceiveDrag: No draggedMember")
+                return
+            end
+            
+            local targetMember = groupFrame.members[slotIndex]
+            addon.Debug("DEBUG", "OnReceiveDrag: Target slot has member:", targetMember and targetMember.name or "empty")
+            
+            -- Case 1: Dropping on empty slot (existing behavior)
+            if not targetMember then
+                addon.Debug("INFO", "Case 1: Dropping", draggedMember.name, "on empty slot", slotIndex, "in group", groupIndex)
                 
                 local memberName = draggedMember.name
                 local sourceRow = draggedMember.sourceRow
@@ -601,50 +609,407 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                 local sourceGroup = draggedMember.sourceGroup
                 local sourceSlot = draggedMember.sourceSlot
                 
-                addon.Debug("DEBUG", "About to call AddMemberToGroup with:", memberName, groupIndex, slotIndex, "fromGroup:", fromGroup)
-                addon.Debug("DEBUG", "AddMemberToGroup function exists:", AddMemberToGroup ~= nil)
-                
                 local success = false
-                local errorMsg = nil
                 local status, result = pcall(AddMemberToGroup, memberName, groupIndex, slotIndex)
                 if status then
                     success = result
-                    addon.Debug("DEBUG", "AddMemberToGroup returned:", success)
                 else
-                    errorMsg = result
-                    addon.Debug("ERROR", "AddMemberToGroup failed with error:", errorMsg)
+                    addon.Debug("ERROR", "AddMemberToGroup failed with error:", result)
                 end
                 
-                addon.Debug("DEBUG", "Checking success result:", success)
                 if success then
-                    addon.Debug("DEBUG", "Success=true, proceeding with member removal and UI updates")
                     if fromGroup and sourceGroup and sourceSlot then
                         addon.Debug("INFO", "Removing member from source group", sourceGroup, "slot", sourceSlot)
-                        RemoveMemberFromGroup(sourceGroup, sourceSlot, true) -- Skip player list update when moving between groups
+                        RemoveMemberFromGroup(sourceGroup, sourceSlot, true)
                     else
                         RemoveMemberFromPlayerList(memberName)
                         if sourceRow then
                             sourceRow:Hide()
                         end
                     end
-                    addon.Debug("INFO", "Successfully dropped (OnReceiveDrag)", memberName, "on group", groupIndex, "slot", slotIndex, "- AddMemberToGroup returned:", success)
-                else
-                    addon.Debug("ERROR", "Failed to add member", memberName, "to group", groupIndex, "slot", slotIndex)
+                    addon.Debug("INFO", "Successfully dropped", memberName, "on empty slot")
                 end
                 
                 draggedMember = nil
                 ResetCursor()
                 HideDragFrame()
-            else
-                addon.Debug("WARN", "OnReceiveDrag: Cannot drop - draggedMember:", draggedMember and draggedMember.name or "nil", "slot occupied:", groupFrame.members[slotIndex] ~= nil)
+                return
             end
+            
+            -- Case 2: Dropping on occupied slot - check for available slots in the group first
+            local emptySlotIndex = nil
+            for slot = 1, MAX_GROUP_SIZE do
+                if not groupFrame.members[slot] then
+                    emptySlotIndex = slot
+                    break
+                end
+            end
+            
+            if emptySlotIndex then
+                addon.Debug("INFO", "Case 2: Group has empty slot", emptySlotIndex, "- adding", draggedMember.name, "there instead")
+                
+                local memberName = draggedMember.name
+                local sourceRow = draggedMember.sourceRow
+                local fromGroup = draggedMember.fromGroup
+                local sourceGroup = draggedMember.sourceGroup
+                local sourceSlot = draggedMember.sourceSlot
+                
+                local success = false
+                local status, result = pcall(AddMemberToGroup, memberName, groupIndex, emptySlotIndex)
+                if status then
+                    success = result
+                else
+                    addon.Debug("ERROR", "AddMemberToGroup failed with error:", result)
+                end
+                
+                if success then
+                    if fromGroup and sourceGroup and sourceSlot then
+                        RemoveMemberFromGroup(sourceGroup, sourceSlot, true)
+                    else
+                        RemoveMemberFromPlayerList(memberName)
+                        if sourceRow then
+                            sourceRow:Hide()
+                        end
+                    end
+                    addon.Debug("INFO", "Successfully added", memberName, "to available slot", emptySlotIndex)
+                end
+                
+                draggedMember = nil
+                ResetCursor()
+                HideDragFrame()
+                return
+            end
+            
+            -- Case 3: Group is full - replace/swap logic
+            addon.Debug("INFO", "Case 3: Group is full - handling replacement/swap")
+            
+            local draggedMemberName = draggedMember.name
+            local draggedFromGroup = draggedMember.fromGroup
+            local draggedSourceGroup = draggedMember.sourceGroup
+            local draggedSourceSlot = draggedMember.sourceSlot
+            local draggedSourceRow = draggedMember.sourceRow
+            
+            if draggedFromGroup and draggedSourceGroup and draggedSourceSlot then
+                -- Case 3a: Both members are from groups - swap them
+                addon.Debug("INFO", "Case 3a: Swapping", draggedMemberName, "from group", draggedSourceGroup, "with", targetMember.name, "from group", groupIndex)
+                
+                -- Store both member info before removal
+                local targetMemberInfo = {
+                    name = targetMember.name,
+                    class = targetMember.class,
+                    role = targetMember.role,
+                    score = targetMember.score
+                }
+                
+                local draggedMemberInfo = {
+                    name = draggedMemberName,
+                    class = draggedMember.class,
+                    role = draggedMember.role,
+                    score = draggedMember.score
+                }
+                
+                -- Remove both members from their current positions (this will reorganize both groups)
+                RemoveMemberFromGroup(groupIndex, slotIndex, true)
+                RemoveMemberFromGroup(draggedSourceGroup, draggedSourceSlot, true)
+                
+                -- Temporarily clear members from tracking to allow re-adding to different groups
+                membersInGroups[targetMemberInfo.name] = nil
+                membersInGroups[draggedMemberName] = nil
+                addon.Debug("DEBUG", "Temporarily cleared both members from membersInGroups tracking for swap")
+                
+                -- Find available slots in both groups after reorganization
+                local targetGroupSlot = nil
+                local sourceGroupSlot = nil
+                
+                for slot = 1, MAX_GROUP_SIZE do
+                    if not groupFrame.members[slot] then
+                        targetGroupSlot = slot
+                        break
+                    end
+                end
+                
+                for slot = 1, MAX_GROUP_SIZE do
+                    if not dynamicGroups[draggedSourceGroup].members[slot] then
+                        sourceGroupSlot = slot
+                        break
+                    end
+                end
+                
+                -- Add them to their new positions
+                local success1 = false
+                local success2 = false
+                
+                if targetGroupSlot then
+                    success1 = AddMemberToGroup(draggedMemberName, groupIndex, targetGroupSlot)
+                end
+                
+                if sourceGroupSlot then
+                    -- Temporarily update draggedMember.memberInfo for the second AddMemberToGroup call
+                    local originalMemberInfo = draggedMember.memberInfo
+                    draggedMember.memberInfo = targetMemberInfo
+                    success2 = AddMemberToGroup(targetMemberInfo.name, draggedSourceGroup, sourceGroupSlot)
+                    -- Restore original memberInfo (though draggedMember will be cleared after this anyway)
+                    draggedMember.memberInfo = originalMemberInfo
+                end
+                
+                if success1 and success2 then
+                    addon.Debug("INFO", "Successfully swapped", draggedMemberName, "and", targetMemberInfo.name)
+                else
+                    addon.Debug("ERROR", "Swap failed - success1:", success1, "success2:", success2)
+                    -- Rollback: try to put members back in available slots
+                    if not success1 and targetGroupSlot then
+                        AddMemberToGroup(targetMemberInfo.name, groupIndex, targetGroupSlot)
+                    end
+                    if not success2 and sourceGroupSlot then
+                        AddMemberToGroup(draggedMemberName, draggedSourceGroup, sourceGroupSlot)
+                    end
+                end
+                
+            else
+                -- Case 3b: Dragged member is from player list - replace target member
+                addon.Debug("INFO", "Case 3b: Replacing", targetMember.name, "in group", groupIndex, "with", draggedMemberName, "from player list")
+                
+                -- Store target member info before removal
+                local targetMemberInfo = {
+                    name = targetMember.name,
+                    class = targetMember.class,
+                    role = targetMember.role,
+                    score = targetMember.score
+                }
+                
+                -- Remove target member from group (this will reorganize the group)
+                RemoveMemberFromGroup(groupIndex, slotIndex, true)
+                
+                -- Temporarily clear target member from tracking to allow replacement
+                membersInGroups[targetMemberInfo.name] = nil
+                addon.Debug("DEBUG", "Temporarily cleared", targetMemberInfo.name, "from membersInGroups tracking for replacement")
+                
+                -- Find the first available slot in the group after reorganization
+                local availableSlot = nil
+                for slot = 1, MAX_GROUP_SIZE do
+                    if not groupFrame.members[slot] then
+                        availableSlot = slot
+                        break
+                    end
+                end
+                
+                if availableSlot then
+                    -- Add dragged member to available slot
+                    local success = AddMemberToGroup(draggedMemberName, groupIndex, availableSlot)
+                    
+                    if success then
+                        -- Remove dragged member from player list and add target member back
+                        RemoveMemberFromPlayerList(draggedMemberName)
+                        if draggedSourceRow then
+                            draggedSourceRow:Hide()
+                        end
+                        AddMemberBackToPlayerList(targetMemberInfo)
+                        addon.Debug("INFO", "Successfully replaced", targetMemberInfo.name, "with", draggedMemberName, "in slot", availableSlot)
+                    else
+                        addon.Debug("ERROR", "Failed to add replacement member")
+                        -- Rollback: add target member back to group
+                        AddMemberToGroup(targetMemberInfo.name, groupIndex, availableSlot)
+                    end
+                else
+                    addon.Debug("ERROR", "No available slot found after member removal")
+                    -- Rollback: add target member back - find any available slot
+                    for slot = 1, MAX_GROUP_SIZE do
+                        if not groupFrame.members[slot] then
+                            AddMemberToGroup(targetMemberInfo.name, groupIndex, slot)
+                            break
+                        end
+                    end
+                end
+            end
+            
+            draggedMember = nil
+            ResetCursor()
+            HideDragFrame()
         end)
         
         memberFrame.slotIndex = i
         groupFrame.memberFrames[i] = memberFrame
     end
     
-    addon.Debug("DEBUG", "CreateGroupFrame: Group frame", groupIndex, "created successfully with width", groupWidth)
+    -- Add group-level drag and drop handling to allow dropping anywhere in the group
+    groupFrame:EnableMouse(true)
+    groupFrame:RegisterForDrag("LeftButton")
+    
+    groupFrame:SetScript("OnReceiveDrag", function(self)
+        addon.Debug("INFO", "=== Group-level OnReceiveDrag ENTRY ===")
+        addon.Debug("INFO", "Group OnReceiveDrag: group", groupIndex, "draggedMember:", draggedMember and draggedMember.name or "nil")
+        
+        if not draggedMember then
+            addon.Debug("WARN", "Group OnReceiveDrag: No draggedMember")
+            return
+        end
+        
+        -- Find the first available slot in the group
+        local availableSlot = nil
+        for slot = 1, MAX_GROUP_SIZE do
+            if not groupFrame.members[slot] then
+                availableSlot = slot
+                addon.Debug("DEBUG", "Group OnReceiveDrag: Found available slot", slot, "in group", groupIndex)
+                break
+            end
+        end
+        
+        if availableSlot then
+            -- Case 1: Group has available slots - add member there
+            addon.Debug("INFO", "Group drop case 1: Adding", draggedMember.name, "to available slot", availableSlot, "in group", groupIndex)
+            
+            local memberName = draggedMember.name
+            local sourceRow = draggedMember.sourceRow
+            local fromGroup = draggedMember.fromGroup
+            local sourceGroup = draggedMember.sourceGroup
+            local sourceSlot = draggedMember.sourceSlot
+            
+            local success = false
+            local status, result = pcall(AddMemberToGroup, memberName, groupIndex, availableSlot)
+            if status then
+                success = result
+            else
+                addon.Debug("ERROR", "Group drop: AddMemberToGroup failed with error:", result)
+            end
+            
+            if success then
+                if fromGroup and sourceGroup and sourceSlot then
+                    addon.Debug("INFO", "Group drop: Removing member from source group", sourceGroup, "slot", sourceSlot)
+                    RemoveMemberFromGroup(sourceGroup, sourceSlot, true)
+                else
+                    RemoveMemberFromPlayerList(memberName)
+                    if sourceRow then
+                        sourceRow:Hide()
+                    end
+                end
+                addon.Debug("INFO", "Group drop: Successfully added", memberName, "to available slot", availableSlot)
+            else
+                addon.Debug("ERROR", "Group drop: Failed to add member", memberName, "to group", groupIndex)
+            end
+            
+        else
+            -- Case 2: Group is full - replace the last member (or could implement different logic)
+            addon.Debug("INFO", "Group drop case 2: Group", groupIndex, "is full - replacing last member")
+            
+            -- Find the last occupied slot
+            local lastSlot = nil
+            for slot = MAX_GROUP_SIZE, 1, -1 do
+                if groupFrame.members[slot] then
+                    lastSlot = slot
+                    break
+                end
+            end
+            
+            if lastSlot then
+                local targetMember = groupFrame.members[lastSlot]
+                local draggedMemberName = draggedMember.name
+                local draggedFromGroup = draggedMember.fromGroup
+                local draggedSourceGroup = draggedMember.sourceGroup
+                local draggedSourceSlot = draggedMember.sourceSlot
+                local draggedSourceRow = draggedMember.sourceRow
+                
+                if draggedFromGroup and draggedSourceGroup and draggedSourceSlot then
+                    -- Swap with last member
+                    addon.Debug("INFO", "Group drop: Swapping", draggedMemberName, "with last member", targetMember.name)
+                    
+                    local targetMemberInfo = {
+                        name = targetMember.name,
+                        class = targetMember.class,
+                        role = targetMember.role,
+                        score = targetMember.score
+                    }
+                    
+                    -- Remove both members and clear tracking
+                    RemoveMemberFromGroup(groupIndex, lastSlot, true)
+                    RemoveMemberFromGroup(draggedSourceGroup, draggedSourceSlot, true)
+                    membersInGroups[targetMember.name] = nil
+                    membersInGroups[draggedMemberName] = nil
+                    
+                    -- Find available slots after reorganization
+                    local targetGroupSlot = nil
+                    local sourceGroupSlot = nil
+                    
+                    for slot = 1, MAX_GROUP_SIZE do
+                        if not groupFrame.members[slot] then
+                            targetGroupSlot = slot
+                            break
+                        end
+                    end
+                    
+                    for slot = 1, MAX_GROUP_SIZE do
+                        if not dynamicGroups[draggedSourceGroup].members[slot] then
+                            sourceGroupSlot = slot
+                            break
+                        end
+                    end
+                    
+                    -- Perform the swap
+                    local success1 = targetGroupSlot and AddMemberToGroup(draggedMemberName, groupIndex, targetGroupSlot)
+                    local success2 = false
+                    if sourceGroupSlot then
+                        -- Temporarily update draggedMember.memberInfo for the second AddMemberToGroup call
+                        local originalMemberInfo = draggedMember.memberInfo
+                        draggedMember.memberInfo = targetMemberInfo
+                        success2 = AddMemberToGroup(targetMemberInfo.name, draggedSourceGroup, sourceGroupSlot)
+                        -- Restore original memberInfo
+                        draggedMember.memberInfo = originalMemberInfo
+                    end
+                    
+                    if success1 and success2 then
+                        addon.Debug("INFO", "Group drop: Successfully swapped", draggedMemberName, "and", targetMemberInfo.name)
+                    else
+                        addon.Debug("ERROR", "Group drop: Swap failed - success1:", success1, "success2:", success2)
+                    end
+                    
+                else
+                    -- Replace last member with dragged member from player list
+                    addon.Debug("INFO", "Group drop: Replacing last member", targetMember.name, "with", draggedMemberName)
+                    
+                    local targetMemberInfo = {
+                        name = targetMember.name,
+                        class = targetMember.class,
+                        role = targetMember.role,
+                        score = targetMember.score
+                    }
+                    
+                    -- Remove target member and clear tracking
+                    RemoveMemberFromGroup(groupIndex, lastSlot, true)
+                    membersInGroups[targetMember.name] = nil
+                    
+                    -- Find available slot after reorganization
+                    local availableSlotAfterRemoval = nil
+                    for slot = 1, MAX_GROUP_SIZE do
+                        if not groupFrame.members[slot] then
+                            availableSlotAfterRemoval = slot
+                            break
+                        end
+                    end
+                    
+                    if availableSlotAfterRemoval then
+                        local success = AddMemberToGroup(draggedMemberName, groupIndex, availableSlotAfterRemoval)
+                        if success then
+                            RemoveMemberFromPlayerList(draggedMemberName)
+                            if draggedSourceRow then
+                                draggedSourceRow:Hide()
+                            end
+                            AddMemberBackToPlayerList(targetMemberInfo)
+                            addon.Debug("INFO", "Group drop: Successfully replaced", targetMemberInfo.name, "with", draggedMemberName)
+                        else
+                            -- Rollback
+                            AddMemberToGroup(targetMemberInfo.name, groupIndex, availableSlotAfterRemoval)
+                            addon.Debug("ERROR", "Group drop: Failed to replace member")
+                        end
+                    end
+                end
+            end
+        end
+        
+        draggedMember = nil
+        ResetCursor()
+        HideDragFrame()
+    end)
+    
+    addon.Debug("DEBUG", "CreateGroupFrame: Group frame", groupIndex, "created successfully with width", groupWidth, "and group-level drag handling")
     return groupFrame
 end
 
@@ -820,7 +1185,7 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     -- If not found in memberList, check if it's being moved from another group
     if not memberInfo and draggedMember and draggedMember.fromGroup and draggedMember.memberInfo then
         memberInfo = draggedMember.memberInfo
-        addon.Debug("DEBUG", "AddMemberToGroup: Using member info from draggedMember (group-to-group move):", memberInfo.name)
+        addon.Debug("DEBUG", "AddMemberToGroup: Using member info from draggedMember (group-to-group move):", memberName)
     end
     
     if not memberInfo then

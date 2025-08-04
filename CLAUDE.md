@@ -102,3 +102,7 @@ When adding new options to the settings panel:
 
 ## Security Guidelines
 - Never execute 'lua' on the command line as this repository contains WoW client specific code
+- **Never run lua directly since these files contained wow specific client code**
+
+## Code Development Warnings
+- Never put character specific debug code
