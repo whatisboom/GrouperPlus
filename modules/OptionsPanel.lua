@@ -119,6 +119,154 @@ local function CreateOptionsPanel()
         Settings.CreateCheckbox(category, setting, tooltip)
     end
     
+    -- Enable Communication Checkbox
+    do
+        local name = "Enable Addon Communication"
+        local tooltip = "Enable communication with other GrouperPlus users in your guild"
+        local defaultValue = true
+        
+        local setting = Settings.RegisterProxySetting(category, "GrouperPlusCommunicationEnabled", Settings.VarType.Boolean,
+            name, defaultValue,
+            function() 
+                local currentValue = addon.settings.communication.enabled
+                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting communication enabled:", currentValue)
+                return currentValue
+            end,
+            function(value)
+                local oldValue = addon.settings.communication.enabled
+                addon.settings.communication.enabled = value
+                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Addon communication changed from", oldValue, "to", value)
+            end
+        )
+        
+        Settings.CreateCheckbox(category, setting, tooltip)
+    end
+    
+    -- Accept Group Sync Checkbox
+    do
+        local name = "Accept Group Synchronization"
+        local tooltip = "Allow other addon users to sync their group formations to your interface"
+        local defaultValue = true
+        
+        local setting = Settings.RegisterProxySetting(category, "GrouperPlusAcceptGroupSync", Settings.VarType.Boolean,
+            name, defaultValue,
+            function() 
+                local currentValue = addon.settings.communication.acceptGroupSync
+                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept group sync:", currentValue)
+                return currentValue
+            end,
+            function(value)
+                local oldValue = addon.settings.communication.acceptGroupSync
+                addon.settings.communication.acceptGroupSync = value
+                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept group sync changed from", oldValue, "to", value)
+            end
+        )
+        
+        Settings.CreateCheckbox(category, setting, tooltip)
+    end
+    
+    -- Accept Player Data Checkbox
+    do
+        local name = "Accept Player Data Sharing"
+        local tooltip = "Allow receiving player information (roles, ratings) from other addon users"
+        local defaultValue = true
+        
+        local setting = Settings.RegisterProxySetting(category, "GrouperPlusAcceptPlayerData", Settings.VarType.Boolean,
+            name, defaultValue,
+            function() 
+                local currentValue = addon.settings.communication.acceptPlayerData
+                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept player data:", currentValue)
+                return currentValue
+            end,
+            function(value)
+                local oldValue = addon.settings.communication.acceptPlayerData
+                addon.settings.communication.acceptPlayerData = value
+                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept player data changed from", oldValue, "to", value)
+            end
+        )
+        
+        Settings.CreateCheckbox(category, setting, tooltip)
+    end
+    
+    -- Accept RaiderIO Data Checkbox
+    do
+        local name = "Accept RaiderIO Data Sharing"
+        local tooltip = "Allow receiving RaiderIO scores from other addon users (useful when you don't have RaiderIO installed)"
+        local defaultValue = true
+        
+        local setting = Settings.RegisterProxySetting(category, "GrouperPlusAcceptRaiderIOData", Settings.VarType.Boolean,
+            name, defaultValue,
+            function() 
+                local currentValue = addon.settings.communication.acceptRaiderIOData
+                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept RaiderIO data:", currentValue)
+                return currentValue
+            end,
+            function(value)
+                local oldValue = addon.settings.communication.acceptRaiderIOData
+                addon.settings.communication.acceptRaiderIOData = value
+                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept RaiderIO data changed from", oldValue, "to", value)
+            end
+        )
+        
+        Settings.CreateCheckbox(category, setting, tooltip)
+    end
+    
+    -- Respond to Formation Requests Checkbox
+    do
+        local name = "Respond to Formation Requests"
+        local tooltip = "Automatically respond to group formation requests from other addon users"
+        local defaultValue = true
+        
+        local setting = Settings.RegisterProxySetting(category, "GrouperPlusRespondToRequests", Settings.VarType.Boolean,
+            name, defaultValue,
+            function() 
+                local currentValue = addon.settings.communication.respondToRequests
+                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting respond to requests:", currentValue)
+                return currentValue
+            end,
+            function(value)
+                local oldValue = addon.settings.communication.respondToRequests
+                addon.settings.communication.respondToRequests = value
+                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Respond to requests changed from", oldValue, "to", value)
+            end
+        )
+        
+        Settings.CreateCheckbox(category, setting, tooltip)
+    end
+    
+    -- Enable Compression Checkbox
+    do
+        local name = "Enable Message Compression"
+        local tooltip = "Compress addon messages to reduce network traffic (requires LibCompress)"
+        local defaultValue = true
+        
+        local setting = Settings.RegisterProxySetting(category, "GrouperPlusCompressionEnabled", Settings.VarType.Boolean,
+            name, defaultValue,
+            function() 
+                local currentValue = addon.settings.communication.compression
+                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting compression enabled:", currentValue)
+                return currentValue
+            end,
+            function(value)
+                local oldValue = addon.settings.communication.compression
+                addon.settings.communication.compression = value
+                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Message compression changed from", oldValue, "to", value)
+                
+                -- Test LibCompress availability when enabling
+                if value then
+                    local LibCompress = LibStub("LibCompress", true)
+                    if not LibCompress then
+                        addon.Debug(addon.LOG_LEVEL.WARN, "LibCompress not available - compression will not work")
+                    else
+                        addon.Debug(addon.LOG_LEVEL.INFO, "LibCompress available - compression enabled")
+                    end
+                end
+            end
+        )
+        
+        Settings.CreateCheckbox(category, setting, tooltip)
+    end
+    
     
     Settings.RegisterAddOnCategory(category)
     addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Options panel registered successfully")

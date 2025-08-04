@@ -41,13 +41,46 @@ local function UpdateGuildMemberList()
         if online and level == MAX_LEVEL then
             -- Only add if not already in a group
             if not membersInGroups[name] then
-                table.insert(memberList, {
+                local memberData = {
                     name = name,
                     class = classFileName or class,
                     classLocalized = class,
                     level = level
-                })
-                addon.Debug("TRACE", "UpdateGuildMemberList: Added member", name, "level", level, "class:", classFileName or class, "localized:", class)
+                }
+                
+                -- Add role information for all members, especially the player
+                if addon.AutoFormation and addon.AutoFormation.GetPlayerRole then
+                    memberData.role = addon.AutoFormation:GetPlayerRole(name)
+                    addon.Debug("TRACE", "UpdateGuildMemberList: Determined role for", name, ":", memberData.role)
+                end
+                
+                -- For the player, ensure we get the most current role
+                local playerName = UnitName("player")
+                local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+                addon.Debug("DEBUG", "UpdateGuildMemberList: Checking if", name, "equals player", playerName, "or", playerFullName)
+                if name == playerName or name == playerFullName then
+                    local currentSpec = GetSpecialization()
+                    addon.Debug("DEBUG", "UpdateGuildMemberList: Player spec ID:", currentSpec)
+                    if currentSpec then
+                        local role = GetSpecializationRole(currentSpec)
+                        addon.Debug("DEBUG", "UpdateGuildMemberList: Raw role from GetSpecializationRole:", role)
+                        if role == "TANK" then
+                            memberData.role = "TANK"
+                        elseif role == "HEALER" then
+                            memberData.role = "HEALER"
+                        else
+                            memberData.role = "DPS"
+                        end
+                        addon.Debug("INFO", "UpdateGuildMemberList: Updated player's own role to:", memberData.role, "from spec", currentSpec, "raw role:", role)
+                    else
+                        addon.Debug("WARN", "UpdateGuildMemberList: Could not get player specialization")
+                    end
+                else
+                    addon.Debug("TRACE", "UpdateGuildMemberList: Member", name, "is not the player")
+                end
+                
+                table.insert(memberList, memberData)
+                addon.Debug("TRACE", "UpdateGuildMemberList: Added member", name, "level", level, "class:", classFileName or class, "role:", memberData.role or "unknown")
             else
                 addon.Debug("INFO", "UpdateGuildMemberList: Skipped member", name, "- already in group")
             end
@@ -71,8 +104,16 @@ local function CreateMemberRow(parent, index)
     row:SetPoint("TOPLEFT", parent, "TOPLEFT", 5, -((index - 1) * 22) - 5)
     row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -5, -((index - 1) * 22) - 5)
     
+    -- Create role text (left side)
+    row.roleText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.roleText:SetPoint("LEFT", row, "LEFT", 5, 0)
+    row.roleText:SetJustifyH("LEFT")
+    row.roleText:SetWidth(35)
+    row.roleText:SetText("")
+    
+    -- Create member name text (after role)
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.text:SetPoint("LEFT", row, "LEFT", 5, 0)
+    row.text:SetPoint("LEFT", row.roleText, "RIGHT", 5, 0)
     row.text:SetJustifyH("LEFT")
     
     row.scoreText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -209,6 +250,9 @@ local function UpdateMemberDisplay()
             -- Clear the row content to prevent showing stale data
             scrollChild.rows[i].text:SetText("")
             scrollChild.rows[i].scoreText:SetText("")
+            if scrollChild.rows[i].roleText then
+                scrollChild.rows[i].roleText:SetText("")
+            end
             scrollChild.rows[i].memberName = nil
             addon.Debug("TRACE", "UpdateMemberDisplay: Hid and cleared row", i)
         end
@@ -260,9 +304,18 @@ local function UpdateMemberDisplay()
         row.memberName = member.name
         addon.Debug("DEBUG", "UpdateMemberDisplay: Set memberName for row", i, "to:", member.name)
         
+        -- Set role text
+        if row.roleText then
+            local roleDisplay, roleColor = addon:GetRoleDisplay(member.role)
+            
+            row.roleText:SetText(roleDisplay)
+            row.roleText:SetTextColor(roleColor.r, roleColor.g, roleColor.b)
+            addon.Debug("DEBUG", "UpdateMemberDisplay: Set role for", member.name, ":", roleDisplay)
+        end
+        
         -- Force text positioning and parent refresh
         row.text:ClearAllPoints()
-        row.text:SetPoint("LEFT", row, "LEFT", 5, 0)
+        row.text:SetPoint("LEFT", row.roleText, "RIGHT", 5, 0)
         row.text:SetParent(row)  -- Ensure proper parent relationship
         
         -- Verify the text was actually set and force row recreation if needed
@@ -288,7 +341,15 @@ local function UpdateMemberDisplay()
             row.text:SetText(member.name)
             row.memberName = member.name
             
-            addon.Debug("INFO", "Recreated row", i, "for", member.name)
+            -- Set role text for recreated row
+            if row.roleText then
+                local roleDisplay, roleColor = addon:GetRoleDisplay(member.role)
+                
+                row.roleText:SetText(roleDisplay)
+                row.roleText:SetTextColor(roleColor.r, roleColor.g, roleColor.b)
+            end
+            
+            addon.Debug("INFO", "Recreated row", i, "for", member.name, "with role:", member.role or "unknown")
         end
         
         if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
@@ -1357,19 +1418,8 @@ ReorganizeGroupByRole = function(groupIndex)
             memberFrame.bg:Show()
             memberFrame.text:SetText(member.name)
             
-            -- Display role
-            local roleDisplay = ""
-            local roleColor = {r = 1, g = 1, b = 1}
-            if member.role == "TANK" then
-                roleDisplay = "[T]"
-                roleColor = {r = 0.78, g = 0.61, b = 0.43} -- Tank brown
-            elseif member.role == "HEALER" then
-                roleDisplay = "[H]"
-                roleColor = {r = 0.0, g = 1.0, b = 0.59} -- Healer green
-            elseif member.role == "DPS" then
-                roleDisplay = "[D]"
-                roleColor = {r = 0.77, g = 0.12, b = 0.23} -- DPS red
-            end
+            -- Display role using centralized constants
+            local roleDisplay, roleColor = addon:GetRoleDisplay(member.role)
             memberFrame.roleText:SetText(roleDisplay)
             memberFrame.roleText:SetTextColor(roleColor.r, roleColor.g, roleColor.b)
             
@@ -1876,4 +1926,233 @@ function addon:ClearAllGroups()
     RepositionAllGroups()
     
     addon.Debug("DEBUG", "ClearAllGroups: All groups cleared successfully")
+end
+
+-- Addon Communication Callbacks
+function addon:OnGroupSyncReceived(data, sender)
+    addon.Debug(addon.LOG_LEVEL.INFO, "Received group sync from", sender, "- applying to UI if enabled")
+    
+    if not addon.settings.communication or not addon.settings.communication.acceptGroupSync then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Group sync disabled in settings")
+        return
+    end
+    
+    if not mainFrame or not mainFrame:IsVisible() then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Main frame not visible, storing sync data for later")
+        return
+    end
+    
+    -- Clear existing groups before applying sync
+    ClearAllGroups()
+    
+    -- Apply the synced groups
+    for i, groupData in ipairs(data.groups) do
+        if groupData.members and #groupData.members > 0 then
+            -- Ensure we have enough group frames
+            while #dynamicGroups < i do
+                CreateNewGroup()
+            end
+            
+            local group = dynamicGroups[i]
+            if group then
+                -- Add members to the group
+                for j, memberData in ipairs(groupData.members) do
+                    if memberData.name and j <= MAX_GROUP_SIZE then
+                        -- Check if member exists in guild
+                        local guildMember = nil
+                        for _, member in ipairs(memberList) do
+                            if member.name == memberData.name then
+                                guildMember = member
+                                break
+                            end
+                        end
+                        
+                        if guildMember then
+                            AddMemberToGroup(i, j, guildMember)
+                        else
+                            addon.Debug(addon.LOG_LEVEL.WARN, "Synced member", memberData.name, "not found in guild roster")
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    RepositionAllGroups()
+    addon.Debug(addon.LOG_LEVEL.INFO, "Group sync from", sender, "applied successfully")
+end
+
+function addon:UpdatePlayerRoleInUI()
+    addon.Debug(addon.LOG_LEVEL.INFO, "UpdatePlayerRoleInUI: Triggered - refreshing member display")
+    
+    -- Always refresh the member list when called
+    if mainFrame then
+        UpdateMemberDisplay()
+        addon.Debug(addon.LOG_LEVEL.INFO, "UpdatePlayerRoleInUI: Member display refreshed")
+        
+        -- Also update player's role in any existing dynamic groups
+        local playerName = UnitName("player")
+        local playerFullName = playerName .. "-" .. GetRealmName()
+        
+        -- Get current role
+        local currentRole = nil
+        local currentSpec = GetSpecialization()
+        if currentSpec then
+            local role = GetSpecializationRole(currentSpec)
+            if role == "TANK" then
+                currentRole = "TANK"
+            elseif role == "HEALER" then
+                currentRole = "HEALER"
+            else
+                currentRole = "DPS"
+            end
+        end
+        
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "UpdatePlayerRoleInUI: Player current role:", currentRole)
+        
+        -- Update in all dynamic groups
+        for groupIndex, group in ipairs(dynamicGroups) do
+            if group and group.members then
+                for slotIndex, member in pairs(group.members) do
+                    if member and (member.name == playerName or member.name == playerFullName) then
+                        -- Update the member data
+                        member.role = currentRole
+                        
+                        -- Update the group display
+                        local memberFrame = group.memberFrames[slotIndex]
+                        if memberFrame and memberFrame.roleText then
+                            local roleDisplay, roleColor = addon:GetRoleDisplay(currentRole)
+                            
+                            memberFrame.roleText:SetText(roleDisplay)
+                            memberFrame.roleText:SetTextColor(roleColor.r, roleColor.g, roleColor.b)
+                            
+                            addon.Debug(addon.LOG_LEVEL.INFO, "UpdatePlayerRoleInUI: Updated player role in group", groupIndex, "slot", slotIndex, "to:", currentRole)
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    else
+        addon.Debug(addon.LOG_LEVEL.WARN, "UpdatePlayerRoleInUI: MainFrame not available")
+    end
+end
+
+function addon:OnPlayerDataReceived(data, sender)
+    addon.Debug(addon.LOG_LEVEL.DEBUG, "Received player data from", sender, "for", data.player)
+    
+    if not addon.settings.communication or not addon.settings.communication.acceptPlayerData then
+        return
+    end
+    
+    -- Update local member data if we have this player
+    local memberFound = false
+    for _, member in ipairs(memberList) do
+        if member.name == data.player then
+            if data.rating then
+                member.rating = data.rating
+            end
+            if data.role then
+                member.role = data.role
+            end
+            if data.class then
+                member.class = data.class
+            end
+            if data.level then
+                member.level = data.level
+            end
+            memberFound = true
+            addon.Debug(addon.LOG_LEVEL.INFO, "Updated role data for", data.player, "- Role:", data.role, "Rating:", data.rating or "none")
+            break
+        end
+    end
+    
+    -- If member not in current list but in guild, they might be offline/different level
+    if not memberFound then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Player", data.player, "not in current member list, but received role data")
+    end
+    
+    -- Update any existing group assignments
+    for _, group in ipairs(dynamicGroups) do
+        if group and group.members then
+            for slotIndex, member in pairs(group.members) do
+                if member and member.name == data.player then
+                    if data.role then
+                        member.role = data.role
+                    end
+                    if data.rating then
+                        member.rating = data.rating
+                    end
+                    
+                    -- Update the group display
+                    local memberFrame = group.memberFrames[slotIndex]
+                    if memberFrame and memberFrame.roleText then
+                        memberFrame.roleText:SetText(data.role or "")
+                    end
+                    
+                    addon.Debug(addon.LOG_LEVEL.INFO, "Updated group assignment for", data.player, "with new role:", data.role)
+                    break
+                end
+            end
+        end
+    end
+    
+    -- Refresh UI if main frame is visible
+    if mainFrame and mainFrame:IsVisible() then
+        UpdateMemberDisplay()
+    end
+end
+
+function addon:OnRaiderIODataReceived(data, sender)
+    addon.Debug(addon.LOG_LEVEL.DEBUG, "Received RaiderIO data from", sender, "for", data.player)
+    
+    if not addon.settings.communication or not addon.settings.communication.acceptRaiderIOData then
+        return
+    end
+    
+    -- Store RaiderIO data for use by RaiderIO integration
+    if addon.RaiderIOIntegration then
+        addon.RaiderIOIntegration:CacheSharedData(data.player, {
+            mythicKeystoneProfile = {
+                currentScore = data.mythicPlusScore,
+                mainRole = data.mainRole
+            },
+            bestRuns = data.bestRuns
+        })
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Cached shared RaiderIO data for", data.player)
+    end
+    
+    -- Update member data
+    for _, member in ipairs(memberList) do
+        if member.name == data.player then
+            member.rating = data.mythicPlusScore
+            member.role = data.mainRole
+            break
+        end
+    end
+    
+    -- Refresh UI if main frame is visible
+    if mainFrame and mainFrame:IsVisible() then
+        UpdateMemberDisplay()
+    end
+end
+
+function addon:OnFormationRequestReceived(data, sender)
+    addon.Debug(addon.LOG_LEVEL.INFO, "Formation request received from", sender)
+    
+    if not addon.settings.communication or not addon.settings.communication.respondToRequests then
+        return
+    end
+    
+    -- For now, just log the request. Could add UI prompts in the future
+    addon.Debug(addon.LOG_LEVEL.INFO, "Formation request criteria:", data.criteria and "provided" or "none")
+end
+
+function addon:OnFormationResponseReceived(data, sender)
+    addon.Debug(addon.LOG_LEVEL.DEBUG, "Formation response received from", sender)
+    
+    -- Handle formation responses - could be used for coordinated group forming
+    if data.response then
+        addon.Debug(addon.LOG_LEVEL.INFO, "Response from", sender, ":", data.response)
+    end
 end

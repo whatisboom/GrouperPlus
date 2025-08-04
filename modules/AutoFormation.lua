@@ -212,13 +212,23 @@ end
 function AutoFormation:GetMemberScore(memberName)
     addon.Debug("DEBUG", "AutoFormation:GetMemberScore called for:", memberName)
     
-    -- Use existing RaiderIO integration
+    -- Use existing RaiderIO integration with shared data support
     if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
+        -- First try local RaiderIO data
         local profile = addon.RaiderIOIntegration:GetProfile(memberName)
         if profile and profile.mythicKeystoneProfile then
             local score = profile.mythicKeystoneProfile.currentScore or 0
-            addon.Debug("INFO", "Found RaiderIO score for", memberName, ":", score)
+            addon.Debug("INFO", "Found local RaiderIO score for", memberName, ":", score)
             return score
+        end
+        
+        -- If no local data, try shared data from other addon users
+        if addon.RaiderIOIntegration.GetMythicPlusScoreWithSharedData then
+            local sharedScore = addon.RaiderIOIntegration:GetMythicPlusScoreWithSharedData(memberName)
+            if sharedScore and sharedScore > 0 then
+                addon.Debug("INFO", "Found shared RaiderIO score for", memberName, ":", sharedScore)
+                return sharedScore
+            end
         end
     end
     
@@ -357,6 +367,11 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
         for j, member in ipairs(group) do
             addon.Debug("DEBUG", "  Member", j, ":", member.name, "role:", member.role, "score:", member.score)
         end
+    end
+    
+    -- Sync group formation with other addon users
+    if addon.AddonComm and addon.settings.communication and addon.settings.communication.enabled then
+        addon.AddonComm:SyncGroupFormation(groups)
     end
     
     return groups

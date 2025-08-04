@@ -13,10 +13,10 @@
 - [ ] Configurable role caps in options panel
 
 ### Inter-Addon Communication
-- [ ] Implement addon communication protocol for data sharing
-- [ ] Sync group formations between users with the addon installed
-- [ ] Share player data and group assignments across addon users
-- [ ] Share RaiderIO information so only one person needs both addons installed
+- [x] Implement addon communication protocol for data sharing
+- [x] Sync group formations between users with the addon installed
+- [x] Share player data and group assignments across addon users
+- [x] Share RaiderIO information so only one person needs both addons installed
 
 ### Group Utility Tracking
 - [ ] Track group buffs and utilities (bloodlust, battle rez, powerful abilities)

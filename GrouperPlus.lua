@@ -152,6 +152,73 @@ SlashCmdList["GROUPER"] = function(msg)
         else
             print("GrouperPlus: Button not found! Frame might not be created yet.")
         end
+    elseif command == "comm" or command == "communication" then
+        if addon.AddonComm then
+            local connectedUsers = addon.AddonComm:GetConnectedUsers()
+            local count = 0
+            for user, info in pairs(connectedUsers) do
+                count = count + 1
+                print("GrouperPlus: Connected user:", user, "version:", info.version)
+            end
+            if count == 0 then
+                print("GrouperPlus: No other GrouperPlus users detected")
+            else
+                print("GrouperPlus: Found", count, "connected users")
+            end
+        else
+            print("GrouperPlus: Communication module not loaded")
+        end
+    elseif command == "version" or command == "broadcast" then
+        if addon.AddonComm then
+            addon.AddonComm:BroadcastVersionCheck()
+            print("GrouperPlus: Version check broadcast sent to guild")
+        else
+            print("GrouperPlus: Communication module not loaded")
+        end
+    elseif command == "share" then
+        if addon.RaiderIOIntegration then
+            addon.RaiderIOIntegration:ShareGuildMemberData()
+            print("GrouperPlus: Attempted to share RaiderIO data for guild members")
+        else
+            print("GrouperPlus: RaiderIO integration not loaded")
+        end
+    elseif command == "role" then
+        if addon.AddonComm then
+            addon.AddonComm:SharePlayerRole(true)
+            print("GrouperPlus: Forced role share sent to guild")
+        else
+            print("GrouperPlus: Communication module not loaded")
+        end
+    elseif command == "checkrole" then
+        if addon.AddonComm then
+            addon.AddonComm:CheckForRoleChange()
+            print("GrouperPlus: Checked for role changes")
+        else
+            print("GrouperPlus: Communication module not loaded")
+        end
+    elseif command == "debugspec" or command == "spec" then
+        local playerName = UnitName("player")
+        local currentSpec = GetSpecialization()
+        local specName = currentSpec and select(2, GetSpecializationInfo(currentSpec)) or "Unknown"
+        local role = currentSpec and GetSpecializationRole(currentSpec) or "Unknown"
+        
+        print("GrouperPlus Debug:")
+        print("  Player Name: " .. (playerName or "nil"))
+        print("  Spec ID: " .. (currentSpec or "nil"))
+        print("  Spec Name: " .. (specName or "nil")) 
+        print("  Role: " .. (role or "nil"))
+        
+        if addon.AutoFormation then
+            local detectedRole = addon.AutoFormation:GetPlayerRole("player")
+            print("  AutoFormation Role: " .. (detectedRole or "nil"))
+        end
+    elseif command == "refresh" or command == "update" then
+        if addon.UpdatePlayerRoleInUI then
+            addon:UpdatePlayerRoleInUI()
+            print("GrouperPlus: Forced UI refresh")
+        else
+            print("GrouperPlus: UI refresh function not available")
+        end
     else
         Debug(addon.LOG_LEVEL.INFO, "GrouperPlus commands:")
         Debug(addon.LOG_LEVEL.INFO, "/grouper show - Show minimap button")
@@ -159,5 +226,12 @@ SlashCmdList["GROUPER"] = function(msg)
         Debug(addon.LOG_LEVEL.INFO, "/grouper main - Show main frame")
         Debug(addon.LOG_LEVEL.INFO, "/grouper toggle - Toggle main frame")
         Debug(addon.LOG_LEVEL.INFO, "/grouper test - Test RaiderIO integration")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper comm - Check connected users")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper broadcast - Send version check")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper share - Share RaiderIO data")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper role - Force share current role")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper checkrole - Check for role changes")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper spec - Debug player specialization info")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper refresh - Force UI refresh")
     end
 end

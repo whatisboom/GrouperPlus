@@ -306,6 +306,151 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         end
     end
     
+    -- Shared data cache for received RaiderIO information
+    local sharedDataCache = {}
+    
+    function RaiderIOIntegration:CacheSharedData(playerName, data)
+        Debug(LOG_LEVEL.DEBUG, "Caching shared RaiderIO data for", playerName)
+        
+        if not playerName or not data then
+            return
+        end
+        
+        sharedDataCache[playerName] = {
+            data = data,
+            timestamp = GetServerTime()
+        }
+        
+        Debug(LOG_LEVEL.DEBUG, "Cached RaiderIO data for", playerName, "score:", data.mythicKeystoneProfile and data.mythicKeystoneProfile.currentScore or "unknown")
+    end
+    
+    function RaiderIOIntegration:GetSharedData(playerName)
+        local cached = sharedDataCache[playerName]
+        if not cached then
+            return nil
+        end
+        
+        -- Check if data is still fresh (within 30 minutes)
+        local now = GetServerTime()
+        if now - cached.timestamp > 1800 then
+            sharedDataCache[playerName] = nil
+            return nil
+        end
+        
+        return cached.data
+    end
+    
+    function RaiderIOIntegration:SharePlayerData(playerName)
+        Debug(LOG_LEVEL.DEBUG, "Attempting to share RaiderIO data for", playerName)
+        
+        if not addon.AddonComm or not addon.settings.communication or not addon.settings.communication.enabled then
+            Debug(LOG_LEVEL.DEBUG, "Communication disabled, not sharing RaiderIO data")
+            return
+        end
+        
+        local profile, err = self:GetProfile(playerName)
+        if not profile then
+            Debug(LOG_LEVEL.DEBUG, "No RaiderIO profile found for", playerName, "-", err)
+            return
+        end
+        
+        local shareData = {
+            mythicPlusScore = 0,
+            mainRole = nil,
+            bestRuns = {}
+        }
+        
+        if profile.mythicKeystoneProfile then
+            shareData.mythicPlusScore = profile.mythicKeystoneProfile.currentScore or 0
+            shareData.mainRole = profile.mythicKeystoneProfile.mainRole
+            
+            -- Include best runs if available
+            if profile.mythicKeystoneProfile.runs then
+                shareData.bestRuns = {}
+                for i, run in ipairs(profile.mythicKeystoneProfile.runs) do
+                    if i <= 5 then -- Limit to top 5 runs
+                        table.insert(shareData.bestRuns, {
+                            dungeon = run.dungeon,
+                            level = run.level,
+                            score = run.score,
+                            time = run.time
+                        })
+                    end
+                end
+            end
+        end
+        
+        if shareData.mythicPlusScore > 0 then
+            addon.AddonComm:ShareRaiderIOData(playerName, shareData)
+            Debug(LOG_LEVEL.INFO, "Shared RaiderIO data for", playerName, "score:", shareData.mythicPlusScore)
+        else
+            Debug(LOG_LEVEL.DEBUG, "No meaningful RaiderIO data to share for", playerName)
+        end
+    end
+    
+    function RaiderIOIntegration:GetProfileWithSharedData(playerName)
+        -- First try to get data from RaiderIO addon
+        local profile, err = self:GetProfile(playerName)
+        if profile then
+            return profile
+        end
+        
+        -- If no local data, check shared data cache
+        local sharedData = self:GetSharedData(playerName)
+        if sharedData then
+            Debug(LOG_LEVEL.DEBUG, "Using shared RaiderIO data for", playerName)
+            return sharedData
+        end
+        
+        return nil, err or "No data available"
+    end
+    
+    function RaiderIOIntegration:GetMythicPlusScoreWithSharedData(playerName)
+        local profile, err = self:GetProfileWithSharedData(playerName)
+        if not profile then
+            return nil, err
+        end
+        
+        if profile.mythicKeystoneProfile and profile.mythicKeystoneProfile.currentScore then
+            return profile.mythicKeystoneProfile.currentScore
+        end
+        
+        return nil, "No M+ score data"
+    end
+    
+    function RaiderIOIntegration:ShareGuildMemberData()
+        Debug(LOG_LEVEL.INFO, "Sharing RaiderIO data for available guild members")
+        
+        if not addon.AddonComm or not addon.settings.communication or not addon.settings.communication.enabled then
+            Debug(LOG_LEVEL.DEBUG, "Communication disabled, not sharing guild member data")
+            return
+        end
+        
+        if not IsInGuild() then
+            Debug(LOG_LEVEL.DEBUG, "Not in guild, cannot share member data")
+            return
+        end
+        
+        local sharedCount = 0
+        local numMembers = GetNumGuildMembers()
+        
+        for i = 1, numMembers do
+            local name, _, _, level, _, _, _, _, online = GetGuildRosterInfo(i)
+            if online and level == GetMaxPlayerLevel() then
+                -- Try to share data for this member
+                self:SharePlayerData(name)
+                sharedCount = sharedCount + 1
+                
+                -- Don't spam too many at once
+                if sharedCount >= 10 then
+                    break
+                end
+            end
+        end
+        
+        Debug(LOG_LEVEL.INFO, "Attempted to share RaiderIO data for", sharedCount, "guild members")
+    end
+    
     addon.RaiderIOIntegration = RaiderIOIntegration
     Debug(LOG_LEVEL.INFO, "RaiderIOIntegration module loaded successfully")
     
