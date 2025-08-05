@@ -5,6 +5,19 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-08-05
+
+### Added 🎯
+- **GitHub Issue Templates**: Professional bug report and feature request templates for better community engagement
+  - Structured bug report form with WoW version, reproduction steps, and error logging
+  - Feature request form with priority levels and use case examples
+  - Template chooser for easy issue creation
+
+### Development Improvements 🛠️
+- **Standardized Issue Tracking**: YAML-based forms ensure consistent, high-quality issue reports
+- **Community Links**: Integrated Discord and CurseForge links in issue templates
+- **Better Bug Reporting**: Comprehensive checklist and validation for issue submissions
+
 ## [0.4.1] - 2025-08-05
 
 ### Major Features ✨

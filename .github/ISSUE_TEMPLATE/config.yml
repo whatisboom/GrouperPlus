@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Discord Support
+    url: https://discord.gg/your-discord-link
+    about: Get help from the community on Discord
+  - name: CurseForge Page
+    url: https://www.curseforge.com/wow/addons/grouperplus
+    about: Visit the addon page for more information

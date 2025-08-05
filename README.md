@@ -107,3 +107,22 @@ See [TODO.md](TODO.md) for the complete list of planned features and development
 - World of Warcraft (Retail)
 - Interface version 110107 or higher
 
+## Contributing
+
+### Reporting Issues
+
+We welcome bug reports and feature requests! To ensure we can help you effectively, please use our GitHub issue templates:
+
+1. **[Report a Bug](https://github.com/whatisboom/GrouperPlus/issues/new?template=bug_report.yml)** - For reporting issues, errors, or unexpected behavior
+2. **[Request a Feature](https://github.com/whatisboom/GrouperPlus/issues/new?template=feature_request.yml)** - For suggesting new features or improvements
+
+### Issue Guidelines
+
+When reporting issues:
+- Search existing issues first to avoid duplicates
+- Include your WoW version, addon version, and any error messages
+- Provide clear reproduction steps
+- Test with other addons disabled when possible
+
+Your feedback helps make GrouperPlus better for everyone!
+

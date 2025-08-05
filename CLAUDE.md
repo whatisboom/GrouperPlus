@@ -110,3 +110,6 @@ When adding new options to the settings panel:
 ## Memory Notes
 - Keep the readme as user-focused as you can
 - the CURSEFORGE_API_TOKEN is set in env
+
+## Development Reminders
+- Update the version in the issue configs when we update it in the toc and other places

@@ -1,0 +1,94 @@
+name: Feature Request
+description: Suggest an idea for GrouperPlus
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a new feature!
+        
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like
+      placeholder: A clear and concise description of what you want to happen.
+    validations:
+      required: true
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe any alternative solutions or features you've considered
+      
+  - type: dropdown
+    id: feature-type
+    attributes:
+      label: Feature Type
+      description: What type of feature is this?
+      options:
+        - UI Enhancement
+        - New Functionality
+        - Integration with Other AddOns
+        - Performance Improvement
+        - Quality of Life
+        - Other
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is this feature to you?
+      options:
+        - Critical - I cannot use the addon effectively without it
+        - High - It would significantly improve my experience
+        - Medium - It would be nice to have
+        - Low - Just a suggestion
+    validations:
+      required: true
+      
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Provide a specific example of how you would use this feature
+      placeholder: |
+        For example:
+        - When I'm forming a raid group...
+        - During Mythic+ dungeons...
+        - While organizing guild events...
+        
+  - type: textarea
+    id: mockup
+    attributes:
+      label: Visual Reference
+      description: If applicable, add screenshots, mockups, or diagrams to help explain your idea
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the feature request here
+      
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues to ensure this feature has not already been requested
+          required: true
+        - label: This feature would be useful to other players, not just me
+        - label: I am willing to help test this feature if implemented
