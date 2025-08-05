@@ -22,6 +22,8 @@ cp -r modules "$PACKAGE_DIR/"
 cp -r textures "$PACKAGE_DIR/" 2>/dev/null || echo "No textures directory found, skipping..."
 cp *.lua "$PACKAGE_DIR/"
 cp *.toc "$PACKAGE_DIR/"
+cp CHANGELOG.md "$PACKAGE_DIR/" 2>/dev/null || echo "No CHANGELOG.md found, skipping..."
+cp README.md "$PACKAGE_DIR/" 2>/dev/null || echo "No README.md found, skipping..."
 
 # Ensure we don't include any deployment or development files
 echo "Cleaning up development files..."
