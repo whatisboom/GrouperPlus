@@ -5,6 +5,34 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-08-05
+
+### Major Features ✨
+- **Mythic+ Keystone Detection and Sharing**: Complete keystone management system for guild coordination
+  - Automatic detection of player's current mythic+ keystone using WoW API with fallback methods
+  - Real-time keystone sharing between GrouperPlus users in guild via addon communication
+  - Comprehensive tooltip integration showing keystone information on all character frames
+  - Fallback detection via bag scanning and static dungeon name lookup for reliability
+  - Support for all current and legacy dungeon mappings with proper name resolution
+
+### Enhanced User Interface 🎯
+- **Keystone Tooltips**: Hover over any guild member to see their current keystone
+  - Works in both member list and formed group displays
+  - Shows dungeon name and keystone level in clear format
+  - Supports both received keystone data and current player's own keystone
+- **Slash Command Integration**: `/grouper keystone` command for testing and status checking
+- **Communication Settings**: New setting for accepting/sharing keystone data with guild members
+
+### Technical Improvements 🔧
+- **Robust Detection**: Multiple event monitoring and periodic updates ensure keystone changes are caught
+- **Enhanced Logging**: Comprehensive debug logging for keystone detection and sharing troubleshooting
+- **Communication Protocol**: Extended addon communication to handle keystone data transmission
+- **Fallback Systems**: Bag scanning and static lookup tables ensure detection works even if API fails
+
+### Documentation Updates 📚
+- **TODO Roadmap**: Added detailed keystone management section with future smart group formation plans
+- **Development Context**: Updated CLAUDE.md with keystone system architecture and usage guidelines
+
 ## [0.6.0] - 2025-08-05
 
 ### Major Features ✨
