@@ -5,6 +5,12 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2025-08-05
+
+### Compatibility 🔧
+- **Interface Version Support**: Added support for WoW interface version 110200 (The War Within 11.2.0)
+- **CurseForge Deployment**: Updated deployment mapping for latest game version compatibility
+
 ## [0.7.0] - 2025-08-05
 
 ### Major Features ✨

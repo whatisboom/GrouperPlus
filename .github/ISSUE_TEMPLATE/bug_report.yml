@@ -58,7 +58,7 @@ body:
     attributes:
       label: GrouperPlus Version
       description: What version of GrouperPlus are you using? (Check in-game AddOns list)
-      placeholder: "v0.6.0"
+      placeholder: "v0.7.1"
     validations:
       required: true
       
