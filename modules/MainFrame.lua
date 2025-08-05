@@ -1144,18 +1144,20 @@ end
 
 CalculateGroupLayout = function()
     if not groupsContainer then
-        return 0, 0, 0
+        return 0, 0, 0, 0
     end
     
     local containerWidth = groupsContainer:GetParent():GetWidth() - 46
     local numGroups = #dynamicGroups + 1
     local spacing = 10
-    local totalSpacing = spacing * (numGroups + 1)
-    local availableWidth = containerWidth - totalSpacing
-    local groupWidth = math.max(200, math.floor(availableWidth / numGroups))
     
-    addon.Debug("DEBUG", "CalculateGroupLayout: containerWidth", containerWidth, "numGroups", numGroups, "groupWidth", groupWidth)
-    return containerWidth, numGroups, groupWidth
+    -- Limit to 2 groups per row, each taking 50% of container width
+    local groupsPerRow = 2
+    local numRows = math.ceil(numGroups / groupsPerRow)
+    local groupWidth = math.floor((containerWidth - (spacing * 3)) / 2) -- 3 spacing: left, middle, right
+    
+    addon.Debug("DEBUG", "CalculateGroupLayout: containerWidth", containerWidth, "numGroups", numGroups, "groupWidth", groupWidth, "numRows", numRows)
+    return containerWidth, numGroups, groupWidth, numRows
 end
 
 RepositionAllGroups = function()
@@ -1165,15 +1167,23 @@ RepositionAllGroups = function()
         return
     end
     
-    local containerWidth, numGroups, groupWidth = CalculateGroupLayout()
+    local containerWidth, numGroups, groupWidth, numRows = CalculateGroupLayout()
     local spacing = 10
+    local groupsPerRow = 2
+    local rowHeight = 150 -- Group height + spacing
     
     for i, groupFrame in ipairs(dynamicGroups) do
         groupFrame:ClearAllPoints()
         groupFrame:SetSize(groupWidth, 140)
         
-        local xOffset = spacing + ((i - 1) * (groupWidth + spacing))
-        groupFrame:SetPoint("TOPLEFT", groupsContainer, "TOPLEFT", xOffset, -10)
+        -- Calculate row and column position
+        local row = math.ceil(i / groupsPerRow) - 1  -- 0-based row index
+        local col = ((i - 1) % groupsPerRow)         -- 0-based column index
+        
+        local xOffset = spacing + (col * (groupWidth + spacing))
+        local yOffset = -10 - (row * rowHeight)
+        
+        groupFrame:SetPoint("TOPLEFT", groupsContainer, "TOPLEFT", xOffset, yOffset)
         
         local memberWidth = groupWidth - 20
         for j = 1, MAX_GROUP_SIZE do
@@ -1182,11 +1192,13 @@ RepositionAllGroups = function()
             end
         end
         
-        addon.Debug("DEBUG", "RepositionAllGroups: Positioned group", i, "at xOffset", xOffset, "with width", groupWidth)
+        addon.Debug("DEBUG", "RepositionAllGroups: Positioned group", i, "at row", row, "col", col, "xOffset", xOffset, "yOffset", yOffset, "width", groupWidth)
     end
     
-    local totalWidth = (numGroups * groupWidth) + ((numGroups + 1) * spacing)
-    groupsContainer:SetWidth(math.max(totalWidth, containerWidth))
+    -- Set container size to accommodate all rows
+    local totalHeight = math.max((numRows * rowHeight) + 20, 160)
+    groupsContainer:SetWidth(containerWidth)
+    groupsContainer:SetHeight(totalHeight)
 end
 
 CreateNewGroup = function()
@@ -1198,7 +1210,7 @@ CreateNewGroup = function()
     end
     
     local groupIndex = #dynamicGroups + 1
-    local containerWidth, numGroups, groupWidth = CalculateGroupLayout()
+    local containerWidth, numGroups, groupWidth, numRows = CalculateGroupLayout()
     
     local groupFrame = CreateGroupFrame(groupsContainer, groupIndex, groupWidth)
     groupFrame.members = {}
@@ -1291,6 +1303,19 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     addon.Debug("DEBUG", "AddMemberToGroup: Got memberFrame:", memberFrame ~= nil)
     if memberFrame then
         addon.Debug("DEBUG", "AddMemberToGroup: Updating memberFrame display")
+        
+        -- Set background color based on RaiderIO score
+        local bgColor = {r = 0.2, g = 0.2, b = 0.3} -- Default background color
+        if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() and addon.Utils then
+            local score = addon.RaiderIOIntegration:GetMythicPlusScore(memberInfo.name)
+            if score and score > 0 then
+                -- Use score-based coloring with 500 rating steps (0-3000 range)
+                bgColor = addon.Utils.GetScoreColor(score, 0, 3000)
+                addon.Debug("DEBUG", "AddMemberToGroup: Set background color for", memberInfo.name, "score:", score)
+            end
+        end
+        
+        memberFrame.bg:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, 0.4)
         memberFrame.bg:Show()
         
         -- Include RaiderIO score in display text
@@ -1425,6 +1450,18 @@ ReorganizeGroupByRole = function(groupIndex)
         group.members[i] = member
         local memberFrame = group.memberFrames[i]
         if memberFrame then
+            -- Set background color based on RaiderIO score
+            local bgColor = {r = 0.2, g = 0.2, b = 0.3} -- Default background color
+            if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() and addon.Utils then
+                local score = addon.RaiderIOIntegration:GetMythicPlusScore(member.name)
+                if score and score > 0 then
+                    -- Use score-based coloring with 500 rating steps (0-3000 range)
+                    bgColor = addon.Utils.GetScoreColor(score, 0, 3000)
+                    addon.Debug("DEBUG", "ReorganizeGroupByRole: Set background color for", member.name, "score:", score)
+                end
+            end
+            
+            memberFrame.bg:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, 0.4)
             memberFrame.bg:Show()
             
             -- Include RaiderIO score in display text
@@ -1941,11 +1978,25 @@ function addon:ClearAllGroups()
         end
     end
     
+    -- Prune empty groups, keeping only one empty group
+    addon.Debug("DEBUG", "ClearAllGroups: Pruning empty groups")
+    while #dynamicGroups > 1 do
+        local groupFrame = table.remove(dynamicGroups)
+        if groupFrame then
+            groupFrame:Hide()
+            groupFrame:SetParent(nil)
+            addon.Debug("DEBUG", "ClearAllGroups: Removed empty group frame", #dynamicGroups + 1)
+        end
+    end
+    
+    -- Ensure we have at least one empty group available
+    EnsureEmptyGroupExists()
+    
     -- Update the member list to show all available members again
     UpdateMemberDisplay()
     RepositionAllGroups()
     
-    addon.Debug("DEBUG", "ClearAllGroups: All groups cleared successfully")
+    addon.Debug("DEBUG", "ClearAllGroups: All groups cleared and pruned successfully - remaining groups:", #dynamicGroups)
 end
 
 -- Addon Communication Callbacks
@@ -2160,9 +2211,22 @@ function addon:OnRaiderIODataReceived(data, sender)
                     member.rating = data.mythicPlusScore
                     member.role = data.mainRole
                     
-                    -- Update the group display text with new score
+                    -- Update the group display text and background with new score
                     local memberFrame = group.memberFrames[slotIndex]
                     if memberFrame and memberFrame.text then
+                        -- Update background color based on new RaiderIO score
+                        local bgColor = {r = 0.2, g = 0.2, b = 0.3} -- Default background color
+                        if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() and addon.Utils then
+                            local score = addon.RaiderIOIntegration:GetMythicPlusScore(member.name)
+                            if score and score > 0 then
+                                -- Use score-based coloring with 500 rating steps (0-3000 range)
+                                bgColor = addon.Utils.GetScoreColor(score, 0, 3000)
+                                addon.Debug(addon.LOG_LEVEL.DEBUG, "OnRaiderIODataReceived: Updated background color for", member.name, "score:", score)
+                            end
+                        end
+                        
+                        memberFrame.bg:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, 0.4)
+                        
                         local displayText = member.name
                         if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
                             local formattedScore = addon.RaiderIOIntegration:GetFormattedScoreWithFallback(member.name)

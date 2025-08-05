@@ -30,6 +30,16 @@ local ROLE_DISPLAY = {
     UNKNOWN = "[?]"
 }
 
+local ITEM_QUALITY_COLORS = {
+    POOR = {r = 0.62, g = 0.62, b = 0.62},        -- Gray (Poor)
+    COMMON = {r = 1.0, g = 1.0, b = 1.0},         -- White (Common)
+    UNCOMMON = {r = 0.12, g = 1.0, b = 0.0},      -- Green (Uncommon)
+    RARE = {r = 0.0, g = 0.44, b = 0.87},         -- Blue (Rare)
+    EPIC = {r = 0.64, g = 0.21, b = 0.93},        -- Purple (Epic)
+    LEGENDARY = {r = 1.0, g = 0.5, b = 0.0},      -- Orange (Legendary)
+    ARTIFACT = {r = 0.9, g = 0.8, b = 0.5}        -- Gold (Artifact)
+}
+
 local defaults = {
     profile = {
         debugLevel = "WARN",
@@ -69,4 +79,5 @@ addon.DEBUG_LEVELS = DEBUG_LEVELS
 addon.LOG_LEVEL = LOG_LEVEL
 addon.ROLE_COLORS = ROLE_COLORS
 addon.ROLE_DISPLAY = ROLE_DISPLAY
+addon.ITEM_QUALITY_COLORS = ITEM_QUALITY_COLORS
 addon.defaults = defaults
