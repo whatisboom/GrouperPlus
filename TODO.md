@@ -28,7 +28,7 @@
 ### Group Utility Tracking ✅ IMPLEMENTED
 - [x] Track group buffs and utilities (bloodlust, battle rez, powerful abilities)
 - [x] Display utility coverage per group
-- [ ] Consider utility distribution when forming groups
+- [x] Consider utility distribution when forming groups
 
 ### Display Control ✅ IMPLEMENTED
 - [x] Control player position/ordering within dynamic group display

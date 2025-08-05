@@ -13,6 +13,7 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 - **Instant Group Creation** - Automatically create balanced Mythic+ groups in seconds instead of spending minutes forming teams manually
 - **Smart Role Balancing** - Never worry about group composition again - always get the perfect 1 tank, 1 healer, 3 DPS setup
 - **Skill-Based Matching** - Groups are balanced by player experience and ratings so everyone has a fair chance at success
+- **Intelligent Utility Distribution** - Auto-formation ensures each group has optimal coverage of critical abilities like combat resurrection and bloodlust
 - **See Player Strength at a Glance** - RaiderIO scores displayed right in the interface so you know each player's Mythic+ experience
 - **Drag & Drop Flexibility** - Easy reorganization when you want to make manual adjustments to the automated groups
 - **Guild-Wide Coordination** - Share group setups instantly with other guild members who have the addon
@@ -21,7 +22,7 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 ### How It Helps You
 - **Save Time on Group Formation** - What used to take 10+ minutes of manual organization now happens instantly
 - **Reduce Group Formation Stress** - No more guessing at player skill levels or trying to remember who plays what role
-- **Improve Success Rates** - Balanced groups based on actual player experience lead to better dungeon runs
+- **Improve Success Rates** - Balanced groups based on actual player experience and optimal utility coverage lead to better dungeon runs
 - **Easy Adjustments** - Simple drag-and-drop when you want to swap players between groups or make changes
 - **Never Lose Track of Players** - Clear visual organization prevents accidentally putting the same player in multiple groups
 - **Consistent Group Structure** - Every group follows the optimal dungeon composition automatically
@@ -57,7 +58,7 @@ Each group header displays buff availability with clear color coding:
 ### Reliability & Support
 - **Real-time Updates** - Player roles, specs, and buffs update automatically as players change characters or specs
 - **Works with Guild Members** - Share your group setups with other guild members who have the addon installed
-- **Smart Auto-Formation** - The auto-form feature balances groups by player skill and ensures proper role composition
+- **Smart Auto-Formation** - The auto-form feature balances groups by player skill, ensures proper role composition, and optimizes utility distribution across all groups
 
 ## How to Use
 
@@ -80,7 +81,7 @@ Each group header displays buff availability with clear color coding:
 - Members show their class colors and RaiderIO scores (when available)
 - Groups automatically resize and reposition based on window size
 - All changes are automatically saved and persist between sessions
-- Auto-formation creates balanced groups based on player roles and skill ratings
+- Auto-formation creates balanced groups based on player roles, skill ratings, and utility distribution
 - Group buff indicators update in real-time as you move players
 
 ## Installation

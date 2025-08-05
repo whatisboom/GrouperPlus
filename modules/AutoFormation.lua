@@ -209,6 +209,133 @@ function AutoFormation:ValidateRoleComposition(members)
     return isValid, roleCounts
 end
 
+function AutoFormation:GetMemberUtilities(member)
+    addon.Debug("DEBUG", "AutoFormation:GetMemberUtilities called for:", member.name)
+    
+    local className = member.class
+    if not className then
+        _, className = UnitClass(member.name)
+    end
+    
+    if not className then
+        addon.Debug("DEBUG", "Could not determine class for", member.name, "checking guild roster")
+        local numMembers = GetNumGuildMembers()
+        for i = 1, numMembers do
+            local name, _, _, _, _, _, _, _, _, _, classFileName = GetGuildRosterInfo(i)
+            if name == member.name then
+                className = classFileName
+                break
+            end
+        end
+    end
+    
+    if className and addon.CLASS_UTILITIES[className] then
+        local utilities = addon.CLASS_UTILITIES[className]
+        addon.Debug("DEBUG", "Found utilities for", member.name, "class:", className, "utilities:", table.concat(utilities, ", "))
+        return utilities
+    end
+    
+    addon.Debug("DEBUG", "No utilities found for", member.name, "class:", className or "unknown")
+    return {}
+end
+
+function AutoFormation:CalculateGroupUtilityScore(group)
+    addon.Debug("DEBUG", "AutoFormation:CalculateGroupUtilityScore called for group with", #group, "members")
+    
+    local utilities = {
+        COMBAT_REZ = false,
+        BLOODLUST = false,
+        INTELLECT = false,
+        STAMINA = false,
+        ATTACK_POWER = false,
+        VERSATILITY = false,
+        SKYFURY = false,
+        MYSTIC_TOUCH = false,
+        CHAOS_BRAND = false
+    }
+    
+    -- Check what utilities this group provides
+    for _, member in ipairs(group) do
+        local memberUtilities = self:GetMemberUtilities(member)
+        for _, utility in ipairs(memberUtilities) do
+            if utilities[utility] ~= nil then
+                utilities[utility] = true
+            end
+        end
+    end
+    
+    local score = 0
+    local criticalMissing = {}
+    local importantMissing = {}
+    
+    -- Calculate penalties and bonuses based on utility priorities
+    for utilityName, hasUtility in pairs(utilities) do
+        local utilityInfo = addon.UTILITY_INFO[utilityName]
+        if utilityInfo then
+            if hasUtility then
+                -- Bonus for having the utility
+                if utilityInfo.priority == 1 then
+                    score = score + 100 -- Critical utilities
+                elseif utilityInfo.priority == 2 then
+                    score = score + 50  -- Important utilities
+                else
+                    score = score + 25  -- Nice-to-have utilities
+                end
+            else
+                -- Penalty for missing the utility
+                if utilityInfo.priority == 1 then
+                    score = score - 200 -- Heavy penalty for missing critical utilities
+                    table.insert(criticalMissing, utilityName)
+                elseif utilityInfo.priority == 2 then
+                    score = score - 75  -- Moderate penalty for missing important utilities
+                    table.insert(importantMissing, utilityName)
+                end
+                -- No penalty for missing nice-to-have utilities
+            end
+        end
+    end
+    
+    addon.Debug("DEBUG", "Group utility score:", score, 
+        "critical missing:", table.concat(criticalMissing, ", "),
+        "important missing:", table.concat(importantMissing, ", "))
+    
+    return score, utilities, criticalMissing, importantMissing
+end
+
+function AutoFormation:GetUtilityCoverageGaps(groups)
+    addon.Debug("DEBUG", "AutoFormation:GetUtilityCoverageGaps called for", #groups, "groups")
+    
+    local groupUtilities = {}
+    local overallGaps = {
+        critical = {},
+        important = {}
+    }
+    
+    for i, group in ipairs(groups) do
+        local score, utilities, criticalMissing, importantMissing = self:CalculateGroupUtilityScore(group)
+        groupUtilities[i] = {
+            score = score,
+            utilities = utilities,
+            criticalMissing = criticalMissing,
+            importantMissing = importantMissing
+        }
+        
+        -- Track overall gaps
+        for _, utility in ipairs(criticalMissing) do
+            overallGaps.critical[utility] = (overallGaps.critical[utility] or 0) + 1
+        end
+        for _, utility in ipairs(importantMissing) do
+            overallGaps.important[utility] = (overallGaps.important[utility] or 0) + 1
+        end
+    end
+    
+    addon.Debug("INFO", "Utility coverage analysis complete - groups with critical gaps:", 
+        overallGaps.critical.COMBAT_REZ or 0, "missing combat rez,",
+        overallGaps.critical.BLOODLUST or 0, "missing bloodlust")
+    
+    return groupUtilities, overallGaps
+end
+
 function AutoFormation:GetMemberScore(memberName)
     addon.Debug("DEBUG", "AutoFormation:GetMemberScore called for:", memberName)
     
@@ -378,9 +505,24 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
     
     addon.Debug("INFO", "Auto-formation complete - created", #groups, "total groups")
     
-    -- Debug the final groups
+    -- Apply utility optimization to improve group compositions
+    if #groups > 1 then
+        addon.Debug("INFO", "Applying utility optimization to", #groups, "groups")
+        groups = self:OptimizeGroupUtilities(groups)
+    end
+    
+    -- Debug the final groups with utility information
     for i, group in ipairs(groups) do
-        addon.Debug("INFO", "Final group", i, "has", #group, "members:")
+        local utilityScore, utilities = self:CalculateGroupUtilityScore(group)
+        local utilityList = {}
+        for utilityName, hasUtility in pairs(utilities) do
+            if hasUtility then
+                table.insert(utilityList, utilityName)
+            end
+        end
+        
+        addon.Debug("INFO", "Final group", i, "has", #group, "members, utility score:", utilityScore)
+        addon.Debug("INFO", "  Utilities:", table.concat(utilityList, ", "))
         for j, member in ipairs(group) do
             addon.Debug("DEBUG", "  Member", j, ":", member.name, "role:", member.role, "score:", member.score)
         end
@@ -390,6 +532,114 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
     if addon.AddonComm and addon.settings.communication and addon.settings.communication.enabled then
         addon.AddonComm:SyncGroupFormation(groups)
     end
+    
+    return groups
+end
+
+function AutoFormation:OptimizeGroupUtilities(groups)
+    addon.Debug("INFO", "AutoFormation:OptimizeGroupUtilities called with", #groups, "groups")
+    
+    local maxIterations = 10 -- Prevent infinite loops
+    local improved = true
+    local iteration = 0
+    
+    while improved and iteration < maxIterations do
+        improved = false
+        iteration = iteration + 1
+        addon.Debug("DEBUG", "Utility optimization iteration", iteration)
+        
+        -- Get current utility analysis
+        local groupUtilities, overallGaps = self:GetUtilityCoverageGaps(groups)
+        
+        -- Try to improve groups by swapping DPS members
+        for i = 1, #groups do
+            for j = i + 1, #groups do
+                local group1 = groups[i]
+                local group2 = groups[j]
+                
+                -- Find DPS members in both groups
+                local group1DPS = {}
+                local group2DPS = {}
+                
+                for k, member in ipairs(group1) do
+                    if member.role == "DPS" then
+                        table.insert(group1DPS, {index = k, member = member})
+                    end
+                end
+                
+                for k, member in ipairs(group2) do
+                    if member.role == "DPS" then
+                        table.insert(group2DPS, {index = k, member = member})
+                    end
+                end
+                
+                -- Try swapping DPS members between groups
+                for _, dps1 in ipairs(group1DPS) do
+                    for _, dps2 in ipairs(group2DPS) do
+                        -- Calculate current utility scores
+                        local currentScore1 = groupUtilities[i].score
+                        local currentScore2 = groupUtilities[j].score
+                        local currentTotal = currentScore1 + currentScore2
+                        
+                        -- Temporarily swap members
+                        group1[dps1.index] = dps2.member
+                        group2[dps2.index] = dps1.member
+                        
+                        -- Calculate new utility scores
+                        local newScore1 = self:CalculateGroupUtilityScore(group1)
+                        local newScore2 = self:CalculateGroupUtilityScore(group2)
+                        local newTotal = newScore1 + newScore2
+                        
+                        -- Check if this swap improves overall utility distribution
+                        if newTotal > currentTotal then
+                            addon.Debug("INFO", "Beneficial swap found: exchanging", 
+                                dps1.member.name, "and", dps2.member.name,
+                                "improved total score from", currentTotal, "to", newTotal)
+                            
+                            -- Keep the swap and update our tracking
+                            groupUtilities[i].score = newScore1
+                            groupUtilities[j].score = newScore2
+                            improved = true
+                            break
+                        else
+                            -- Revert the swap
+                            group1[dps1.index] = dps1.member
+                            group2[dps2.index] = dps2.member
+                        end
+                    end
+                    
+                    if improved then break end
+                end
+                
+                if improved then break end
+            end
+            
+            if improved then break end
+        end
+        
+        if not improved then
+            addon.Debug("DEBUG", "No more beneficial swaps found after", iteration, "iterations")
+        end
+    end
+    
+    if iteration >= maxIterations then
+        addon.Debug("WARN", "Utility optimization reached maximum iterations (", maxIterations, ")")
+    end
+    
+    -- Final utility analysis
+    local finalUtilities, finalGaps = self:GetUtilityCoverageGaps(groups)
+    local totalCriticalGaps = 0
+    local totalImportantGaps = 0
+    
+    for utility, count in pairs(finalGaps.critical) do
+        totalCriticalGaps = totalCriticalGaps + count
+    end
+    for utility, count in pairs(finalGaps.important) do
+        totalImportantGaps = totalImportantGaps + count
+    end
+    
+    addon.Debug("INFO", "Utility optimization complete after", iteration, "iterations")
+    addon.Debug("INFO", "Final gaps - Critical:", totalCriticalGaps, "Important:", totalImportantGaps)
     
     return groups
 end

@@ -5,6 +5,26 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Major Features ✨
+- **Intelligent Utility Distribution**: Auto-formation now optimizes group compositions for utility coverage
+  - Critical utilities (Combat Rez, Bloodlust) are prioritized with heavy penalties for missing coverage
+  - Important buffs (Intellect, Stamina, Attack Power, Versatility) receive moderate optimization  
+  - Nice-to-have debuffs (Mystic Touch, Chaos Brand) provide small bonuses when present
+  - Smart DPS swapping between groups maintains role balance while improving utility distribution
+  - Iterative optimization continues until no beneficial swaps are found (max 10 iterations)
+
+### Enhanced Auto-Formation 🎯
+- **Two-Phase Algorithm**: Role balancing followed by utility optimization ensures both proper composition and buff coverage
+- **Comprehensive Utility Tracking**: All 9 utility types mapped to their respective classes with priority-based scoring
+- **Debug Logging**: Detailed logging shows optimization decisions and utility score improvements during auto-formation
+
+### Documentation Updates 📚  
+- **Updated README**: Enhanced feature descriptions to include utility distribution capabilities
+- **Development Context**: Added utility system documentation to CLAUDE.md with technical implementation details
+- **TODO Tracking**: Marked utility distribution as fully implemented in project roadmap
+
 ## [0.5.0] - 2025-08-05
 
 ### Added 🎯

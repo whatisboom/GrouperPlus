@@ -21,7 +21,8 @@ GrouperPlus is a World of Warcraft addon that provides group management function
 1. **Debug System** - Multi-level logging (ERROR, WARN, INFO, DEBUG, TRACE)
 2. **Minimap Icon** - Draggable icon with left/right-click functionality
 3. **Options Panel** - Integrated into WoW's interface options (ESC → Options → AddOns → GrouperPlus)
-4. **Slash Commands**:
+4. **Auto-Formation with Utility Distribution** - Intelligent group creation that balances roles, skill levels, and utility coverage
+5. **Slash Commands**:
    - `/grouper` - Main command
    - `/grouper show` or `/grouper minimap` - Show minimap icon
    - `/grouper hide` - Hide minimap icon
@@ -61,10 +62,50 @@ When adding new options to the settings panel:
 - Added comprehensive debug logging to all options panel functionality
 - Simplified button implementation due to API limitations
 - Integrated settings with AceDB saved variables using proxy settings
+- Implemented intelligent utility distribution in auto-formation algorithm
+- Added utility tracking and optimization for combat resurrection, bloodlust, and raid buffs
 
 ## Known Issues/Limitations
 - Button controls in the Settings API have strict requirements and may need workarounds
 - The new Settings API requires different approaches than the legacy interface options
+
+## Utility Distribution System
+
+### Overview
+The auto-formation algorithm includes intelligent utility distribution that ensures each group has optimal coverage of critical abilities.
+
+### Utility Priorities
+- **Priority 1 (Critical)**: Combat Rez, Bloodlust - Heavy penalties if missing (-200), large bonuses if present (+100)
+- **Priority 2 (Important)**: Intellect, Stamina, Attack Power, Versatility, Skyfury - Moderate penalties if missing (-75), medium bonuses if present (+50)  
+- **Priority 3 (Nice-to-have)**: Mystic Touch, Chaos Brand - Small bonuses if present (+25), no penalty if missing
+
+### Algorithm Phases
+1. **Phase 1**: Create role-balanced groups (1T/1H/3D) sorted by RaiderIO scores
+2. **Phase 2**: Optimize utility distribution by swapping DPS members between groups
+   - Only swaps members of the same role to maintain balance
+   - Iteratively improves until no beneficial swaps are found
+   - Maximum 10 iterations to prevent infinite loops
+
+### Class Utility Mapping
+Defined in `constants.lua` with `CLASS_UTILITIES` and `UTILITY_INFO` tables:
+- Death Knight: Combat Rez
+- Druid: Combat Rez, Versatility
+- Evoker: Bloodlust
+- Hunter: Bloodlust
+- Mage: Bloodlust, Intellect
+- Monk: Mystic Touch
+- Paladin: Combat Rez
+- Priest: Stamina
+- Shaman: Bloodlust, Skyfury
+- Warlock: Combat Rez
+- Warrior: Attack Power
+- Demon Hunter: Chaos Brand
+
+### Development Notes
+- All utility functions are in `modules/AutoFormation.lua`
+- Comprehensive debug logging tracks optimization decisions
+- Visual indicators in MainFrame show utility coverage per group
+- System integrates seamlessly with existing role balancing
 
 ## Testing Commands
 ```
@@ -72,6 +113,7 @@ When adding new options to the settings panel:
 /grouperopt - Open options panel
 /grouper show - Show minimap icon
 /grouper hide - Hide minimap icon
+/grouper auto - Test auto-formation with utility distribution
 ```
 
 ## Documentation Guidelines
