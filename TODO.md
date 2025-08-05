@@ -15,7 +15,6 @@
 - [x] Automatic role detection based on player specialization
 - [x] Role-based positioning within groups (tanks first, healers, then DPS)
 - [x] Real-time role change detection and UI updates
-- [ ] Configurable role caps in options panel
 
 ### Inter-Addon Communication ✅ IMPLEMENTED
 - [x] Implement addon communication protocol for data sharing
@@ -26,9 +25,9 @@
 - [x] Automatic role sharing between guild members with the addon
 - [x] RaiderIO data synchronization across addon users
 
-### Group Utility Tracking
-- [ ] Track group buffs and utilities (bloodlust, battle rez, powerful abilities)
-- [ ] Display utility coverage per group
+### Group Utility Tracking ✅ IMPLEMENTED
+- [x] Track group buffs and utilities (bloodlust, battle rez, powerful abilities)
+- [x] Display utility coverage per group
 - [ ] Consider utility distribution when forming groups
 
 ### Display Control ✅ IMPLEMENTED

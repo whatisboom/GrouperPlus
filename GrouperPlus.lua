@@ -44,7 +44,7 @@ local LibDBIcon = LibStub("LibDBIcon-1.0")
 local minimapLDB = {
     type = "launcher",
     text = "GrouperPlus",
-    icon = "Interface\\Icons\\INV_Misc_GroupLooking",
+    icon = "Interface\\AddOns\\GrouperPlus\\textures\\icon",
     OnClick = function(self, button)
         if button == "LeftButton" then
             Debug(addon.LOG_LEVEL.INFO, "Minimap icon clicked with left button")

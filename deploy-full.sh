@@ -63,20 +63,12 @@ echo "✅ Build successful!"
 echo "📦 Package: $BUILD_DIR/$ARCHIVE_NAME"
 echo "📏 Size: $(du -h $BUILD_DIR/$ARCHIVE_NAME | cut -f1)"
 
-# Confirm deployment
+# Deploy to CurseForge
 echo ""
-echo "🚨 Ready to deploy to CurseForge!"
+echo "🚀 Deploying to CurseForge..."
 echo "Project ID: $CURSEFORGE_PROJECT_ID"
 echo "Package: $BUILD_DIR/$ARCHIVE_NAME"
 echo ""
-read -p "Continue with deployment? (y/N): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "❌ Deployment cancelled"
-    exit 1
-fi
-
-# Deploy
 echo "🚀 Deploying to CurseForge..."
 node deploy.js
 
