@@ -55,4 +55,15 @@
 - [ ] Expand data sources beyond RaiderIO
 - [ ] Additional third-party addon integrations
 
+### Addon User Management ✅ IMPLEMENTED
+- [x] Show list of guild members who have GrouperPlus installed
+- [x] Add UI panel/window to display connected addon users  
+- [x] Integrate addon user list with existing communication system
+
+### Version Management ✅ IMPLEMENTED
+- [x] Warn user when newer version of addon is detected in guild
+- [x] Display informative message with download/update instructions
+- [x] Add version comparison logic to communication system
+- [x] Show version warnings in user interface
+
 <!-- Add items here as they come up -->

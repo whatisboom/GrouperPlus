@@ -135,15 +135,31 @@ local function HandleIncomingMessage(message, distribution, sender)
         AddonComm:SendVersionResponse(sender)
         connectedUsers[sender] = {
             version = message.version,
+            addonVersion = message.data.addonVersion,
             lastSeen = GetServerTime()
         }
+        
+        -- Trigger version check when we receive version info
+        if addon.VersionWarning then
+            C_Timer.After(1, function()
+                addon.VersionWarning:CheckForNewerVersions()
+            end)
+        end
         
     elseif message.type == MESSAGE_TYPES.VERSION_RESPONSE then
         connectedUsers[sender] = {
             version = message.version,
+            addonVersion = message.data.addonVersion,
             lastSeen = GetServerTime()
         }
-        addon.Debug(addon.LOG_LEVEL.INFO, "User", sender, "is running GrouperPlus version", message.version)
+        addon.Debug(addon.LOG_LEVEL.INFO, "User", sender, "is running GrouperPlus version", message.data.addonVersion or message.version)
+        
+        -- Trigger version check when we receive version response
+        if addon.VersionWarning then
+            C_Timer.After(1, function()
+                addon.VersionWarning:CheckForNewerVersions()
+            end)
+        end
         
     elseif message.type == MESSAGE_TYPES.GROUP_SYNC then
         AddonComm:HandleGroupSync(message.data, sender)

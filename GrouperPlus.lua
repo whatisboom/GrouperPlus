@@ -219,6 +219,35 @@ SlashCmdList["GROUPER"] = function(msg)
         else
             Debug(addon.LOG_LEVEL.WARN, "UI refresh function not available")
         end
+    elseif command == "users" or command == "userlist" or command == "list" then
+        if addon.AddonUserList then
+            addon.AddonUserList:ToggleUserList()
+            Debug(addon.LOG_LEVEL.INFO, "Addon user list toggled")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "AddonUserList module not loaded")
+        end
+    elseif command == "versioncheck" or command == "checkversion" then
+        if addon.VersionWarning then
+            addon.VersionWarning:CheckForNewerVersions()
+            Debug(addon.LOG_LEVEL.INFO, "Manual version check triggered")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "VersionWarning module not loaded")
+        end
+    elseif command == "versiontest" then
+        if addon.VersionWarning then
+            -- Test with fake newer version
+            addon.VersionWarning:ShowVersionWarning("0.7.0", {"TestUser"})
+            Debug(addon.LOG_LEVEL.INFO, "Test version warning shown")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "VersionWarning module not loaded")
+        end
+    elseif command == "versiondismiss" then
+        if addon.VersionWarning then
+            addon.VersionWarning:DismissWarning()
+            Debug(addon.LOG_LEVEL.INFO, "Version warning dismissed")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "VersionWarning module not loaded")
+        end
     else
         Debug(addon.LOG_LEVEL.INFO, "GrouperPlus commands:")
         Debug(addon.LOG_LEVEL.INFO, "/grouper show - Show minimap button")
@@ -233,5 +262,9 @@ SlashCmdList["GROUPER"] = function(msg)
         Debug(addon.LOG_LEVEL.INFO, "/grouper checkrole - Check for role changes")
         Debug(addon.LOG_LEVEL.INFO, "/grouper spec - Debug player specialization info")
         Debug(addon.LOG_LEVEL.INFO, "/grouper refresh - Force UI refresh")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper users - Show addon user list window")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper versioncheck - Check for newer versions")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper versiontest - Test version warning display")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper versiondismiss - Dismiss current version warning")
     end
 end

@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation Updates 📚  
 - **Updated README**: Enhanced feature descriptions to include utility distribution capabilities
 - **Development Context**: Added utility system documentation to CLAUDE.md with technical implementation details
-- **TODO Tracking**: Marked utility distribution as fully implemented in project roadmap
+- **TODO Tracking**: Marked utility distribution as fully implemented in project roadmapw
 
 ## [0.5.0] - 2025-08-05
 

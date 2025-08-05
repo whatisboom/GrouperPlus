@@ -91,7 +91,13 @@ local defaults = {
             acceptRaiderIOData = true,
             respondToRequests = true,
             compression = true
-        }
+        },
+        versionWarning = {
+            enabled = true,
+            showPatchUpdates = false,
+            autoCheckInterval = 300
+        },
+        dismissedVersions = {}
     }
 }
 

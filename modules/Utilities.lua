@@ -142,5 +142,84 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         return a + (b - a) * factor
     end
     
-    Debug(LOG_LEVEL.INFO, "Utilities module initialized with color interpolation functions")
+    -- Parse semantic version string into components
+    -- @param version: Version string like "1.2.3" or "0.6.0"
+    -- @return: Table with {major, minor, patch} or nil if invalid
+    function addon.Utils.ParseVersion(version)
+        if not version or type(version) ~= "string" then
+            Debug(LOG_LEVEL.DEBUG, "ParseVersion: Invalid version parameter")
+            return nil
+        end
+        
+        local major, minor, patch = string.match(version, "^(%d+)%.(%d+)%.(%d+)")
+        if not major or not minor or not patch then
+            Debug(LOG_LEVEL.DEBUG, "ParseVersion: Failed to parse version:", version)
+            return nil
+        end
+        
+        return {
+            major = tonumber(major),
+            minor = tonumber(minor), 
+            patch = tonumber(patch)
+        }
+    end
+    
+    -- Compare two semantic versions
+    -- @param version1: First version string
+    -- @param version2: Second version string  
+    -- @return: -1 if v1 < v2, 0 if equal, 1 if v1 > v2, nil if error
+    function addon.Utils.CompareVersions(version1, version2)
+        local v1 = addon.Utils.ParseVersion(version1)
+        local v2 = addon.Utils.ParseVersion(version2)
+        
+        if not v1 or not v2 then
+            Debug(LOG_LEVEL.WARN, "CompareVersions: Failed to parse versions:", version1, version2)
+            return nil
+        end
+        
+        -- Compare major version first
+        if v1.major ~= v2.major then
+            return v1.major < v2.major and -1 or 1
+        end
+        
+        -- Compare minor version
+        if v1.minor ~= v2.minor then
+            return v1.minor < v2.minor and -1 or 1
+        end
+        
+        -- Compare patch version
+        if v1.patch ~= v2.patch then
+            return v1.patch < v2.patch and -1 or 1
+        end
+        
+        -- Versions are equal
+        return 0
+    end
+    
+    -- Check if a version is newer than another
+    -- @param newVersion: Version to check if newer
+    -- @param currentVersion: Current/reference version
+    -- @return: true if newVersion > currentVersion
+    function addon.Utils.IsVersionNewer(newVersion, currentVersion)
+        local result = addon.Utils.CompareVersions(newVersion, currentVersion)
+        return result == 1
+    end
+    
+    -- Check if update is significant (major or minor version increase)
+    -- @param newVersion: Newer version string
+    -- @param currentVersion: Current version string
+    -- @return: true if major or minor version increased
+    function addon.Utils.IsSignificantUpdate(newVersion, currentVersion)
+        local v1 = addon.Utils.ParseVersion(newVersion)
+        local v2 = addon.Utils.ParseVersion(currentVersion)
+        
+        if not v1 or not v2 then
+            return false
+        end
+        
+        -- Significant if major or minor version is higher
+        return v1.major > v2.major or (v1.major == v2.major and v1.minor > v2.minor)
+    end
+    
+    Debug(LOG_LEVEL.INFO, "Utilities module initialized with color interpolation and version comparison functions")
 end)

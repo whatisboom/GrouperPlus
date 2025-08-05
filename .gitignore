@@ -120,13 +120,6 @@ yarn-error.log*
 # Keep CLAUDE.md as it's project-specific
 # !CLAUDE.md
 
-# Local development notes
-TODO.txt
-NOTES.txt
-NOTES.md
-dev-notes/
-local-notes/
-
 # Version Control
 # =====================================
 

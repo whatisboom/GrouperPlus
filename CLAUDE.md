@@ -128,6 +128,7 @@ Defined in `constants.lua` with `CLASS_UTILITIES` and `UTILITY_INFO` tables:
 - Do not add "Generated with Claude Code" or "Co-Authored-By: Claude" lines
 - Keep commit messages clean and professional
 - Always use commit message format "type(scope): description"
+- **Don't have uninformative commit messages like bumping the version when there were significant changes involved**
 
 ## Future Considerations
 - When adding new features, always consider the debug logging requirements
@@ -155,3 +156,6 @@ Defined in `constants.lua` with `CLASS_UTILITIES` and `UTILITY_INFO` tables:
 
 ## Development Reminders
 - Update the version in the issue configs when we update it in the toc and other places
+
+## Release Process Memory
+- When asked to do a release, you will update the version, prompting for major/minor/patch increments if you are not sure based on the changes, update the changelog, commit the change to git, create a git tag, push to origin, and then publish a release on github, and then using ./deploy-full.sh you will publish a release to curseforge

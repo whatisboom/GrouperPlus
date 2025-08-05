@@ -67,6 +67,21 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
             info.menuList = "debuglevel"
             UIDropDownMenu_AddButton(info, level)
             
+            -- Show Addon Users
+            info = UIDropDownMenu_CreateInfo()
+            info.text = "Show Addon Users"
+            info.notCheckable = true
+            info.func = function()
+                if addon.AddonUserList then
+                    addon.AddonUserList:ToggleUserList()
+                    Debug(LOG_LEVEL.INFO, "Toggled addon user list from minimap menu")
+                else
+                    Debug(LOG_LEVEL.WARN, "AddonUserList module not available")
+                end
+                CloseDropDownMenus()
+            end
+            UIDropDownMenu_AddButton(info, level)
+            
             -- Separator
             info = UIDropDownMenu_CreateInfo()
             info.hasArrow = false

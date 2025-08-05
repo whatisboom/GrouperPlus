@@ -17,6 +17,7 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 - **See Player Strength at a Glance** - RaiderIO scores displayed right in the interface so you know each player's Mythic+ experience
 - **Drag & Drop Flexibility** - Easy reorganization when you want to make manual adjustments to the automated groups
 - **Guild-Wide Coordination** - Share group setups instantly with other guild members who have the addon
+- **Addon User Tracking** - See which guild members have GrouperPlus installed with a dedicated user list window
 - **Group Buff Tracking** - See at a glance which groups have combat resurrection, bloodlust, and important raid buffs with color-coded indicators
 
 ### How It Helps You
@@ -42,6 +43,7 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 - `/grouper hide` - Hide minimap icon
 - `/grouper auto` or `/grouper autoform` - Automatically form balanced groups based on player roles and ratings
 - `/grouper comm` - Check connected GrouperPlus users in guild
+- `/grouper users` - Show addon user list window with all guild members who have GrouperPlus installed
 - `/grouper broadcast` - Send version check to other addon users
 - `/grouper share` - Share RaiderIO data with guild members
 - `/grouper role` - Force share current player role with guild
