@@ -66,4 +66,18 @@
 - [x] Add version comparison logic to communication system
 - [x] Show version warnings in user interface
 
+### Keystone Management ✅ PARTIALLY IMPLEMENTED
+- [x] Detect and display player's current mythic+ keystone
+- [x] Share keystone information between addon users in guild
+- [x] Show keystone tooltips on character frames
+- [ ] Assign keystones to groups based on member keystones
+- [ ] Display which keystone each formed group will run
+- [ ] Smart group formation considering available keystones
+  - [ ] Keystone distribution analysis - avoid duplicate keystones in same group
+  - [ ] Keystone level matching - group similar difficulty levels together
+  - [ ] Dungeon-specific class composition optimization
+  - [ ] Ensure each group has at least one keystone to run
+  - [ ] Flag groups without keystones as support/backup groups
+  - [ ] Prioritize higher keystones for higher-rated player groups
+
 <!-- Add items here as they come up -->
