@@ -18,7 +18,7 @@ local MAX_GROUP_SIZE = 5
 -- Forward declarations for drag frame functions
 local CreateDragFrame, ShowDragFrame, HideDragFrame, UpdateDragFramePosition
 local AddMemberToGroup, RemoveMemberFromGroup, RemoveMemberFromPlayerList, AddMemberBackToPlayerList
-local CreateNewGroup, EnsureEmptyGroupExists, CalculateGroupLayout, RepositionAllGroups
+local CreateNewGroup, EnsureEmptyGroupExists, CalculateGroupLayout, RepositionAllGroups, GetMemberBackgroundColor
 local ReorganizeGroupByRole, CheckRoleLimits
 
 local function UpdateGuildMemberList()
@@ -467,6 +467,22 @@ UpdateDragFramePosition = function()
     -- addon.Debug("TRACE", "UpdateDragFramePosition: Updated position to", x / scale + 10, y / scale + 10)
 end
 
+-- Helper function to get the proper background color for a member based on RaiderIO score
+GetMemberBackgroundColor = function(memberName)
+    local defaultColor = {r = 0.2, g = 0.2, b = 0.3} -- Default background color
+    
+    if not memberName or not addon.RaiderIOIntegration or not addon.RaiderIOIntegration:IsAvailable() or not addon.Utils then
+        return defaultColor
+    end
+    
+    local score = addon.RaiderIOIntegration:GetMythicPlusScore(memberName)
+    if score and score > 0 then
+        return addon.Utils.GetScoreColor(score, 0, 3000)
+    end
+    
+    return defaultColor
+end
+
 local function CreateGroupFrame(parent, groupIndex, groupWidth)
     addon.Debug("DEBUG", "CreateGroupFrame: Creating group frame", groupIndex, "with width", groupWidth)
     
@@ -550,7 +566,10 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
             elseif not draggedMember and not groupFrame.members[i] then
                 self.bg:Hide()
             elseif groupFrame.members[i] then
-                self.bg:SetColorTexture(0.2, 0.2, 0.3, 0.3)
+                -- Restore the proper background color based on RaiderIO score
+                local memberName = groupFrame.members[i].name
+                local bgColor = GetMemberBackgroundColor(memberName)
+                self.bg:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, 0.4)
                 self.bg:Show()
             end
         end)
@@ -1305,17 +1324,9 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
         addon.Debug("DEBUG", "AddMemberToGroup: Updating memberFrame display")
         
         -- Set background color based on RaiderIO score
-        local bgColor = {r = 0.2, g = 0.2, b = 0.3} -- Default background color
-        if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() and addon.Utils then
-            local score = addon.RaiderIOIntegration:GetMythicPlusScore(memberInfo.name)
-            if score and score > 0 then
-                -- Use score-based coloring with 500 rating steps (0-3000 range)
-                bgColor = addon.Utils.GetScoreColor(score, 0, 3000)
-                addon.Debug("DEBUG", "AddMemberToGroup: Set background color for", memberInfo.name, "score:", score)
-            end
-        end
-        
+        local bgColor = GetMemberBackgroundColor(memberInfo.name)
         memberFrame.bg:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, 0.4)
+        addon.Debug("DEBUG", "AddMemberToGroup: Set background color for", memberInfo.name)
         memberFrame.bg:Show()
         
         -- Include RaiderIO score in display text
@@ -1451,17 +1462,9 @@ ReorganizeGroupByRole = function(groupIndex)
         local memberFrame = group.memberFrames[i]
         if memberFrame then
             -- Set background color based on RaiderIO score
-            local bgColor = {r = 0.2, g = 0.2, b = 0.3} -- Default background color
-            if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() and addon.Utils then
-                local score = addon.RaiderIOIntegration:GetMythicPlusScore(member.name)
-                if score and score > 0 then
-                    -- Use score-based coloring with 500 rating steps (0-3000 range)
-                    bgColor = addon.Utils.GetScoreColor(score, 0, 3000)
-                    addon.Debug("DEBUG", "ReorganizeGroupByRole: Set background color for", member.name, "score:", score)
-                end
-            end
-            
+            local bgColor = GetMemberBackgroundColor(member.name)
             memberFrame.bg:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, 0.4)
+            addon.Debug("DEBUG", "ReorganizeGroupByRole: Set background color for", member.name)
             memberFrame.bg:Show()
             
             -- Include RaiderIO score in display text
@@ -2215,17 +2218,9 @@ function addon:OnRaiderIODataReceived(data, sender)
                     local memberFrame = group.memberFrames[slotIndex]
                     if memberFrame and memberFrame.text then
                         -- Update background color based on new RaiderIO score
-                        local bgColor = {r = 0.2, g = 0.2, b = 0.3} -- Default background color
-                        if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() and addon.Utils then
-                            local score = addon.RaiderIOIntegration:GetMythicPlusScore(member.name)
-                            if score and score > 0 then
-                                -- Use score-based coloring with 500 rating steps (0-3000 range)
-                                bgColor = addon.Utils.GetScoreColor(score, 0, 3000)
-                                addon.Debug(addon.LOG_LEVEL.DEBUG, "OnRaiderIODataReceived: Updated background color for", member.name, "score:", score)
-                            end
-                        end
-                        
+                        local bgColor = GetMemberBackgroundColor(member.name)
                         memberFrame.bg:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, 0.4)
+                        addon.Debug(addon.LOG_LEVEL.DEBUG, "OnRaiderIODataReceived: Updated background color for", member.name)
                         
                         local displayText = member.name
                         if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
