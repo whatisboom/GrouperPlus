@@ -89,6 +89,7 @@ local defaults = {
             acceptGroupSync = true,
             acceptPlayerData = true,
             acceptRaiderIOData = true,
+            acceptKeystoneData = true,
             respondToRequests = true,
             compression = true
         },

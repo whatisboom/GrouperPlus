@@ -44,6 +44,9 @@ GrouperPlus is a World of Warcraft addon that provides group management function
   - `WARN` - For potential issues or fallback behavior
   - `ERROR` - For critical failures
 
+### Debugging Memory
+- **Do not use warm or error levels for anything debugging related**
+
 ### Options Panel
 When adding new options to the settings panel:
 1. Use `Settings.RegisterProxySetting` to integrate with saved variables

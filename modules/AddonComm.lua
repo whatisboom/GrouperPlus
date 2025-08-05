@@ -45,7 +45,8 @@ local MESSAGE_TYPES = {
     PLAYER_DATA = "PLAYER_DATA",
     RAIDERIO_DATA = "RAIDERIO_DATA",
     FORMATION_REQUEST = "FORMATION_REQUEST",
-    FORMATION_RESPONSE = "FORMATION_RESPONSE"
+    FORMATION_RESPONSE = "FORMATION_RESPONSE",
+    KEYSTONE_DATA = "KEYSTONE_DATA"
 }
 
 local connectedUsers = {}
@@ -175,6 +176,9 @@ local function HandleIncomingMessage(message, distribution, sender)
         
     elseif message.type == MESSAGE_TYPES.FORMATION_RESPONSE then
         AddonComm:HandleFormationResponse(message.data, sender)
+        
+    elseif message.type == MESSAGE_TYPES.KEYSTONE_DATA then
+        AddonComm:HandleKeystoneData(message.data, sender)
     end
 end
 
@@ -416,6 +420,19 @@ function AddonComm:HandleFormationResponse(data, sender)
     
     if addon.OnFormationResponseReceived then
         addon:OnFormationResponseReceived(data, sender)
+    end
+end
+
+function AddonComm:HandleKeystoneData(data, sender)
+    if not addon.settings.communication or not addon.settings.communication.acceptKeystoneData then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Keystone data sharing disabled, ignoring message from", sender)
+        return
+    end
+    
+    addon.Debug(addon.LOG_LEVEL.DEBUG, "Keystone data received from", sender)
+    
+    if addon.Keystone and addon.Keystone.HandleKeystoneData then
+        addon.Keystone:HandleKeystoneData(data, sender)
     end
 end
 

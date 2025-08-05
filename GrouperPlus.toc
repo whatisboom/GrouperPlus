@@ -16,6 +16,7 @@ constants.lua
 GrouperPlus.lua
 modules\Utilities.lua
 modules\AddonComm.lua
+modules\Keystone.lua
 modules\MinimapMenu.lua
 modules\OptionsPanel.lua
 modules\RaiderIOIntegration.lua

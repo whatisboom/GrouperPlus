@@ -98,6 +98,7 @@ local function UpdateGuildMemberList()
     return memberList
 end
 
+
 local function CreateMemberRow(parent, index)
     local row = CreateFrame("Button", nil, parent)
     row:SetHeight(20)
@@ -126,6 +127,47 @@ local function CreateMemberRow(parent, index)
     
     row:EnableMouse(true)
     row:RegisterForDrag("LeftButton")
+    
+    -- Add tooltip functionality
+    row:SetScript("OnEnter", function(self)
+        if not self.memberName then return end
+        
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(self.memberName, 1, 1, 1)
+        
+        -- Add keystone information if available
+        if addon.Keystone then
+            local receivedKeystones = addon.Keystone:GetReceivedKeystones()
+            local keystoneData = receivedKeystones[self.memberName]
+            
+            if keystoneData and keystoneData.mapID and keystoneData.level then
+                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
+                local keystoneString = string.format("%s +%d", keystoneData.dungeonName or "Unknown Dungeon", keystoneData.level)
+                GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
+            else
+                -- Check if it's the current player (try both with and without realm)
+                local playerName = UnitName("player")
+                local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+                
+                if self.memberName == playerName or self.memberName == playerFullName then
+                    local playerKeystoneInfo = addon.Keystone:GetKeystoneInfo()
+                    if playerKeystoneInfo.hasKeystone then
+                        GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                        GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
+                        local keystoneString = addon.Keystone:GetKeystoneString()
+                        GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
+                    end
+                end
+            end
+        end
+        
+        GameTooltip:Show()
+    end)
+    
+    row:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
     
     addon.Debug("DEBUG", "CreateMemberRow: Setting up drag handlers for row", index)
     
@@ -619,11 +661,51 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                 addon.Debug("DEBUG", "Group slot highlighting for potential drop")
                 self.bg:SetColorTexture(0.3, 0.5, 0.3, 0.7)
                 self.bg:Show()
+            else
+                -- Show tooltip if member exists in this slot
+                if groupFrame.members[i] then
+                    local memberInfo = groupFrame.members[i]
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    GameTooltip:SetText(memberInfo.name, 1, 1, 1)
+                    
+                    -- Add keystone information if available
+                    if addon.Keystone then
+                        local receivedKeystones = addon.Keystone:GetReceivedKeystones()
+                        local keystoneData = receivedKeystones[memberInfo.name]
+                        
+                        if keystoneData and keystoneData.mapID and keystoneData.level then
+                            GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                            GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
+                            local keystoneString = string.format("%s +%d", keystoneData.dungeonName or "Unknown Dungeon", keystoneData.level)
+                            GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
+                        else
+                            -- Check if it's the current player (try both with and without realm)
+                            local playerName = UnitName("player")
+                            local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+                            
+                            if memberInfo.name == playerName or memberInfo.name == playerFullName then
+                                local playerKeystoneInfo = addon.Keystone:GetKeystoneInfo()
+                                if playerKeystoneInfo.hasKeystone then
+                                    GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                                    GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
+                                    local keystoneString = addon.Keystone:GetKeystoneString()
+                                    GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
+                                end
+                            end
+                        end
+                    end
+                    
+                    GameTooltip:Show()
+                end
             end
         end)
         
         memberFrame:SetScript("OnLeave", function(self)
             addon.Debug("DEBUG", "Group slot OnLeave: group", groupIndex, "slot", i)
+            
+            -- Always hide tooltip when leaving
+            GameTooltip:Hide()
+            
             if draggedMember and not groupFrame.members[i] then
                 self.bg:Hide()
             elseif not draggedMember and not groupFrame.members[i] then

@@ -97,6 +97,13 @@ frame:SetScript("OnEvent", function(self, event, ...)
             Debug(addon.LOG_LEVEL.INFO, "GrouperPlus addon loaded successfully!")
             Debug(addon.LOG_LEVEL.DEBUG, "Settings initialized with debugLevel:", settings.debugLevel)
             InitializeMinimap()
+            
+            -- Initialize Keystone module
+            if addon.Keystone then
+                C_Timer.After(2, function()
+                    addon.Keystone:Initialize()
+                end)
+            end
         end
     elseif event == "PLAYER_LOGIN" then
         Debug(addon.LOG_LEVEL.INFO, "Welcome to GrouperPlus!")
@@ -248,6 +255,31 @@ SlashCmdList["GROUPER"] = function(msg)
         else
             Debug(addon.LOG_LEVEL.WARN, "VersionWarning module not loaded")
         end
+    elseif command == "keystone" or command == "key" then
+        if addon.Keystone then
+            local info = addon.Keystone:GetKeystoneInfo()
+            local keystoneString = addon.Keystone:GetKeystoneString()
+            Debug(addon.LOG_LEVEL.INFO, "Current keystone:", keystoneString)
+            
+            local received = addon.Keystone:GetReceivedKeystones()
+            local count = 0
+            for player, data in pairs(received) do
+                count = count + 1
+                local playerKeystone = "No Keystone"
+                if data.mapID and data.level then
+                    playerKeystone = string.format("%s +%d", data.dungeonName or "Unknown", data.level)
+                end
+                Debug(addon.LOG_LEVEL.INFO, "  " .. player .. ":", playerKeystone)
+            end
+            
+            if count == 0 then
+                Debug(addon.LOG_LEVEL.INFO, "No keystone data received from other players")
+            end
+            
+            addon.Keystone:ForceUpdate()
+        else
+            Debug(addon.LOG_LEVEL.WARN, "Keystone module not loaded")
+        end
     else
         Debug(addon.LOG_LEVEL.INFO, "GrouperPlus commands:")
         Debug(addon.LOG_LEVEL.INFO, "/grouper show - Show minimap button")
@@ -266,5 +298,6 @@ SlashCmdList["GROUPER"] = function(msg)
         Debug(addon.LOG_LEVEL.INFO, "/grouper versioncheck - Check for newer versions")
         Debug(addon.LOG_LEVEL.INFO, "/grouper versiontest - Test version warning display")
         Debug(addon.LOG_LEVEL.INFO, "/grouper versiondismiss - Dismiss current version warning")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper keystone - Show current keystone and received keystones")
     end
 end
