@@ -24,9 +24,9 @@ local ROLE_COLORS = {
 }
 
 local ROLE_DISPLAY = {
-    TANK = "[T]",
-    HEALER = "[H]",
-    DPS = "[D]",
+    TANK = "|TInterface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES:16:16:0:0:64:64:0:19:22:41|t",
+    HEALER = "|TInterface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES:16:16:0:0:64:64:20:39:1:20|t",
+    DPS = "|TInterface\\LFGFrame\\UI-LFG-ICON-PORTRAITROLES:16:16:0:0:64:64:20:39:22:41|t",
     UNKNOWN = "[?]"
 }
 
