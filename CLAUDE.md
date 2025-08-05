@@ -106,3 +106,7 @@ When adding new options to the settings panel:
 
 ## Code Development Warnings
 - Never put character specific debug code
+
+## Memory Notes
+- Keep the readme as user-focused as you can
+- the CURSEFORGE_API_TOKEN is set in env

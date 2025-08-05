@@ -14,7 +14,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
     
     -- Ensure we have valid references
     if not Debug or not LOG_LEVEL then
-        print("GrouperPlus: MinimapMenu - Missing addon references")
+        print("[GrouperPlus:ERROR] MinimapMenu - Missing addon references")
         return
     end
     

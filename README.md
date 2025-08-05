@@ -7,36 +7,46 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 
 ## Current Features
 
-### Core Functionality
-- **Guild Member Display** - Shows online max-level guild members in an organized interface
-- **Dynamic Group Management** - Create and manage multiple groups of up to 5 members each
-- **Drag & Drop Interface** - Seamlessly move members between groups or from the member list to groups
-- **RaiderIO Integration** - Displays Mythic+ scores for guild members when available
-- **Settings Panel** - Integrated with WoW's interface options (ESC → Options → AddOns → GrouperPlus)
+### Key Features
+- **Instant Group Creation** - Automatically create balanced Mythic+ groups in seconds instead of spending minutes forming teams manually
+- **Smart Role Balancing** - Never worry about group composition again - always get the perfect 1 tank, 1 healer, 3 DPS setup
+- **Skill-Based Matching** - Groups are balanced by player experience and ratings so everyone has a fair chance at success
+- **See Player Strength at a Glance** - RaiderIO scores displayed right in the interface so you know each player's Mythic+ experience
+- **Drag & Drop Flexibility** - Easy reorganization when you want to make manual adjustments to the automated groups
+- **Guild-Wide Coordination** - Share group setups instantly with other guild members who have the addon
 
-### Group Management
-- **Multiple Dynamic Groups** - Automatically creates empty groups as needed
-- **Inter-Group Transfers** - Drag members between different groups to reorganize teams
-- **Member Tracking** - Smart tracking prevents members from appearing in multiple locations
-- **Visual Feedback** - Hover highlighting and drag indicators for intuitive interaction
-- **Group Removal** - Remove members from groups to return them to the available member list
+### How It Helps You
+- **Save Time on Group Formation** - What used to take 10+ minutes of manual organization now happens instantly
+- **Reduce Group Formation Stress** - No more guessing at player skill levels or trying to remember who plays what role
+- **Improve Success Rates** - Balanced groups based on actual player experience lead to better dungeon runs
+- **Easy Adjustments** - Simple drag-and-drop when you want to swap players between groups or make changes
+- **Never Lose Track of Players** - Clear visual organization prevents accidentally putting the same player in multiple groups
+- **Consistent Group Structure** - Every group follows the optimal dungeon composition automatically
 
-### User Interface
-- **Main Frame** - Resizable and movable window for guild member management
-- **Dual-Panel Layout** - Member list on the left, dynamic groups on the right
-- **Member Filtering** - Automatically filters to show only online, max-level characters
-- **Class Color Coding** - Guild members displayed with appropriate class colors
-- **Persistent Settings** - Window size and position saved between sessions
+### Simple to Use
+- **Clean, Intuitive Interface** - Everything you need is visible at a glance with no clutter
+- **Only Shows Relevant Players** - Automatically filters to online, max-level guild members ready for content
+- **Recognizable Class Colors** - Instantly identify each player's class with familiar WoW color coding
+- **Remembers Your Preferences** - Window size and position stay exactly how you left them
+- **Works Anywhere** - Drag the window wherever it's most convenient on your screen
 
 ### Commands
 - `/grouper` - Show available commands
 - `/grouper main` or `/grouper toggle` - Open/close the main group management window
 - `/grouper show` or `/grouper minimap` - Show minimap icon
 - `/grouper hide` - Hide minimap icon
+- `/grouper auto` or `/grouper autoform` - Automatically form balanced groups based on player roles and ratings
+- `/grouper comm` - Check connected GrouperPlus users in guild
+- `/grouper broadcast` - Send version check to other addon users
+- `/grouper share` - Share RaiderIO data with guild members
+- `/grouper role` - Force share current player role with guild
+- `/grouper test` - Test RaiderIO integration functionality
 - `/grouperopt` or `/grouperptions` - Open options panel
 
-### Technical Features
-- **Debug System** - Built-in troubleshooting tools to help diagnose issues
+### Reliability & Support
+- **Built-in Troubleshooting** - Comprehensive logging helps identify and resolve any issues quickly
+- **Works with Guild Members** - Share your group setups with other guild members who have the addon installed
+- **Automatic Updates** - Player roles and specs are detected automatically, even when they change characters
 
 ## How to Use
 

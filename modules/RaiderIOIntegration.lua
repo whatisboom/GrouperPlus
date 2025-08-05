@@ -9,7 +9,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
     local LOG_LEVEL = addon.LOG_LEVEL
     
     if not Debug or not LOG_LEVEL then
-        print("GrouperPlus: RaiderIOIntegration - Missing addon references")
+        print("[GrouperPlus:ERROR] RaiderIOIntegration - Missing addon references")
         return
     end
     
@@ -231,32 +231,32 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         Debug(LOG_LEVEL.INFO, "Printing RaiderIO info for unit:", unit)
         
         if not self:IsAvailable() then
-            print("GrouperPlus: RaiderIO addon not available")
+            Debug(LOG_LEVEL.WARN, "RaiderIO addon not available")
             return
         end
         
         local profile, err = self:GetProfile(unit)
         if not profile then
-            print("GrouperPlus: No RaiderIO data available for " .. (UnitName(unit) or unit) .. " (" .. err .. ")")
+            Debug(LOG_LEVEL.INFO, "No RaiderIO data available for", (UnitName(unit) or unit), "(", err, ")")
             return
         end
         
         local name = profile.name or UnitName(unit) or unit
-        print("GrouperPlus: RaiderIO Info for " .. name .. ":")
+        Debug(LOG_LEVEL.DEBUG, "RaiderIO Info for", name, ":")
         
         local score = self:GetMythicPlusScore(unit)
         if score then
-            print("  Current M+ Score: " .. score)
+            Debug(LOG_LEVEL.DEBUG, "  Current M+ Score:", score)
         end
         
         local prevScore = self:GetPreviousSeasonScore(unit)
         if prevScore then
-            print("  Previous Season Score: " .. prevScore)
+            Debug(LOG_LEVEL.DEBUG, "  Previous Season Score:", prevScore)
         end
         
         local completions = self:GetKeystoneCompletions(unit)
         if completions then
-            print("  Keystone Completions: " .. completions.fifteenPlus .. " (15+), " .. completions.tenPlus .. " (10+)")
+            Debug(LOG_LEVEL.DEBUG, "  Keystone Completions:", completions.fifteenPlus, "(15+),", completions.tenPlus, "(10+)")
         end
     end
     

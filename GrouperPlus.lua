@@ -138,7 +138,7 @@ SlashCmdList["GROUPER"] = function(msg)
         end
     elseif command == "autoform" or command == "auto" then
         if addon.AutoFormGroups then
-            print("GrouperPlus: SLASH COMMAND - Triggering auto-formation")
+            Debug(addon.LOG_LEVEL.INFO, "SLASH COMMAND - Triggering auto-formation")
             addon:AutoFormGroups()
         else
             Debug(addon.LOG_LEVEL.WARN, "AutoFormGroups function not yet loaded")
@@ -146,11 +146,11 @@ SlashCmdList["GROUPER"] = function(msg)
     elseif command == "button" or command == "check" then
         local button = _G["GrouperPlusAutoFormButton"]
         if button then
-            print("GrouperPlus: Button found! Enabled:", button:IsEnabled(), "Shown:", button:IsShown(), "Visible:", button:IsVisible())
-            print("GrouperPlus: Manually triggering button click...")
+            Debug(addon.LOG_LEVEL.DEBUG, "Button found! Enabled:", button:IsEnabled(), "Shown:", button:IsShown(), "Visible:", button:IsVisible())
+            Debug(addon.LOG_LEVEL.DEBUG, "Manually triggering button click...")
             button:Click()
         else
-            print("GrouperPlus: Button not found! Frame might not be created yet.")
+            Debug(addon.LOG_LEVEL.WARN, "Button not found! Frame might not be created yet.")
         end
     elseif command == "comm" or command == "communication" then
         if addon.AddonComm then
@@ -158,43 +158,43 @@ SlashCmdList["GROUPER"] = function(msg)
             local count = 0
             for user, info in pairs(connectedUsers) do
                 count = count + 1
-                print("GrouperPlus: Connected user:", user, "version:", info.version)
+                Debug(addon.LOG_LEVEL.INFO, "Connected user:", user, "version:", info.version)
             end
             if count == 0 then
-                print("GrouperPlus: No other GrouperPlus users detected")
+                Debug(addon.LOG_LEVEL.INFO, "No other GrouperPlus users detected")
             else
-                print("GrouperPlus: Found", count, "connected users")
+                Debug(addon.LOG_LEVEL.INFO, "Found", count, "connected users")
             end
         else
-            print("GrouperPlus: Communication module not loaded")
+            Debug(addon.LOG_LEVEL.WARN, "Communication module not loaded")
         end
     elseif command == "version" or command == "broadcast" then
         if addon.AddonComm then
             addon.AddonComm:BroadcastVersionCheck()
-            print("GrouperPlus: Version check broadcast sent to guild")
+            Debug(addon.LOG_LEVEL.INFO, "Version check broadcast sent to guild")
         else
-            print("GrouperPlus: Communication module not loaded")
+            Debug(addon.LOG_LEVEL.WARN, "Communication module not loaded")
         end
     elseif command == "share" then
         if addon.RaiderIOIntegration then
             addon.RaiderIOIntegration:ShareGuildMemberData()
-            print("GrouperPlus: Attempted to share RaiderIO data for guild members")
+            Debug(addon.LOG_LEVEL.INFO, "Attempted to share RaiderIO data for guild members")
         else
-            print("GrouperPlus: RaiderIO integration not loaded")
+            Debug(addon.LOG_LEVEL.WARN, "RaiderIO integration not loaded")
         end
     elseif command == "role" then
         if addon.AddonComm then
             addon.AddonComm:SharePlayerRole(true)
-            print("GrouperPlus: Forced role share sent to guild")
+            Debug(addon.LOG_LEVEL.INFO, "Forced role share sent to guild")
         else
-            print("GrouperPlus: Communication module not loaded")
+            Debug(addon.LOG_LEVEL.WARN, "Communication module not loaded")
         end
     elseif command == "checkrole" then
         if addon.AddonComm then
             addon.AddonComm:CheckForRoleChange()
-            print("GrouperPlus: Checked for role changes")
+            Debug(addon.LOG_LEVEL.INFO, "Checked for role changes")
         else
-            print("GrouperPlus: Communication module not loaded")
+            Debug(addon.LOG_LEVEL.WARN, "Communication module not loaded")
         end
     elseif command == "debugspec" or command == "spec" then
         local playerName = UnitName("player")
@@ -202,22 +202,22 @@ SlashCmdList["GROUPER"] = function(msg)
         local specName = currentSpec and select(2, GetSpecializationInfo(currentSpec)) or "Unknown"
         local role = currentSpec and GetSpecializationRole(currentSpec) or "Unknown"
         
-        print("GrouperPlus Debug:")
-        print("  Player Name: " .. (playerName or "nil"))
-        print("  Spec ID: " .. (currentSpec or "nil"))
-        print("  Spec Name: " .. (specName or "nil")) 
-        print("  Role: " .. (role or "nil"))
+        Debug(addon.LOG_LEVEL.DEBUG, "Player Debug Info:")
+        Debug(addon.LOG_LEVEL.DEBUG, "  Player Name:", (playerName or "nil"))
+        Debug(addon.LOG_LEVEL.DEBUG, "  Spec ID:", (currentSpec or "nil"))
+        Debug(addon.LOG_LEVEL.DEBUG, "  Spec Name:", (specName or "nil"))
+        Debug(addon.LOG_LEVEL.DEBUG, "  Role:", (role or "nil"))
         
         if addon.AutoFormation then
             local detectedRole = addon.AutoFormation:GetPlayerRole("player")
-            print("  AutoFormation Role: " .. (detectedRole or "nil"))
+            Debug(addon.LOG_LEVEL.DEBUG, "  AutoFormation Role:", (detectedRole or "nil"))
         end
     elseif command == "refresh" or command == "update" then
         if addon.UpdatePlayerRoleInUI then
             addon:UpdatePlayerRoleInUI()
-            print("GrouperPlus: Forced UI refresh")
+            Debug(addon.LOG_LEVEL.INFO, "Forced UI refresh")
         else
-            print("GrouperPlus: UI refresh function not available")
+            Debug(addon.LOG_LEVEL.WARN, "UI refresh function not available")
         end
     else
         Debug(addon.LOG_LEVEL.INFO, "GrouperPlus commands:")
