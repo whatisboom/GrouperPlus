@@ -1269,7 +1269,7 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     local canAdd, reason = CheckRoleLimits(groupIndex, memberInfo.role)
     if not canAdd then
         addon.Debug("ERROR", "AddMemberToGroup: Cannot add", memberInfo.name, "to group", groupIndex, "-", reason)
-        print("|cFFFF0000GrouperPlus:|r " .. reason)
+        addon.Debug(addon.LOG_LEVEL.ERROR, "Cannot add member:", reason)
         return false
     end
     
@@ -1292,8 +1292,18 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     if memberFrame then
         addon.Debug("DEBUG", "AddMemberToGroup: Updating memberFrame display")
         memberFrame.bg:Show()
-        memberFrame.text:SetText(memberInfo.name)
-        addon.Debug("DEBUG", "AddMemberToGroup: Set member text to:", memberInfo.name)
+        
+        -- Include RaiderIO score in display text
+        local displayText = memberInfo.name
+        if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
+            local formattedScore = addon.RaiderIOIntegration:GetFormattedScoreWithFallback(memberInfo.name)
+            if formattedScore and formattedScore ~= "0" then
+                displayText = memberInfo.name .. " (" .. formattedScore .. ")"
+            end
+        end
+        
+        memberFrame.text:SetText(displayText)
+        addon.Debug("DEBUG", "AddMemberToGroup: Set member text to:", displayText)
         
         local classColor = nil
         if memberInfo.class then
@@ -1416,7 +1426,17 @@ ReorganizeGroupByRole = function(groupIndex)
         local memberFrame = group.memberFrames[i]
         if memberFrame then
             memberFrame.bg:Show()
-            memberFrame.text:SetText(member.name)
+            
+            -- Include RaiderIO score in display text
+            local displayText = member.name
+            if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
+                local formattedScore = addon.RaiderIOIntegration:GetFormattedScoreWithFallback(member.name)
+                if formattedScore and formattedScore ~= "0" then
+                    displayText = member.name .. " (" .. formattedScore .. ")"
+                end
+            end
+            
+            memberFrame.text:SetText(displayText)
             
             -- Display role using centralized constants
             local roleDisplay, roleColor = addon:GetRoleDisplay(member.role)
@@ -1613,10 +1633,10 @@ local function CreateMainFrame()
     autoFormButton:SetText("Auto-Form")
     autoFormButton:EnableMouse(true)
     autoFormButton:SetFrameLevel(leftPanel:GetFrameLevel() + 10)
-    print("GrouperPlus: Auto-Form button created successfully!")
+    addon.Debug(addon.LOG_LEVEL.DEBUG, "Auto-Form button created successfully!")
     addon.Debug("DEBUG", "Created Auto-Form button with name:", autoFormButton:GetName())
     autoFormButton:SetScript("OnClick", function()
-        print("GrouperPlus: Auto-Form button clicked!")
+        addon.Debug(addon.LOG_LEVEL.INFO, "Auto-Form button clicked!")
         addon:AutoFormGroups()
     end)
     addon.Debug("DEBUG", "Auto-Form button click handler set")
@@ -1816,12 +1836,12 @@ function addon:ToggleMainFrame()
 end
 
 function addon:AutoFormGroups()
-    print("GrouperPlus: AutoFormGroups function called")
+    addon.Debug(addon.LOG_LEVEL.INFO, "AutoFormGroups function called")
     addon.Debug("INFO", "AutoFormGroups: Starting auto-formation process")
     
     if not self.AutoFormation then
         addon.Debug("ERROR", "AutoFormGroups: AutoFormation module not loaded")
-        print("GrouperPlus: Auto-formation module not available")
+        addon.Debug(addon.LOG_LEVEL.WARN, "Auto-formation module not available")
         return
     end
     
@@ -1832,7 +1852,7 @@ function addon:AutoFormGroups()
     -- Get available members from the member list
     if not memberList or #memberList == 0 then
         addon.Debug("WARN", "AutoFormGroups: No members available for auto-formation")
-        print("GrouperPlus: No guild members available. Please wait for the guild roster to load, then try again.")
+        addon.Debug(addon.LOG_LEVEL.WARN, "No guild members available. Please wait for the guild roster to load, then try again.")
         -- Try to refresh the guild roster
         C_GuildInfo.GuildRoster()
         return
@@ -1845,7 +1865,7 @@ function addon:AutoFormGroups()
     
     if not groups or #groups == 0 then
         addon.Debug("WARN", "AutoFormGroups: No valid groups could be formed")
-        print("GrouperPlus: Unable to form balanced groups with current members")
+        addon.Debug(addon.LOG_LEVEL.WARN, "Unable to form balanced groups with current members")
         return
     end
     
@@ -1881,7 +1901,7 @@ function addon:AutoFormGroups()
     UpdateMemberDisplay()
     RepositionAllGroups()
     
-    print("GrouperPlus: Auto-formed", #groups, "balanced groups")
+    addon.Debug(addon.LOG_LEVEL.INFO, "Auto-formed", #groups, "balanced groups")
     addon.Debug("INFO", "AutoFormGroups: Auto-formation completed successfully")
 end
 
@@ -2128,6 +2148,35 @@ function addon:OnRaiderIODataReceived(data, sender)
             member.rating = data.mythicPlusScore
             member.role = data.mainRole
             break
+        end
+    end
+    
+    -- Update any existing group assignments with new score data
+    for _, group in ipairs(dynamicGroups) do
+        if group and group.members then
+            for slotIndex, member in pairs(group.members) do
+                if member and member.name == data.player then
+                    -- Update member data
+                    member.rating = data.mythicPlusScore
+                    member.role = data.mainRole
+                    
+                    -- Update the group display text with new score
+                    local memberFrame = group.memberFrames[slotIndex]
+                    if memberFrame and memberFrame.text then
+                        local displayText = member.name
+                        if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
+                            local formattedScore = addon.RaiderIOIntegration:GetFormattedScoreWithFallback(member.name)
+                            if formattedScore and formattedScore ~= "0" then
+                                displayText = member.name .. " (" .. formattedScore .. ")"
+                            end
+                        end
+                        memberFrame.text:SetText(displayText)
+                        
+                        addon.Debug(addon.LOG_LEVEL.INFO, "Updated group display for", data.player, "with new RaiderIO score")
+                    end
+                    break
+                end
+            end
         end
     end
     
