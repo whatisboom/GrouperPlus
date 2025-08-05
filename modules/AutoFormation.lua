@@ -320,43 +320,60 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
         addon.Debug("INFO", "Created ideal group", i, "with 5 members")
     end
     
-    -- Now handle remaining members - create groups with whatever we have
-    local remainingMembers = {}
+    -- Now handle remaining members - create groups respecting role limits
+    local remainingTanks = {}
+    local remainingHealers = {}
+    local remainingDPS = {}
     
-    -- Add unused tanks
+    -- Collect unused members by role
     for i = usedTanks + 1, #tanks do
-        table.insert(remainingMembers, tanks[i])
+        table.insert(remainingTanks, tanks[i])
     end
     
-    -- Add unused healers
     for i = usedHealers + 1, #healers do
-        table.insert(remainingMembers, healers[i])
+        table.insert(remainingHealers, healers[i])
     end
     
-    -- Add unused DPS
     for i = usedDPS + 1, #dps do
-        table.insert(remainingMembers, dps[i])
+        table.insert(remainingDPS, dps[i])
     end
     
-    addon.Debug("INFO", "Remaining members to assign:", #remainingMembers)
+    addon.Debug("INFO", "Remaining members - Tanks:", #remainingTanks, "Healers:", #remainingHealers, "DPS:", #remainingDPS)
     
-    -- Create additional groups with remaining members (any composition)
-    local currentGroup = {}
-    for _, member in ipairs(remainingMembers) do
-        table.insert(currentGroup, member)
+    -- Create additional groups with remaining members, respecting role limits
+    while #remainingTanks > 0 or #remainingHealers > 0 or #remainingDPS > 0 do
+        local currentGroup = {}
+        local groupTanks = 0
+        local groupHealers = 0
+        local groupDPS = 0
         
-        -- If we reach group size, start a new group
-        if #currentGroup >= groupSize then
-            table.insert(groups, currentGroup)
-            addon.Debug("INFO", "Created flexible group with", #currentGroup, "members")
-            currentGroup = {}
+        -- Add up to 1 tank
+        if #remainingTanks > 0 and groupTanks < 1 then
+            table.insert(currentGroup, table.remove(remainingTanks, 1))
+            groupTanks = groupTanks + 1
         end
-    end
-    
-    -- Add the last partial group if it has members
-    if #currentGroup > 0 then
+        
+        -- Add up to 1 healer
+        if #remainingHealers > 0 and groupHealers < 1 then
+            table.insert(currentGroup, table.remove(remainingHealers, 1))
+            groupHealers = groupHealers + 1
+        end
+        
+        -- Add up to 3 DPS
+        while #remainingDPS > 0 and groupDPS < 3 and #currentGroup < groupSize do
+            table.insert(currentGroup, table.remove(remainingDPS, 1))
+            groupDPS = groupDPS + 1
+        end
+        
+        -- If we couldn't add any members, break to avoid infinite loop
+        if #currentGroup == 0 then
+            addon.Debug("WARN", "No more members can be added while respecting role limits")
+            break
+        end
+        
+        -- Add the group
         table.insert(groups, currentGroup)
-        addon.Debug("INFO", "Created partial group with", #currentGroup, "members")
+        addon.Debug("INFO", "Created leftover group with", #currentGroup, "members - Tanks:", groupTanks, "Healers:", groupHealers, "DPS:", groupDPS)
     end
     
     addon.Debug("INFO", "Auto-formation complete - created", #groups, "total groups")

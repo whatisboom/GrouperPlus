@@ -483,11 +483,73 @@ GetMemberBackgroundColor = function(memberName)
     return defaultColor
 end
 
+local function CheckGroupUtilities(groupFrame)
+    local utilities = {
+        COMBAT_REZ = false,
+        BLOODLUST = false,
+        INTELLECT = false,
+        STAMINA = false,
+        ATTACK_POWER = false,
+        VERSATILITY = false,
+        SKYFURY = false,
+        MYSTIC_TOUCH = false,
+        CHAOS_BRAND = false
+    }
+    
+    for _, member in pairs(groupFrame.members) do
+        if member and member.class then
+            local className = string.upper(member.class)
+            local classUtilities = addon.CLASS_UTILITIES[className]
+            
+            if classUtilities then
+                for _, utility in ipairs(classUtilities) do
+                    if utilities[utility] ~= nil then
+                        utilities[utility] = true
+                    end
+                end
+            end
+        end
+    end
+    
+    addon.Debug("DEBUG", "CheckGroupUtilities: Group", groupFrame.groupIndex, 
+        "brez:", utilities.COMBAT_REZ, "lust:", utilities.BLOODLUST,
+        "int:", utilities.INTELLECT, "stam:", utilities.STAMINA,
+        "ap:", utilities.ATTACK_POWER, "vers:", utilities.VERSATILITY,
+        "sky:", utilities.SKYFURY, "mt:", utilities.MYSTIC_TOUCH,
+        "cb:", utilities.CHAOS_BRAND)
+    
+    return utilities
+end
+
+local function UpdateGroupTitle(groupFrame)
+    if not groupFrame.header then return end
+    
+    local utilities = CheckGroupUtilities(groupFrame)
+    
+    -- Priority 1 buffs (red when missing)
+    local brezText = utilities.COMBAT_REZ and "|cFF00FF00brez|r" or "|cFFFF0000brez|r"
+    local lustText = utilities.BLOODLUST and "|cFF00FF00lust|r" or "|cFFFF0000lust|r"
+    
+    -- Priority 2 buffs (yellow when missing)
+    local intText = utilities.INTELLECT and "|cFF00FF00int|r" or "|cFFFFFF00int|r"
+    local stamText = utilities.STAMINA and "|cFF00FF00stam|r" or "|cFFFFFF00stam|r"
+    local apText = utilities.ATTACK_POWER and "|cFF00FF00ap|r" or "|cFFFFFF00ap|r"
+    local versText = utilities.VERSATILITY and "|cFF00FF00vers|r" or "|cFFFFFF00vers|r"
+    local skyText = utilities.SKYFURY and "|cFF00FF00sky|r" or "|cFFFFFF00sky|r"
+    
+    -- Priority 3 buffs (gray when missing)
+    local mtText = utilities.MYSTIC_TOUCH and "|cFF00FF00Mystic Touch|r" or "|cFFAAAAAAMystic Touch|r"
+    local cbText = utilities.CHAOS_BRAND and "|cFF00FF00Chaos Brand|r" or "|cFFAAAAAAChaos Brand|r"
+    
+    groupFrame.header:SetText(brezText .. " " .. lustText .. "\n" .. intText .. " " .. stamText .. " " .. apText .. " " .. versText .. " " .. skyText .. "\n" .. mtText .. " " .. cbText)
+    addon.Debug("DEBUG", "UpdateGroupTitle: Updated group", groupFrame.groupIndex, "title with all utilities")
+end
+
 local function CreateGroupFrame(parent, groupIndex, groupWidth)
     addon.Debug("DEBUG", "CreateGroupFrame: Creating group frame", groupIndex, "with width", groupWidth)
     
     local groupFrame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-    groupFrame:SetSize(groupWidth, 140)
+    groupFrame:SetSize(groupWidth, 180)
     groupFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -504,6 +566,7 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
     header:SetText("Group " .. groupIndex)
     header:SetTextColor(0.8, 0.8, 1)
     
+    groupFrame.header = header
     groupFrame.members = {}
     groupFrame.memberFrames = {}
     groupFrame.groupIndex = groupIndex
@@ -513,7 +576,7 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
     for i = 1, MAX_GROUP_SIZE do
         local memberFrame = CreateFrame("Button", nil, groupFrame)
         memberFrame:SetSize(memberWidth, 20)
-        memberFrame:SetPoint("TOPLEFT", groupFrame, "TOPLEFT", 10, -25 - ((i-1) * 22))
+        memberFrame:SetPoint("TOPLEFT", groupFrame, "TOPLEFT", 10, -60 - ((i-1) * 22))
         
         memberFrame.bg = memberFrame:CreateTexture(nil, "BACKGROUND")
         memberFrame.bg:SetAllPoints()
@@ -1090,6 +1153,10 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
     end)
     
     addon.Debug("DEBUG", "CreateGroupFrame: Group frame", groupIndex, "created successfully with width", groupWidth, "and group-level drag handling")
+    
+    -- Initialize with default title showing missing utilities
+    UpdateGroupTitle(groupFrame)
+    
     return groupFrame
 end
 
@@ -1189,11 +1256,11 @@ RepositionAllGroups = function()
     local containerWidth, numGroups, groupWidth, numRows = CalculateGroupLayout()
     local spacing = 10
     local groupsPerRow = 2
-    local rowHeight = 150 -- Group height + spacing
+    local rowHeight = 190 -- Group height (180) + spacing (10)
     
     for i, groupFrame in ipairs(dynamicGroups) do
         groupFrame:ClearAllPoints()
-        groupFrame:SetSize(groupWidth, 140)
+        groupFrame:SetSize(groupWidth, 180)
         
         -- Calculate row and column position
         local row = math.ceil(i / groupsPerRow) - 1  -- 0-based row index
@@ -1378,6 +1445,9 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     addon.Debug("DEBUG", "AddMemberToGroup: Member info before reorganize - name:", memberInfo and memberInfo.name or "nil", "role:", memberInfo and memberInfo.role or "nil", "score:", memberInfo and memberInfo.score or "nil")
     ReorganizeGroupByRole(groupIndex)
     
+    -- Update group title to reflect utility availability
+    UpdateGroupTitle(group)
+    
     addon.Debug("INFO", "AddMemberToGroup: Successfully added", memberName, "to group", groupIndex, "with role-based positioning - RETURNING TRUE")
     return true
 end
@@ -1545,6 +1615,9 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate)
     
     -- Reorganize the group to maintain role-based positioning
     ReorganizeGroupByRole(groupIndex)
+    
+    -- Update group title to reflect utility availability
+    UpdateGroupTitle(group)
     
     -- Check and remove excess empty groups (keep only one)
     RemoveExcessEmptyGroups()
@@ -1972,6 +2045,8 @@ function addon:ClearAllGroups()
                 end
             end
         end
+        -- Update group title to show no buffs
+        UpdateGroupTitle(groupFrame)
     end
     
     -- Reset group member counts
@@ -2017,7 +2092,7 @@ function addon:OnGroupSyncReceived(data, sender)
     end
     
     -- Clear existing groups before applying sync
-    ClearAllGroups()
+    addon:ClearAllGroups()
     
     -- Apply the synced groups
     for i, groupData in ipairs(data.groups) do

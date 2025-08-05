@@ -40,6 +40,33 @@ local ITEM_QUALITY_COLORS = {
     ARTIFACT = {r = 0.9, g = 0.8, b = 0.5}        -- Gold (Artifact)
 }
 
+local CLASS_UTILITIES = {
+    DEATHKNIGHT = { "COMBAT_REZ" },
+    DRUID = { "COMBAT_REZ", "VERSATILITY" },
+    EVOKER = { "BLOODLUST" },
+    HUNTER = { "BLOODLUST" },
+    MAGE = { "BLOODLUST", "INTELLECT" },
+    MONK = { "MYSTIC_TOUCH" },
+    PALADIN = { "COMBAT_REZ" },
+    PRIEST = { "STAMINA" },
+    SHAMAN = { "BLOODLUST", "SKYFURY" },
+    WARLOCK = { "COMBAT_REZ" },
+    WARRIOR = { "ATTACK_POWER" },
+    DEMONHUNTER = { "CHAOS_BRAND" }
+}
+
+local UTILITY_INFO = {
+    COMBAT_REZ = { priority = 1, name = "Combat Rez", color = {1, 0.8, 0} },
+    BLOODLUST = { priority = 1, name = "Bloodlust", color = {1, 0.8, 0} },
+    INTELLECT = { priority = 2, name = "Intellect", color = {0.5, 0.8, 1} },
+    STAMINA = { priority = 2, name = "Stamina", color = {0.5, 0.8, 1} },
+    ATTACK_POWER = { priority = 2, name = "Attack Power", color = {0.5, 0.8, 1} },
+    VERSATILITY = { priority = 2, name = "Versatility", color = {0.5, 0.8, 1} },
+    SKYFURY = { priority = 3, name = "Skyfury", color = {0.7, 0.7, 0.7} },
+    MYSTIC_TOUCH = { priority = 3, name = "Mystic Touch", color = {0.7, 0.7, 0.7} },
+    CHAOS_BRAND = { priority = 3, name = "Chaos Brand", color = {0.7, 0.7, 0.7} }
+}
+
 local defaults = {
     profile = {
         debugLevel = "WARN",
@@ -80,4 +107,6 @@ addon.LOG_LEVEL = LOG_LEVEL
 addon.ROLE_COLORS = ROLE_COLORS
 addon.ROLE_DISPLAY = ROLE_DISPLAY
 addon.ITEM_QUALITY_COLORS = ITEM_QUALITY_COLORS
+addon.CLASS_UTILITIES = CLASS_UTILITIES
+addon.UTILITY_INFO = UTILITY_INFO
 addon.defaults = defaults

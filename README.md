@@ -16,6 +16,7 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 - **See Player Strength at a Glance** - RaiderIO scores displayed right in the interface so you know each player's Mythic+ experience
 - **Drag & Drop Flexibility** - Easy reorganization when you want to make manual adjustments to the automated groups
 - **Guild-Wide Coordination** - Share group setups instantly with other guild members who have the addon
+- **Group Buff Tracking** - See at a glance which groups have combat resurrection, bloodlust, and important raid buffs with color-coded indicators
 
 ### How It Helps You
 - **Save Time on Group Formation** - What used to take 10+ minutes of manual organization now happens instantly
@@ -24,6 +25,7 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 - **Easy Adjustments** - Simple drag-and-drop when you want to swap players between groups or make changes
 - **Never Lose Track of Players** - Clear visual organization prevents accidentally putting the same player in multiple groups
 - **Consistent Group Structure** - Every group follows the optimal dungeon composition automatically
+- **Ensure Buff Coverage** - Never start a key without combat resurrection or bloodlust - groups missing critical buffs are highlighted in red
 
 ### Simple to Use
 - **Clean, Intuitive Interface** - Everything you need is visible at a glance with no clutter
@@ -45,10 +47,17 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 - `/grouper test` - Test RaiderIO integration functionality
 - `/grouperopt` or `/grouperptions` - Open options panel
 
+### Visual Buff Indicators
+Each group header displays buff availability with clear color coding:
+- **Priority 1 (Critical)**: Combat Rez, Bloodlust/Heroism - Red when missing
+- **Priority 2 (Important)**: Intellect, Stamina, Attack Power, Versatility, Skyfury - Yellow when missing  
+- **Priority 3 (Helpful)**: Mystic Touch, Chaos Brand - Gray when missing
+- All buffs turn green when present in the group
+
 ### Reliability & Support
-- **Built-in Troubleshooting** - Comprehensive logging helps identify and resolve any issues quickly
+- **Real-time Updates** - Player roles, specs, and buffs update automatically as players change characters or specs
 - **Works with Guild Members** - Share your group setups with other guild members who have the addon installed
-- **Automatic Updates** - Player roles and specs are detected automatically, even when they change characters
+- **Smart Auto-Formation** - The auto-form feature balances groups by player skill and ensures proper role composition
 
 ## How to Use
 
@@ -62,11 +71,17 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 2. **Move between groups**: Drag any member from one group to an empty slot in another group
 3. **Remove from groups**: Click the red minus button next to any group member
 4. **Reorganize**: Freely drag and drop members to optimize group composition
+5. **Check buff coverage**: Group headers show buff status:
+   - **Red** = Missing critical buffs (combat rez, bloodlust)
+   - **Yellow** = Missing important buffs (stats, damage amplification)
+   - **Green** = Buff is present in the group
 
 ### Tips
 - Members show their class colors and RaiderIO scores (when available)
 - Groups automatically resize and reposition based on window size
 - All changes are automatically saved and persist between sessions
+- Auto-formation creates balanced groups based on player roles and skill ratings
+- Group buff indicators update in real-time as you move players
 
 ## Installation
 
