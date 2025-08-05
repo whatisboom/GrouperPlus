@@ -3,7 +3,9 @@
 A World of Warcraft addon for enhanced group management and guild member organization.
 
 ![grouper](https://github.com/user-attachments/assets/f553b305-568a-417d-9977-a5d525fcb704) 
-<img width="931" height="510" alt="image" src="https://github.com/user-attachments/assets/54ec0c71-a3a9-46a9-ad0b-6f7c50740da7" />
+
+<img width="944" height="522" alt="image" src="https://github.com/user-attachments/assets/4cf55b62-c612-45bd-b399-248140734dc7" />
+
 
 ## Current Features
 
