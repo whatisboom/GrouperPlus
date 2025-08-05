@@ -135,7 +135,9 @@ class CurseForgeDeployer {
         const gameVersions = await this.getGameVersions();
         const changelog = await this.generateChangelog();
         
-        const packagePath = path.join(__dirname, CONFIG.BUILD_DIR, CONFIG.PACKAGE_NAME);
+        // Use versioned package name
+        const packageName = `GrouperPlus-v${tocMetadata.Version}.zip`;
+        const packagePath = path.join(__dirname, CONFIG.BUILD_DIR, packageName);
         
         // Check if package exists
         try {

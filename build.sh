@@ -9,7 +9,14 @@ PROJECT_NAME="GrouperPlus"
 BUILD_DIR="build"
 PACKAGE_DIR="$BUILD_DIR/$PROJECT_NAME"
 
-echo "Starting build process for $PROJECT_NAME..."
+# Extract version from TOC file
+VERSION=$(grep "## Version:" *.toc | sed 's/## Version: //' | tr -d '\r')
+if [ -z "$VERSION" ]; then
+    echo "Warning: Could not extract version from TOC file, using 'unknown'"
+    VERSION="unknown"
+fi
+
+echo "Starting build process for $PROJECT_NAME v$VERSION..."
 
 # Clean previous build
 rm -rf "$BUILD_DIR"
@@ -35,10 +42,11 @@ rm -f "$PACKAGE_DIR"/CLAUDE.md 2>/dev/null || true
 rm -rf "$PACKAGE_DIR"/node_modules 2>/dev/null || true
 rm -rf "$PACKAGE_DIR"/build 2>/dev/null || true
 
-# Create archive
+# Create archive with version in filename
 cd "$BUILD_DIR"
-echo "Creating archive..."
-zip -r "${PROJECT_NAME}.zip" "$PROJECT_NAME/"
+ARCHIVE_NAME="${PROJECT_NAME}-v${VERSION}.zip"
+echo "Creating archive: $ARCHIVE_NAME"
+zip -r "$ARCHIVE_NAME" "$PROJECT_NAME/"
 
-echo "Build complete! Archive created at: $BUILD_DIR/${PROJECT_NAME}.zip"
-echo "Archive size: $(du -h ${PROJECT_NAME}.zip | cut -f1)"
+echo "Build complete! Archive created at: $BUILD_DIR/$ARCHIVE_NAME"
+echo "Archive size: $(du -h $ARCHIVE_NAME | cut -f1)"
