@@ -9,6 +9,9 @@ ignore = {
     "212", -- Unused argument
     "213", -- Unused loop variable
     "542", -- Empty if branch
+    "611", -- Line contains only whitespace
+    "612", -- Line contains trailing whitespace
+    "613", -- Trailing whitespace in a comment
 }
 globals = {
     -- WoW API
@@ -18,11 +21,17 @@ globals = {
     "UnitRace",
     "UnitLevel",
     "UnitGUID",
+    "UnitExists",
+    "UnitIsPlayer",
     "GetRealmName",
     "GetRaidRosterInfo",
     "GetNumGroupMembers",
+    "GetNumGuildMembers",
+    "GetGuildRosterInfo",
+    "GetMaxPlayerLevel",
     "IsInRaid",
     "IsInGroup",
+    "IsInGuild",
     "SendChatMessage",
     "RegisterAddonMessagePrefix",
     "SendAddonMessage",
@@ -30,6 +39,13 @@ globals = {
     "GetBuildInfo",
     "GetTime",
     "GetServerTime",
+    "GetSpecialization",
+    "GetSpecializationInfo",
+    "GetSpecializationRole",
+    "GetInspectSpecialization",
+    "GetCursorPosition",
+    "SetCursor",
+    "ResetCursor",
     "PlaySound",
     "PlaySoundFile",
     "print",
@@ -72,11 +88,24 @@ globals = {
     "BackdropTemplateMixin",
     "GameFontNormal",
     "GameFontHighlight",
+    "ToggleDropDownMenu",
+    "UIDropDownMenu_CreateInfo",
+    "UIDropDownMenu_AddButton",
+    "UIDropDownMenu_Initialize",
+    "CloseDropDownMenus",
+    "UIDROPDOWNMENU_MENU_VALUE",
+    "RAID_CLASS_COLORS",
+    "CUSTOM_CLASS_COLORS",
     
     -- WoW Events
     "C_Timer",
     "C_AddOns",
     "C_MythicPlus",
+    "C_ChallengeMode",
+    "C_ChatInfo",
+    "C_Container",
+    "C_Item",
+    "C_GuildInfo",
     
     -- Libraries
     "LibStub",
@@ -88,11 +117,19 @@ globals = {
     "CallbackHandler",
     "LibDataBroker",
     "LibDBIcon",
+    "RaiderIO",
     
     -- Addon globals
     "GrouperPlus",
     "GrouperPlusDB",
+    "GrouperDB",
     "_G",
+    "_",
+    "yOffset",
+    "RemoveExcessEmptyGroups",
+    "SLASH_GROUPER1",
+    "SLASH_GROUPEROPTIONS1",
+    "SLASH_GROUPEROPTIONS2",
     "BINDING_HEADER_GROUPERPLUS",
     "BINDING_NAME_GROUPERPLUS_TOGGLE"
 }
