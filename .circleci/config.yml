@@ -1,0 +1,272 @@
+version: 2.1
+
+orbs:
+  gh: circleci/github-cli@2.3
+
+executors:
+  lua-executor:
+    docker:
+      - image: cimg/base:stable
+    working_directory: ~/project
+
+jobs:
+  lint-and-validate:
+    executor: lua-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - lua-deps-v1-{{ checksum ".circleci/config.yml" }}
+            - lua-deps-v1-
+      - run:
+          name: Install Lua and luacheck
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y lua5.1 luarocks
+            sudo luarocks install luacheck
+      - save_cache:
+          key: lua-deps-v1-{{ checksum ".circleci/config.yml" }}
+          paths:
+            - /usr/local/lib/luarocks
+      - run:
+          name: Lua syntax check with luacheck
+          command: |
+            luacheck . --globals LibStub AceGUI AceConfig AceConfigDialog AceDB AceDBOptions CallbackHandler LibDataBroker LibDBIcon --exclude-files libs
+      - run:
+          name: Validate TOC file
+          command: |
+            echo "Validating TOC file format..."
+            if [ ! -f "GrouperPlus.toc" ]; then
+              echo "ERROR: GrouperPlus.toc not found!"
+              exit 1
+            fi
+            
+            # Check for required fields
+            if ! grep -q "^## Interface:" GrouperPlus.toc; then
+              echo "ERROR: Missing ## Interface field in TOC"
+              exit 1
+            fi
+            
+            if ! grep -q "^## Title:" GrouperPlus.toc; then
+              echo "ERROR: Missing ## Title field in TOC"
+              exit 1
+            fi
+            
+            if ! grep -q "^## Version:" GrouperPlus.toc; then
+              echo "ERROR: Missing ## Version field in TOC"
+              exit 1
+            fi
+            
+            echo "TOC validation passed!"
+      - run:
+          name: Check version consistency
+          command: |
+            echo "Checking version consistency across files..."
+            
+            # Extract version from TOC
+            TOC_VERSION=$(grep "^## Version:" GrouperPlus.toc | sed 's/## Version: //')
+            echo "TOC Version: $TOC_VERSION"
+            
+            # Check if version appears in CHANGELOG.md (if it exists)
+            if [ -f "CHANGELOG.md" ]; then
+              if grep -q "## \[$TOC_VERSION\]" CHANGELOG.md; then
+                echo "Version $TOC_VERSION found in CHANGELOG.md"
+              else
+                echo "WARNING: Version $TOC_VERSION not found in CHANGELOG.md"
+              fi
+            fi
+            
+            echo "Version check passed!"
+
+  test:
+    executor: lua-executor
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - lua-deps-v1-{{ checksum ".circleci/config.yml" }}
+            - lua-deps-v1-
+      - run:
+          name: Install test dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y lua5.1 luarocks
+            sudo luarocks install busted
+      - run:
+          name: Run unit tests
+          command: |
+            if [ -d "tests" ] && [ "$(ls -A tests)" ]; then
+              echo "Running unit tests..."
+              busted tests/
+            else
+              echo "No tests found yet. Skipping test execution."
+              echo "Consider adding tests in the 'tests' directory."
+            fi
+
+  build:
+    executor: lua-executor
+    steps:
+      - checkout
+      - run:
+          name: Build addon package
+          command: |
+            echo "Building GrouperPlus addon package..."
+            
+            # Get version from TOC
+            VERSION=$(grep "^## Version:" GrouperPlus.toc | sed 's/## Version: //')
+            PACKAGE_NAME="GrouperPlus-$VERSION"
+            
+            # Create build directory
+            mkdir -p build/$PACKAGE_NAME
+            
+            # Copy addon files (excluding development files)
+            rsync -av --exclude-from='.circleci/package-exclude.txt' \
+              --exclude='.git' \
+              --exclude='.circleci' \
+              --exclude='build' \
+              --exclude='tests' \
+              --exclude='*.md' \
+              --exclude='.gitignore' \
+              --exclude='.luacheckrc' \
+              --exclude='*.sh' \
+              --exclude='.claude' \
+              . build/$PACKAGE_NAME/
+            
+            # Create zip package
+            cd build
+            zip -r $PACKAGE_NAME.zip $PACKAGE_NAME
+            echo "Package created: $PACKAGE_NAME.zip"
+            
+            # Show package contents for verification
+            echo "Package contents:"
+            unzip -l $PACKAGE_NAME.zip
+      - persist_to_workspace:
+          root: build
+          paths:
+            - "*.zip"
+
+  deploy-curseforge:
+    executor: lua-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: build
+      - run:
+          name: Deploy to CurseForge
+          command: |
+            if [ -z "$CURSEFORGE_API_TOKEN" ]; then
+              echo "ERROR: CURSEFORGE_API_TOKEN not set in CircleCI environment"
+              exit 1
+            fi
+            
+            VERSION=$(grep "^## Version:" GrouperPlus.toc | sed 's/## Version: //')
+            PACKAGE_FILE="build/GrouperPlus-$VERSION.zip"
+            
+            if [ ! -f "$PACKAGE_FILE" ]; then
+              echo "ERROR: Package file not found: $PACKAGE_FILE"
+              exit 1
+            fi
+            
+            echo "Deploying version $VERSION to CurseForge..."
+            
+            # CurseForge API upload
+            # Note: You'll need to get your project ID from CurseForge
+            PROJECT_ID="1317567"
+            
+            RESPONSE=$(curl -s -o response.txt -w "%{http_code}" \
+              -H "X-Api-Token: $CURSEFORGE_API_TOKEN" \
+              -F "metadata={\"releaseType\": \"release\", \"gameVersions\": [11245]}" \
+              -F "file=@$PACKAGE_FILE" \
+              "https://wow.curseforge.com/api/projects/$PROJECT_ID/upload-file")
+            
+            if [ "$RESPONSE" != "200" ]; then
+              echo "ERROR: CurseForge upload failed with status $RESPONSE"
+              cat response.txt
+              exit 1
+            fi
+            
+            echo "Successfully deployed to CurseForge!"
+
+  deploy-github:
+    executor: lua-executor
+    steps:
+      - checkout
+      - attach_workspace:
+          at: build
+      - gh/setup
+      - run:
+          name: Create GitHub Release
+          command: |
+            VERSION=$(grep "^## Version:" GrouperPlus.toc | sed 's/## Version: //')
+            PACKAGE_FILE="build/GrouperPlus-$VERSION.zip"
+            
+            if [ ! -f "$PACKAGE_FILE" ]; then
+              echo "ERROR: Package file not found: $PACKAGE_FILE"
+              exit 1
+            fi
+            
+            echo "Creating GitHub release for version $VERSION..."
+            
+            # Extract changelog for this version (if CHANGELOG.md exists)
+            RELEASE_NOTES=""
+            if [ -f "CHANGELOG.md" ]; then
+              RELEASE_NOTES=$(awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | head -n -1)
+            fi
+            
+            if [ -z "$RELEASE_NOTES" ]; then
+              RELEASE_NOTES="Release version $VERSION"
+            fi
+            
+            # Create release
+            gh release create "v$VERSION" \
+              --title "GrouperPlus v$VERSION" \
+              --notes "$RELEASE_NOTES" \
+              "$PACKAGE_FILE"
+            
+            echo "GitHub release created successfully!"
+
+workflows:
+  version: 2
+  
+  build-and-test:
+    jobs:
+      - lint-and-validate:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      - test:
+          requires:
+            - lint-and-validate
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      - build:
+          requires:
+            - test
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      - deploy-curseforge:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/
+          context: curseforge-deployment
+      - deploy-github:
+          requires:
+            - build
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/
+          context: github-deployment

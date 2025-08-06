@@ -1,0 +1,13 @@
+.git
+.gitignore
+.circleci
+.claude
+tests
+*.md
+*.sh
+.luacheckrc
+*.bak
+*.orig
+*~
+.DS_Store
+Thumbs.db
