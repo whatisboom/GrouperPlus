@@ -131,7 +131,7 @@ class CurseForgeDeployer {
         }
     }
 
-    async uploadToCourseFrge() {
+    async uploadToCurseForge() {
         const tocMetadata = await this.readTocFile();
         const gameVersions = await this.getGameVersions();
         const changelog = await this.generateChangelog();
@@ -220,7 +220,7 @@ class CurseForgeDeployer {
         try {
             console.log('Starting CurseForge deployment...');
             
-            const result = await this.uploadToCourseFrge();
+            const result = await this.uploadToCurseForge();
             
             console.log('✅ Upload successful!');
             console.log('File ID:', result.id);
