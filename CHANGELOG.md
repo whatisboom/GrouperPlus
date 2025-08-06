@@ -5,6 +5,21 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2025-08-06
+
+### CI/CD 🚀
+- **CircleCI Integration**: Complete continuous integration and deployment pipeline
+  - Automated Lua syntax checking with luacheck
+  - TOC file validation and version consistency checks
+  - Automated build and packaging system
+  - Auto-deployment to CurseForge on version tags
+  - GitHub release creation with changelog extraction
+  - Support for WoW 11.2.0 (Interface 110200)
+
+### Development 🛠️
+- **Linting Configuration**: Added comprehensive luacheck configuration with WoW API globals
+- **Package Exclusions**: Defined development files to exclude from production builds
+
 ## [0.7.1] - 2025-08-05
 
 ### Compatibility 🔧
