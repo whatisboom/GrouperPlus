@@ -1,7 +1,6 @@
 local addonName, addon = ...
 
-local AddonUserList = {}
-addon.AddonUserList = AddonUserList
+local AddonUserList = addon.ModuleFactory:CreateModule("AddonUserList", {})
 
 local userListFrame = nil
 local refreshTimer = nil

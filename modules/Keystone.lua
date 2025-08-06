@@ -1,7 +1,6 @@
 local addonName, addon = ...
 
-local Keystone = {}
-addon.Keystone = Keystone
+local Keystone = addon.ModuleFactory:CreateModule("Keystone", {})
 
 local keystoneInfo = {
     mapID = nil,
@@ -55,7 +54,7 @@ local DUNGEON_NAMES = {
     [506] = "Darkflame Cleft"
 }
 
-function Keystone:Initialize()
+Keystone.Initialize = function(self)
     addon.Debug(addon.LOG_LEVEL.INFO, "Keystone module initializing")
     
     -- Create event frame for keystone updates

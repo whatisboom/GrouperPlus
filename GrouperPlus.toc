@@ -14,6 +14,8 @@ libs\LibCompress\LibCompress.lua
 
 constants.lua
 GrouperPlus.lua
+modules\ModuleFactory.lua
+modules\DebugOptimized.lua
 modules\Utilities.lua
 modules\AddonComm.lua
 modules\Keystone.lua

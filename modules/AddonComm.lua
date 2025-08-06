@@ -1,7 +1,6 @@
 local addonName, addon = ...
 
-local AddonComm = {}
-addon.AddonComm = AddonComm
+local AddonComm = addon.ModuleFactory:CreateModule("AddonComm", {})
 
 -- Simple serialization functions for addon communication
 function addon:Serialize(data)
@@ -182,7 +181,7 @@ local function HandleIncomingMessage(message, distribution, sender)
     end
 end
 
-function AddonComm:Initialize()
+AddonComm.Initialize = function(self)
     if not self.initialized then
         C_ChatInfo.RegisterAddonMessagePrefix(COMM_PREFIX)
         
@@ -466,25 +465,7 @@ function AddonComm:CleanupStaleConnections()
 end
 
 local function GetPlayerCurrentRole()
-    local specIndex = GetSpecialization()
-    if not specIndex then
-        return nil
-    end
-    
-    -- Use the AutoFormation module's role detection if available
-    if addon.AutoFormation and addon.AutoFormation.GetPlayerRole then
-        return addon.AutoFormation:GetPlayerRole("player")
-    end
-    
-    -- Fallback to basic role detection using the spec index
-    local role = GetSpecializationRole(specIndex)
-    if role == "TANK" then
-        return "TANK"
-    elseif role == "HEALER" then
-        return "HEALER"
-    else
-        return "DPS"
-    end
+    return addon.Utilities:GetPlayerRole("player")
 end
 
 function AddonComm:SharePlayerRole(forceUpdate)

@@ -7,6 +7,11 @@ local db
 local settings
 
 local function Debug(level, ...)
+    -- Use optimized debug if available
+    if addon.DebugOptimized then
+        return addon.DebugOptimized(level, ...)
+    end
+    
     if not settings then return end
     
     level = level or "DEBUG"
@@ -207,18 +212,13 @@ SlashCmdList["GROUPER"] = function(msg)
         local playerName = UnitName("player")
         local currentSpec = GetSpecialization()
         local specName = currentSpec and select(2, GetSpecializationInfo(currentSpec)) or "Unknown"
-        local role = currentSpec and GetSpecializationRole(currentSpec) or "Unknown"
+        local role = addon.Utilities:GetPlayerRole("player")
         
         Debug(addon.LOG_LEVEL.DEBUG, "Player Debug Info:")
         Debug(addon.LOG_LEVEL.DEBUG, "  Player Name:", (playerName or "nil"))
         Debug(addon.LOG_LEVEL.DEBUG, "  Spec ID:", (currentSpec or "nil"))
         Debug(addon.LOG_LEVEL.DEBUG, "  Spec Name:", (specName or "nil"))
         Debug(addon.LOG_LEVEL.DEBUG, "  Role:", (role or "nil"))
-        
-        if addon.AutoFormation then
-            local detectedRole = addon.AutoFormation:GetPlayerRole("player")
-            Debug(addon.LOG_LEVEL.DEBUG, "  AutoFormation Role:", (detectedRole or "nil"))
-        end
     elseif command == "refresh" or command == "update" then
         if addon.UpdatePlayerRoleInUI then
             addon:UpdatePlayerRoleInUI()

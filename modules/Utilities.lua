@@ -1,225 +1,286 @@
 local addonName, addon = ...
+local Utilities = {}
+addon.Utilities = Utilities
 
--- Utilities module for common helper functions
-local frame = CreateFrame("Frame")
-frame:RegisterEvent("ADDON_LOADED")
-frame:SetScript("OnEvent", function(self, event, loadedAddon)
-    if loadedAddon ~= addonName then return end
+local Debug = addon.Debug or function() end
+
+local function GetPlayerRoleFromSpec(unit)
+    Debug("TRACE", "GetPlayerRoleFromSpec called for unit:", unit)
     
-    local Debug = addon.Debug
-    local LOG_LEVEL = addon.LOG_LEVEL
-    
-    if not Debug or not LOG_LEVEL then
-        print("[GrouperPlus:ERROR] Utilities - Missing addon references")
-        return
+    if not unit or not UnitExists(unit) then
+        Debug("DEBUG", "GetPlayerRoleFromSpec: Unit does not exist:", unit)
+        return nil
     end
     
-    Debug(LOG_LEVEL.DEBUG, "Utilities module loaded")
-    
-    -- Utility functions namespace
-    addon.Utils = addon.Utils or {}
-    
-    -- Color interpolation function
-    -- Interpolates between two colors based on a factor (0.0 to 1.0)
-    -- @param color1: First color {r, g, b} (factor = 0.0)
-    -- @param color2: Second color {r, g, b} (factor = 1.0)
-    -- @param factor: Interpolation factor between 0.0 and 1.0
-    -- @return: Interpolated color {r, g, b}
-    function addon.Utils.InterpolateColors(color1, color2, factor)
-        if not color1 or not color2 then
-            Debug(LOG_LEVEL.ERROR, "InterpolateColors: Invalid color parameters")
-            return {r = 1.0, g = 1.0, b = 1.0} -- Default to white
-        end
-        
-        -- Clamp factor between 0 and 1
-        factor = math.max(0.0, math.min(1.0, factor))
-        
-        local r = color1.r + (color2.r - color1.r) * factor
-        local g = color1.g + (color2.g - color1.g) * factor
-        local b = color1.b + (color2.b - color1.b) * factor
-        
-        Debug(LOG_LEVEL.TRACE, "InterpolateColors: factor", factor, "result", string.format("%.2f,%.2f,%.2f", r, g, b))
-        
-        return {r = r, g = g, b = b}
+    local specIndex
+    if unit == "player" then
+        specIndex = GetSpecialization()
+    else
+        specIndex = GetInspectSpecialization(unit)
     end
     
-    -- Color interpolation with multiple stops
-    -- Interpolates through multiple colors based on a factor (0.0 to 1.0)
-    -- @param colors: Array of colors {r, g, b}
-    -- @param factor: Interpolation factor between 0.0 and 1.0
-    -- @return: Interpolated color {r, g, b}
-    function addon.Utils.InterpolateMultiColors(colors, factor)
-        if not colors or #colors < 2 then
-            Debug(LOG_LEVEL.ERROR, "InterpolateMultiColors: Need at least 2 colors")
-            return {r = 1.0, g = 1.0, b = 1.0} -- Default to white
-        end
-        
-        -- Clamp factor between 0 and 1
-        factor = math.max(0.0, math.min(1.0, factor))
-        
-        -- If factor is 0 or 1, return first or last color
-        if factor == 0.0 then
-            return colors[1]
-        end
-        if factor == 1.0 then
-            return colors[#colors]
-        end
-        
-        -- Calculate which segment we're in
-        local segments = #colors - 1
-        local segmentSize = 1.0 / segments
-        local segmentIndex = math.floor(factor / segmentSize) + 1
-        
-        -- Handle edge case where factor is exactly 1.0
-        if segmentIndex > segments then
-            segmentIndex = segments
-        end
-        
-        -- Calculate local factor within the segment
-        local localFactor = (factor - (segmentIndex - 1) * segmentSize) / segmentSize
-        
-        -- Interpolate between the two colors in this segment
-        local color1 = colors[segmentIndex]
-        local color2 = colors[segmentIndex + 1]
-        
-        Debug(LOG_LEVEL.TRACE, "InterpolateMultiColors: segment", segmentIndex, "localFactor", localFactor)
-        
-        return addon.Utils.InterpolateColors(color1, color2, localFactor)
+    if not specIndex or specIndex == 0 then
+        Debug("DEBUG", "GetPlayerRoleFromSpec: No spec found for unit:", unit)
+        return nil
     end
     
-    -- Get color for a score based on predefined quality thresholds
-    -- @param score: Numeric score to evaluate
-    -- @param minScore: Minimum score (maps to first color)
-    -- @param maxScore: Maximum score (maps to last color)
-    -- @param colors: Optional array of colors (defaults to item quality colors)  
-    -- @return: Interpolated color {r, g, b}
-    function addon.Utils.GetScoreColor(score, minScore, maxScore, colors)
-        if not score or not minScore or not maxScore then
-            Debug(LOG_LEVEL.ERROR, "GetScoreColor: Invalid parameters")
-            return {r = 1.0, g = 1.0, b = 1.0} -- Default to white
-        end
-        
-        -- Default to item quality progression if no colors provided
-        colors = colors or {
-            addon.ITEM_QUALITY_COLORS.POOR,      -- Gray (lowest)
-            addon.ITEM_QUALITY_COLORS.COMMON,    -- White
-            addon.ITEM_QUALITY_COLORS.UNCOMMON,  -- Green  
-            addon.ITEM_QUALITY_COLORS.RARE,      -- Blue
-            addon.ITEM_QUALITY_COLORS.EPIC,      -- Purple
-            addon.ITEM_QUALITY_COLORS.LEGENDARY  -- Orange (highest)
-        }
-        
-        -- Calculate factor based on score range
-        local factor = (score - minScore) / (maxScore - minScore)
-        
-        -- If score exceeds maxScore, clamp to legendary color instead of interpolating beyond
-        if factor >= 1.0 then
-            Debug(LOG_LEVEL.TRACE, "GetScoreColor: score", score, "exceeds max, using legendary color")
-            return colors[#colors] -- Return the last color (legendary)
-        end
-        
-        Debug(LOG_LEVEL.TRACE, "GetScoreColor: score", score, "factor", factor)
-        
-        return addon.Utils.InterpolateMultiColors(colors, factor)
+    local role = GetSpecializationRole(specIndex)
+    Debug("DEBUG", "GetPlayerRoleFromSpec: Found role", role, "for spec", specIndex)
+    
+    if role == "TANK" then
+        return "TANK"
+    elseif role == "HEALER" then
+        return "HEALER"
+    elseif role == "DAMAGER" then
+        return "DPS"
+    else
+        return "DPS"
+    end
+end
+
+local function GetRoleFromClass(className)
+    Debug("TRACE", "GetRoleFromClass called for class:", className)
+    
+    if not className then
+        Debug("DEBUG", "GetRoleFromClass: No class provided")
+        return "DPS"
     end
     
-    -- Clamp a value between min and max
-    -- @param value: Value to clamp
-    -- @param min: Minimum value
-    -- @param max: Maximum value
-    -- @return: Clamped value
-    function addon.Utils.Clamp(value, min, max)
-        return math.max(min, math.min(max, value))
+    local classUpper = string.upper(className)
+    
+    local tankCapableClasses = {
+        WARRIOR = true,
+        PALADIN = true,
+        DEATHKNIGHT = true,
+        DEMONHUNTER = true,
+        MONK = true,
+        DRUID = true
+    }
+    
+    local healerCapableClasses = {
+        PRIEST = true,
+        PALADIN = true,
+        SHAMAN = true,
+        DRUID = true,
+        MONK = true,
+        EVOKER = true
+    }
+    
+    if healerCapableClasses[classUpper] then
+        return "HEALER"
+    elseif tankCapableClasses[classUpper] then
+        return "TANK"
+    else
+        return "DPS"
+    end
+end
+
+function Utilities:GetPlayerRole(unitOrNameOrMember)
+    Debug("DEBUG", "Utilities:GetPlayerRole called for:", 
+        type(unitOrNameOrMember) == "table" and unitOrNameOrMember.name or unitOrNameOrMember)
+    
+    local unit = unitOrNameOrMember
+    local playerName = nil
+    local memberData = nil
+    local className = nil
+    
+    if type(unitOrNameOrMember) == "table" then
+        memberData = unitOrNameOrMember
+        playerName = memberData.name
+        className = memberData.class
+        unit = playerName
+    elseif type(unitOrNameOrMember) == "string" then
+        if UnitExists(unitOrNameOrMember) then
+            unit = unitOrNameOrMember
+            playerName = UnitName(unit)
+            className = select(2, UnitClass(unit))
+        else
+            playerName = unitOrNameOrMember
+            unit = nil
+        end
     end
     
-    -- Linear interpolation between two numbers
-    -- @param a: First number (factor = 0.0)
-    -- @param b: Second number (factor = 1.0)  
-    -- @param factor: Interpolation factor between 0.0 and 1.0
-    -- @return: Interpolated number
-    function addon.Utils.Lerp(a, b, factor)
-        factor = addon.Utils.Clamp(factor, 0.0, 1.0)
-        return a + (b - a) * factor
+    if unit and UnitExists(unit) then
+        local specRole = GetPlayerRoleFromSpec(unit)
+        if specRole then
+            Debug("INFO", "Utilities:GetPlayerRole: Found spec-based role", specRole, "for", playerName or unit)
+            return specRole
+        end
+        
+        if not className then
+            className = select(2, UnitClass(unit))
+        end
     end
     
-    -- Parse semantic version string into components
-    -- @param version: Version string like "1.2.3" or "0.6.0"
-    -- @return: Table with {major, minor, patch} or nil if invalid
-    function addon.Utils.ParseVersion(version)
-        if not version or type(version) ~= "string" then
-            Debug(LOG_LEVEL.DEBUG, "ParseVersion: Invalid version parameter")
-            return nil
+    if unit == "player" or (playerName and playerName == UnitName("player")) then
+        local specRole = GetPlayerRoleFromSpec("player")
+        if specRole then
+            Debug("INFO", "Utilities:GetPlayerRole: Found player spec role:", specRole)
+            return specRole
         end
         
-        local major, minor, patch = string.match(version, "^(%d+)%.(%d+)%.(%d+)")
-        if not major or not minor or not patch then
-            Debug(LOG_LEVEL.DEBUG, "ParseVersion: Failed to parse version:", version)
-            return nil
+        if not className then
+            className = select(2, UnitClass("player"))
         end
-        
-        return {
-            major = tonumber(major),
-            minor = tonumber(minor), 
-            patch = tonumber(patch)
-        }
     end
     
-    -- Compare two semantic versions
-    -- @param version1: First version string
-    -- @param version2: Second version string  
-    -- @return: -1 if v1 < v2, 0 if equal, 1 if v1 > v2, nil if error
-    function addon.Utils.CompareVersions(version1, version2)
-        local v1 = addon.Utils.ParseVersion(version1)
-        local v2 = addon.Utils.ParseVersion(version2)
-        
-        if not v1 or not v2 then
-            Debug(LOG_LEVEL.WARN, "CompareVersions: Failed to parse versions:", version1, version2)
-            return nil
-        end
-        
-        -- Compare major version first
-        if v1.major ~= v2.major then
-            return v1.major < v2.major and -1 or 1
-        end
-        
-        -- Compare minor version
-        if v1.minor ~= v2.minor then
-            return v1.minor < v2.minor and -1 or 1
-        end
-        
-        -- Compare patch version
-        if v1.patch ~= v2.patch then
-            return v1.patch < v2.patch and -1 or 1
-        end
-        
-        -- Versions are equal
-        return 0
+    if className then
+        local classRole = GetRoleFromClass(className)
+        Debug("INFO", "Utilities:GetPlayerRole: Using class-based role", classRole, "for", playerName or unit)
+        return classRole
     end
     
-    -- Check if a version is newer than another
-    -- @param newVersion: Version to check if newer
-    -- @param currentVersion: Current/reference version
-    -- @return: true if newVersion > currentVersion
-    function addon.Utils.IsVersionNewer(newVersion, currentVersion)
-        local result = addon.Utils.CompareVersions(newVersion, currentVersion)
-        return result == 1
+    if memberData and memberData.role then
+        Debug("INFO", "Utilities:GetPlayerRole: Using cached role", memberData.role, "for", playerName)
+        return memberData.role
     end
     
-    -- Check if update is significant (major or minor version increase)
-    -- @param newVersion: Newer version string
-    -- @param currentVersion: Current version string
-    -- @return: true if major or minor version increased
-    function addon.Utils.IsSignificantUpdate(newVersion, currentVersion)
-        local v1 = addon.Utils.ParseVersion(newVersion)
-        local v2 = addon.Utils.ParseVersion(currentVersion)
-        
-        if not v1 or not v2 then
-            return false
+    Debug("WARN", "Utilities:GetPlayerRole: Could not determine role for", playerName or unit, "- defaulting to DPS")
+    return "DPS"
+end
+
+function Utilities:GetRolePriority(role)
+    local priorities = {
+        TANK = 1,
+        HEALER = 2,
+        DPS = 3
+    }
+    return priorities[role] or 999
+end
+
+function Utilities:CheckGroupUtilities(members)
+    Debug("TRACE", "Utilities:CheckGroupUtilities called with", members and #members or 0, "members")
+    
+    local utilities = {
+        COMBAT_REZ = false,
+        BLOODLUST = false,
+        INTELLECT = false,
+        STAMINA = false,
+        ATTACK_POWER = false,
+        VERSATILITY = false,
+        SKYFURY = false,
+        MYSTIC_TOUCH = false,
+        CHAOS_BRAND = false
+    }
+    
+    if not members then
+        return utilities
+    end
+    
+    for _, member in pairs(members) do
+        if member and member.class then
+            local className = string.upper(member.class)
+            local classUtilities = addon.CLASS_UTILITIES and addon.CLASS_UTILITIES[className]
+            
+            if classUtilities then
+                for _, utility in ipairs(classUtilities) do
+                    utilities[utility] = true
+                end
+            end
         end
-        
-        -- Significant if major or minor version is higher
-        return v1.major > v2.major or (v1.major == v2.major and v1.minor > v2.minor)
     end
     
-    Debug(LOG_LEVEL.INFO, "Utilities module initialized with color interpolation and version comparison functions")
-end)
+    Debug("DEBUG", "Utilities:CheckGroupUtilities results:", 
+        "brez:", utilities.COMBAT_REZ, "lust:", utilities.BLOODLUST,
+        "int:", utilities.INTELLECT, "stam:", utilities.STAMINA)
+    
+    return utilities
+end
+
+function Utilities:ValidateGroupComposition(members, requirements)
+    Debug("TRACE", "Utilities:ValidateGroupComposition called")
+    
+    requirements = requirements or {
+        maxTanks = 1,
+        maxHealers = 1,
+        maxDPS = 3,
+        maxTotal = 5
+    }
+    
+    local counts = {
+        TANK = 0,
+        HEALER = 0,
+        DPS = 0,
+        total = 0
+    }
+    
+    if not members then
+        return true, counts
+    end
+    
+    for _, member in pairs(members) do
+        if member then
+            local role = member.role or self:GetPlayerRole(member)
+            if role then
+                counts[role] = (counts[role] or 0) + 1
+                counts.total = counts.total + 1
+            end
+        end
+    end
+    
+    local isValid = true
+    local issues = {}
+    
+    if counts.TANK > requirements.maxTanks then
+        isValid = false
+        table.insert(issues, "Too many tanks")
+    end
+    
+    if counts.HEALER > requirements.maxHealers then
+        isValid = false
+        table.insert(issues, "Too many healers")
+    end
+    
+    if counts.DPS > requirements.maxDPS then
+        isValid = false
+        table.insert(issues, "Too many DPS")
+    end
+    
+    if counts.total > requirements.maxTotal then
+        isValid = false
+        table.insert(issues, "Group is full")
+    end
+    
+    Debug("DEBUG", "Utilities:ValidateGroupComposition:", 
+        "Valid:", isValid, "Tanks:", counts.TANK, "Healers:", counts.HEALER, "DPS:", counts.DPS)
+    
+    return isValid, counts, issues
+end
+
+function Utilities:CanAddMemberToGroup(members, newMemberRole, requirements)
+    Debug("TRACE", "Utilities:CanAddMemberToGroup called for role:", newMemberRole)
+    
+    requirements = requirements or {
+        maxTanks = 1,
+        maxHealers = 1,
+        maxDPS = 3,
+        maxTotal = 5
+    }
+    
+    local _, counts = self:ValidateGroupComposition(members, requirements)
+    
+    if counts.total >= requirements.maxTotal then
+        Debug("DEBUG", "Utilities:CanAddMemberToGroup: Group is full")
+        return false, "Group is full"
+    end
+    
+    if newMemberRole == "TANK" and counts.TANK >= requirements.maxTanks then
+        Debug("DEBUG", "Utilities:CanAddMemberToGroup: Too many tanks")
+        return false, "Too many tanks"
+    end
+    
+    if newMemberRole == "HEALER" and counts.HEALER >= requirements.maxHealers then
+        Debug("DEBUG", "Utilities:CanAddMemberToGroup: Too many healers")
+        return false, "Too many healers"
+    end
+    
+    if newMemberRole == "DPS" and counts.DPS >= requirements.maxDPS then
+        Debug("DEBUG", "Utilities:CanAddMemberToGroup: Too many DPS")
+        return false, "Too many DPS"
+    end
+    
+    Debug("DEBUG", "Utilities:CanAddMemberToGroup: Can add member with role", newMemberRole)
+    return true
+end
+
+return Utilities

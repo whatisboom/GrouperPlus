@@ -88,125 +88,27 @@ local CLASS_FALLBACK_ROLES = {
 }
 
 function AutoFormation:GetPlayerRole(unitOrNameOrMember)
-    addon.Debug("DEBUG", "AutoFormation:GetPlayerRole called for:", type(unitOrNameOrMember) == "table" and unitOrNameOrMember.name or unitOrNameOrMember)
-    
-    local unit = unitOrNameOrMember
-    local playerName = nil
-    local memberData = nil
-    
-    -- If we got a member table, extract the name
-    if type(unitOrNameOrMember) == "table" then
-        memberData = unitOrNameOrMember
-        playerName = memberData.name
-        unit = playerName
-    end
-    
-    -- Handle both unit strings and player names
-    if not UnitExists(unit) then
-        -- Try to find the player by name
-        playerName = unit
-        if playerName == UnitName("player") then
-            unit = "player"
-        else
-            -- For guild members not in group, we can't get their spec directly
-            -- Fall back to class-based role detection
-            addon.Debug("DEBUG", "Player not in unit range, using class fallback for:", playerName)
-            return self:GetRoleFromClass(memberData or playerName)
-        end
-    else
-        playerName = UnitName(unit)
-    end
-    
-    -- Try to get the player's current specialization
-    local specIndex = GetInspectSpecialization(unit)
-    if specIndex and specIndex > 0 then
-        local role = SPEC_ROLE_MAP[specIndex]
-        if role then
-            addon.Debug("INFO", "Found role for", playerName, "spec", specIndex, "role:", role)
-            return role
-        end
-    end
-    
-    -- Fallback to class-based detection
-    addon.Debug("DEBUG", "Spec detection failed, using class fallback for:", playerName)
-    return self:GetRoleFromClass(playerName)
+    return addon.Utilities:GetPlayerRole(unitOrNameOrMember)
 end
 
 function AutoFormation:GetRoleFromClass(playerNameOrMember)
-    addon.Debug("DEBUG", "AutoFormation:GetRoleFromClass called for:", type(playerNameOrMember) == "table" and playerNameOrMember.name or playerNameOrMember)
-    
-    local playerName = playerNameOrMember
-    local className = nil
-    
-    -- If we got a member table with class info, use it directly
-    if type(playerNameOrMember) == "table" then
-        className = playerNameOrMember.class
-        playerName = playerNameOrMember.name
-        addon.Debug("DEBUG", "Using class from member object:", className)
-    end
-    
-    -- If no class yet, try UnitClass
-    if not className then
-        _, className = UnitClass(playerName)
-    end
-    
-    if not className then
-        addon.Debug("DEBUG", "UnitClass failed for", playerName, ", checking guild roster")
-        -- Try to get class from guild roster
-        local numMembers = GetNumGuildMembers()
-        for i = 1, numMembers do
-            local name, _, _, _, _, _, _, _, _, _, classFileName = GetGuildRosterInfo(i)
-            if name == playerName then
-                className = classFileName
-                addon.Debug("DEBUG", "Found class in guild roster:", className)
-                break
-            end
-        end
-    end
-    
-    if className and CLASS_FALLBACK_ROLES[className] then
-        local possibleRoles = CLASS_FALLBACK_ROLES[className]
-        addon.Debug("DEBUG", "Class fallback for", playerName, "class:", className, "possible roles:", table.concat(possibleRoles, ", "))
-        
-        -- For multi-role classes, prefer DPS as the default since it's most common
-        -- Unless the class can ONLY tank or ONLY heal
-        for _, role in ipairs(possibleRoles) do
-            if role == "DPS" then
-                addon.Debug("DEBUG", "Defaulting to DPS role for multi-role class:", className)
-                return "DPS"
-            end
-        end
-        
-        -- If class can't DPS, return the first available role
-        return possibleRoles[1]
-    end
-    
-    addon.Debug("WARN", "Could not determine role for player:", playerName)
-    return "DPS" -- Default fallback
+    -- Deprecated - now using shared utilities
+    return addon.Utilities:GetPlayerRole(playerNameOrMember)
 end
 
 function AutoFormation:ValidateRoleComposition(members)
-    addon.Debug("DEBUG", "AutoFormation:ValidateRoleComposition called with", #members, "members")
+    local isValid, counts = addon.Utilities:ValidateGroupComposition(members, {
+        maxTanks = 1,
+        maxHealers = 1,
+        maxDPS = 3,
+        maxTotal = 5
+    })
     
-    local roleCounts = {
-        TANK = 0,
-        HEALER = 0,
-        DPS = 0
-    }
+    -- Check for exact composition (1/1/3)
+    local perfectComp = counts.TANK == 1 and counts.HEALER == 1 and counts.DPS == 3
+    addon.Debug("INFO", "Role composition - Tanks:", counts.TANK, "Healers:", counts.HEALER, "DPS:", counts.DPS, "Valid:", perfectComp)
     
-    for _, member in ipairs(members) do
-        local role = self:GetPlayerRole(member.name)
-        roleCounts[role] = roleCounts[role] + 1
-        addon.Debug("TRACE", "Member", member.name, "assigned role:", role)
-    end
-    
-    addon.Debug("INFO", "Role composition - Tanks:", roleCounts.TANK, "Healers:", roleCounts.HEALER, "DPS:", roleCounts.DPS)
-    
-    -- Check if composition follows mythic+ rules (1 tank, 1 healer, 3 DPS)
-    local isValid = roleCounts.TANK == 1 and roleCounts.HEALER == 1 and roleCounts.DPS == 3
-    addon.Debug("INFO", "Role composition valid:", isValid)
-    
-    return isValid, roleCounts
+    return perfectComp, counts
 end
 
 function AutoFormation:GetMemberUtilities(member)

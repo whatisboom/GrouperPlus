@@ -1,7 +1,6 @@
 local addonName, addon = ...
 
-local VersionWarning = {}
-addon.VersionWarning = VersionWarning
+local VersionWarning = addon.ModuleFactory:CreateModule("VersionWarning", {})
 
 local warningFrame = nil
 local dismissedVersions = {}
@@ -14,7 +13,7 @@ local WARNING_SETTINGS = {
     dismissDuration = 86400,       -- Dismiss for 24 hours (in seconds)
 }
 
-function VersionWarning:Initialize()
+VersionWarning.Initialize = function(self)
     -- Get current addon version
     currentVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "0.6.0"
     addon.Debug(addon.LOG_LEVEL.DEBUG, "VersionWarning initialized with version:", currentVersion)
@@ -150,23 +149,4 @@ end
 
 -- RemindLater function removed - no longer needed for chat-based warnings
 
--- Auto-initialize when other modules are available
-local function InitializeWhenReady()
-    if addon.AddonComm and addon.Utils and addon.settings then
-        VersionWarning:Initialize()
-        
-        -- Start periodic version checking
-        C_Timer.NewTicker(WARNING_SETTINGS.autoCheckInterval, function()
-            VersionWarning:CheckForNewerVersions()
-        end)
-        
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "VersionWarning system started with auto-checking")
-        return
-    end
-    
-    -- Wait for dependencies
-    C_Timer.After(2, InitializeWhenReady)
-end
-
--- Initialize after a short delay
-C_Timer.After(3, InitializeWhenReady)
+-- Module will be initialized by ModuleFactory

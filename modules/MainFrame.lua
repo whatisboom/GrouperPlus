@@ -59,22 +59,8 @@ local function UpdateGuildMemberList()
                 local playerFullName = UnitName("player") .. "-" .. GetRealmName()
                 addon.Debug("DEBUG", "UpdateGuildMemberList: Checking if", name, "equals player", playerName, "or", playerFullName)
                 if name == playerName or name == playerFullName then
-                    local currentSpec = GetSpecialization()
-                    addon.Debug("DEBUG", "UpdateGuildMemberList: Player spec ID:", currentSpec)
-                    if currentSpec then
-                        local role = GetSpecializationRole(currentSpec)
-                        addon.Debug("DEBUG", "UpdateGuildMemberList: Raw role from GetSpecializationRole:", role)
-                        if role == "TANK" then
-                            memberData.role = "TANK"
-                        elseif role == "HEALER" then
-                            memberData.role = "HEALER"
-                        else
-                            memberData.role = "DPS"
-                        end
-                        addon.Debug("INFO", "UpdateGuildMemberList: Updated player's own role to:", memberData.role, "from spec", currentSpec, "raw role:", role)
-                    else
-                        addon.Debug("WARN", "UpdateGuildMemberList: Could not get player specialization")
-                    end
+                    memberData.role = addon.Utilities:GetPlayerRole("player")
+                    addon.Debug("INFO", "UpdateGuildMemberList: Updated player's own role to:", memberData.role)
                 else
                     addon.Debug("TRACE", "UpdateGuildMemberList: Member", name, "is not the player")
                 end
@@ -526,41 +512,7 @@ GetMemberBackgroundColor = function(memberName)
 end
 
 local function CheckGroupUtilities(groupFrame)
-    local utilities = {
-        COMBAT_REZ = false,
-        BLOODLUST = false,
-        INTELLECT = false,
-        STAMINA = false,
-        ATTACK_POWER = false,
-        VERSATILITY = false,
-        SKYFURY = false,
-        MYSTIC_TOUCH = false,
-        CHAOS_BRAND = false
-    }
-    
-    for _, member in pairs(groupFrame.members) do
-        if member and member.class then
-            local className = string.upper(member.class)
-            local classUtilities = addon.CLASS_UTILITIES[className]
-            
-            if classUtilities then
-                for _, utility in ipairs(classUtilities) do
-                    if utilities[utility] ~= nil then
-                        utilities[utility] = true
-                    end
-                end
-            end
-        end
-    end
-    
-    addon.Debug("DEBUG", "CheckGroupUtilities: Group", groupFrame.groupIndex, 
-        "brez:", utilities.COMBAT_REZ, "lust:", utilities.BLOODLUST,
-        "int:", utilities.INTELLECT, "stam:", utilities.STAMINA,
-        "ap:", utilities.ATTACK_POWER, "vers:", utilities.VERSATILITY,
-        "sky:", utilities.SKYFURY, "mt:", utilities.MYSTIC_TOUCH,
-        "cb:", utilities.CHAOS_BRAND)
-    
-    return utilities
+    return addon.Utilities:CheckGroupUtilities(groupFrame.members)
 end
 
 local function UpdateGroupTitle(groupFrame)
@@ -1535,13 +1487,7 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
 end
 
 local function GetRolePriority(role)
-    -- Define role priorities for sorting (lower number = higher priority)
-    local priorities = {
-        TANK = 1,
-        HEALER = 2,
-        DPS = 3
-    }
-    return priorities[role] or 999
+    return addon.Utilities:GetRolePriority(role)
 end
 
 CheckRoleLimits = function(groupIndex, newMemberRole)
@@ -2227,17 +2173,7 @@ function addon:UpdatePlayerRoleInUI()
         
         -- Get current role
         local currentRole = nil
-        local currentSpec = GetSpecialization()
-        if currentSpec then
-            local role = GetSpecializationRole(currentSpec)
-            if role == "TANK" then
-                currentRole = "TANK"
-            elseif role == "HEALER" then
-                currentRole = "HEALER"
-            else
-                currentRole = "DPS"
-            end
-        end
+        currentRole = addon.Utilities:GetPlayerRole("player")
         
         addon.Debug(addon.LOG_LEVEL.DEBUG, "UpdatePlayerRoleInUI: Player current role:", currentRole)
         
