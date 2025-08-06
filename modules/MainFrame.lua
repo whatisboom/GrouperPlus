@@ -3,7 +3,6 @@ local addonName, addon = ...
 local AceDB = LibStub("AceDB-3.0")
 
 local mainFrame = nil
-local memberList = {}
 local scrollFrame = nil
 local scrollChild = nil
 local loadingMessage = nil
@@ -11,8 +10,6 @@ local groupsContainer = nil
 local dynamicGroups = {}
 local draggedMember = nil
 local dragFrame = nil
-local membersInGroups = {} -- Track which members are assigned to groups
-local MAX_LEVEL = GetMaxPlayerLevel()
 local MAX_GROUP_SIZE = 5
 
 -- Forward declarations for drag frame functions
@@ -21,82 +18,6 @@ local AddMemberToGroup, RemoveMemberFromGroup, RemoveMemberFromPlayerList, AddMe
 local CreateNewGroup, EnsureEmptyGroupExists, CalculateGroupLayout, RepositionAllGroups, GetMemberBackgroundColor
 local ReorganizeGroupByRole, CheckRoleLimits
 
-local function UpdateGuildMemberList()
-    addon.Debug("DEBUG", "UpdateGuildMemberList: Starting guild roster update")
-    addon.Debug("DEBUG", "UpdateGuildMemberList: Current membersInGroups count:", next(membersInGroups) and "has members" or "empty")
-    
-    
-    table.wipe(memberList)
-    
-    if not IsInGuild() then
-        addon.Debug("WARN", "UpdateGuildMemberList: Player is not in a guild")
-        return memberList
-    end
-    
-    local numMembers = GetNumGuildMembers()
-    addon.Debug("DEBUG", "UpdateGuildMemberList: Found", numMembers, "guild members")
-    
-    for i = 1, numMembers do
-        local name, rank, rankIndex, level, class, zone, note, officernote, online, status, classFileName = GetGuildRosterInfo(i)
-        if online and level == MAX_LEVEL then
-            -- Only add if not already in a group
-            if not membersInGroups[name] then
-                local memberData = {
-                    name = name,
-                    class = classFileName or class,
-                    classLocalized = class,
-                    level = level
-                }
-                
-                -- Add role information for all members, especially the player
-                if addon.AutoFormation and addon.AutoFormation.GetPlayerRole then
-                    memberData.role = addon.AutoFormation:GetPlayerRole(name)
-                    addon.Debug("TRACE", "UpdateGuildMemberList: Determined role for", name, ":", memberData.role)
-                end
-                
-                -- For the player, ensure we get the most current role
-                local playerName = UnitName("player")
-                local playerFullName = UnitName("player") .. "-" .. GetRealmName()
-                addon.Debug("DEBUG", "UpdateGuildMemberList: Checking if", name, "equals player", playerName, "or", playerFullName)
-                if name == playerName or name == playerFullName then
-                    local currentSpec = GetSpecialization()
-                    addon.Debug("DEBUG", "UpdateGuildMemberList: Player spec ID:", currentSpec)
-                    if currentSpec then
-                        local role = GetSpecializationRole(currentSpec)
-                        addon.Debug("DEBUG", "UpdateGuildMemberList: Raw role from GetSpecializationRole:", role)
-                        if role == "TANK" then
-                            memberData.role = "TANK"
-                        elseif role == "HEALER" then
-                            memberData.role = "HEALER"
-                        else
-                            memberData.role = "DPS"
-                        end
-                        addon.Debug("INFO", "UpdateGuildMemberList: Updated player's own role to:", memberData.role, "from spec", currentSpec, "raw role:", role)
-                    else
-                        addon.Debug("WARN", "UpdateGuildMemberList: Could not get player specialization")
-                    end
-                else
-                    addon.Debug("TRACE", "UpdateGuildMemberList: Member", name, "is not the player")
-                end
-                
-                table.insert(memberList, memberData)
-                addon.Debug("TRACE", "UpdateGuildMemberList: Added member", name, "level", level, "class:", classFileName or class, "role:", memberData.role or "unknown")
-            else
-                addon.Debug("INFO", "UpdateGuildMemberList: Skipped member", name, "- already in group")
-            end
-        else
-            if not online then
-                addon.Debug("TRACE", "UpdateGuildMemberList: Skipped member", name, "- offline")
-            elseif level ~= MAX_LEVEL then
-                addon.Debug("TRACE", "UpdateGuildMemberList: Skipped member", name, "- level", level, "(not max level", MAX_LEVEL, ")")
-            end
-        end
-    end
-    
-    addon.Debug("INFO", "UpdateGuildMemberList: Found", #memberList, "online max level members (after filtering out grouped members)")
-    
-    return memberList
-end
 
 
 local function CreateMemberRow(parent, index)
@@ -186,12 +107,9 @@ local function CreateMemberRow(parent, index)
             
             -- Find the member info for class colors
             local memberInfo = nil
-            for _, member in ipairs(memberList) do
-                if member.name == self.memberName then
-                    memberInfo = member
-                    addon.Debug("DEBUG", "Found memberInfo for", self.memberName, "class:", member.class)
-                    break
-                end
+            memberInfo = addon.GuildMemberManager:FindMemberByName(self.memberName)
+            if memberInfo then
+                addon.Debug("DEBUG", "Found memberInfo for", self.memberName, "class:", memberInfo.class)
             end
             
             draggedMember = {
@@ -242,7 +160,7 @@ local function UpdateMemberDisplay()
         return
     end
     
-    local members = UpdateGuildMemberList()
+    local members = addon.GuildMemberManager:UpdateMemberList()
     addon.Debug("DEBUG", "UpdateMemberDisplay: Retrieved", #members, "available members from guild list")
     
     -- Show/hide loading message based on member availability
@@ -938,8 +856,8 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                 RemoveMemberFromGroup(draggedSourceGroup, draggedSourceSlot, true)
                 
                 -- Temporarily clear members from tracking to allow re-adding to different groups
-                membersInGroups[targetMemberInfo.name] = nil
-                membersInGroups[draggedMemberName] = nil
+                addon.GuildMemberManager:SetMemberInGroup(targetMemberInfo.name, false)
+                addon.GuildMemberManager:SetMemberInGroup(draggedMemberName, false)
                 addon.Debug("DEBUG", "Temporarily cleared both members from membersInGroups tracking for swap")
                 
                 -- Find available slots in both groups after reorganization
@@ -1006,7 +924,7 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                 RemoveMemberFromGroup(groupIndex, slotIndex, true)
                 
                 -- Temporarily clear target member from tracking to allow replacement
-                membersInGroups[targetMemberInfo.name] = nil
+                addon.GuildMemberManager:SetMemberInGroup(targetMemberInfo.name, false)
                 addon.Debug("DEBUG", "Temporarily cleared", targetMemberInfo.name, "from membersInGroups tracking for replacement")
                 
                 -- Find the first available slot in the group after reorganization
@@ -1147,8 +1065,8 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                     -- Remove both members and clear tracking
                     RemoveMemberFromGroup(groupIndex, lastSlot, true)
                     RemoveMemberFromGroup(draggedSourceGroup, draggedSourceSlot, true)
-                    membersInGroups[targetMember.name] = nil
-                    membersInGroups[draggedMemberName] = nil
+                    addon.GuildMemberManager:SetMemberInGroup(targetMember.name, false)
+                    addon.GuildMemberManager:SetMemberInGroup(draggedMemberName, false)
                     
                     -- Find available slots after reorganization
                     local targetGroupSlot = nil
@@ -1199,7 +1117,7 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                     
                     -- Remove target member and clear tracking
                     RemoveMemberFromGroup(groupIndex, lastSlot, true)
-                    membersInGroups[targetMember.name] = nil
+                    addon.GuildMemberManager:SetMemberInGroup(targetMember.name, false)
                     
                     -- Find available slot after reorganization
                     local availableSlotAfterRemoval = nil
@@ -1394,7 +1312,7 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     addon.Debug("DEBUG", "AddMemberToGroup: dynamicGroups count:", #dynamicGroups)
     
     -- Check if member is already in a group (unless being moved between groups)
-    if membersInGroups[memberName] and not (draggedMember and draggedMember.fromGroup) then
+    if addon.GuildMemberManager:IsMemberInGroup(memberName) and not (draggedMember and draggedMember.fromGroup) then
         addon.Debug("ERROR", "AddMemberToGroup: Member", memberName, "is already in a group - RETURNING FALSE")
         return false
     end
@@ -1414,6 +1332,7 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     addon.Debug("DEBUG", "AddMemberToGroup: Slot is empty, proceeding")
     
     local memberInfo = nil
+    local memberList = addon.GuildMemberManager:GetMemberList()
     addon.Debug("DEBUG", "AddMemberToGroup: Searching for member in memberList, count:", #memberList)
     for _, member in ipairs(memberList) do
         if member.name == memberName then
@@ -1459,12 +1378,9 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     group.members[slotIndex] = memberInfo
     
     -- Add to tracking list
-    membersInGroups[memberName] = true
+    addon.GuildMemberManager:SetMemberInGroup(memberName, true)
     addon.Debug("DEBUG", "AddMemberToGroup: Added", memberName, "to membersInGroups tracking")
-    addon.Debug("DEBUG", "AddMemberToGroup: Current membersInGroups:")
-    for name, _ in pairs(membersInGroups) do
-        addon.Debug("DEBUG", "  - ", name)
-    end
+    addon.GuildMemberManager:DebugState()
     addon.Debug("DEBUG", "AddMemberToGroup: Member info set successfully")
     
     local memberFrame = group.memberFrames[slotIndex]
@@ -1676,7 +1592,7 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate)
     
     -- Only remove from tracking list if not moving to another group
     if not skipPlayerListUpdate then
-        membersInGroups[memberName] = nil
+        addon.GuildMemberManager:SetMemberInGroup(memberName, false)
         addon.Debug("DEBUG", "RemoveMemberFromGroup: Removed", memberName, "from membersInGroups tracking")
     else
         addon.Debug("DEBUG", "RemoveMemberFromGroup: Keeping", memberName, "in membersInGroups tracking (moving between groups)")
@@ -1818,7 +1734,7 @@ local function CreateMainFrame()
     local memberHeader = leftPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     memberHeader:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -10)
     memberHeader:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -30, -10)
-    memberHeader:SetText("Online Members (Lvl " .. MAX_LEVEL .. ")")
+    memberHeader:SetText("Online Members (Lvl " .. GetMaxPlayerLevel() .. ")")
     memberHeader:SetJustifyH("CENTER")
     
     -- Auto-formation buttons
@@ -1932,7 +1848,7 @@ local function CreateMainFrame()
     mainFrame:SetScript("OnEvent", function(self, event)
         if event == "GUILD_ROSTER_UPDATE" then
             addon.Debug("DEBUG", "CreateMainFrame: GUILD_ROSTER_UPDATE event received")
-            local members = UpdateGuildMemberList()
+            local members = addon.GuildMemberManager:UpdateMemberList()
             if #members > 0 then
                 addon.Debug("INFO", "CreateMainFrame: GUILD_ROSTER_UPDATE found", #members, "members - updating display")
                 UpdateMemberDisplay()
@@ -1958,6 +1874,9 @@ local function CreateMainFrame()
         addon.Debug("DEBUG", "CreateMainFrame: Initializing drag and drop system")
         draggedMember = nil
         HideDragFrame()
+        
+        -- Initialize GuildMemberManager
+        addon.GuildMemberManager:Initialize()
         
         -- Request fresh roster data first
         C_GuildInfo.GuildRoster()
@@ -2045,6 +1964,7 @@ function addon:AutoFormGroups()
     self:ClearAllGroups()
     
     -- Get available members from the member list
+    local memberList = addon.GuildMemberManager:GetMemberList()
     if not memberList or #memberList == 0 then
         addon.Debug("WARN", "AutoFormGroups: No members available for auto-formation")
         addon.Debug(addon.LOG_LEVEL.WARN, "No guild members available. Please wait for the guild roster to load, then try again.")
@@ -2104,10 +2024,8 @@ function addon:ClearAllGroups()
     addon.Debug("INFO", "ClearAllGroups: Clearing all group assignments")
     
     -- Move all members back to the available pool
-    for memberName, _ in pairs(membersInGroups) do
-        addon.Debug("DEBUG", "ClearAllGroups: Returning", memberName, "to available pool")
-        membersInGroups[memberName] = nil
-    end
+    addon.GuildMemberManager:ClearAllGroupMemberships()
+    addon.Debug("DEBUG", "ClearAllGroups: All members returned to available pool")
     
     -- Clear all group member frames
     for _, groupFrame in ipairs(dynamicGroups) do
@@ -2191,6 +2109,7 @@ function addon:OnGroupSyncReceived(data, sender)
                     if memberData.name and j <= MAX_GROUP_SIZE then
                         -- Check if member exists in guild
                         local guildMember = nil
+                        local memberList = addon.GuildMemberManager:GetMemberList()
                         for _, member in ipairs(memberList) do
                             if member.name == memberData.name then
                                 guildMember = member
@@ -2277,6 +2196,7 @@ function addon:OnPlayerDataReceived(data, sender)
     end
     
     -- Update local member data if we have this player
+    local memberList = addon.GuildMemberManager:GetMemberList()
     local memberFound = false
     for _, member in ipairs(memberList) do
         if member.name == data.player then
@@ -2354,6 +2274,7 @@ function addon:OnRaiderIODataReceived(data, sender)
     end
     
     -- Update member data
+    local memberList = addon.GuildMemberManager:GetMemberList()
     for _, member in ipairs(memberList) do
         if member.name == data.player then
             member.rating = data.mythicPlusScore
