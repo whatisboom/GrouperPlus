@@ -129,17 +129,22 @@ jobs:
             mkdir -p build/$PACKAGE_NAME
             
             # Copy addon files (excluding development files)
-            rsync -av --exclude-from='.circleci/package-exclude.txt' \
-              --exclude='.git' \
-              --exclude='.circleci' \
-              --exclude='build' \
-              --exclude='tests' \
-              --exclude='*.md' \
-              --exclude='.gitignore' \
-              --exclude='.luacheckrc' \
-              --exclude='*.sh' \
-              --exclude='.claude' \
-              . build/$PACKAGE_NAME/
+            find . -type f \
+              ! -path './.git/*' \
+              ! -path './.circleci/*' \
+              ! -path './build/*' \
+              ! -path './tests/*' \
+              ! -path './.claude/*' \
+              ! -name '*.md' \
+              ! -name '.gitignore' \
+              ! -name '.luacheckrc' \
+              ! -name '*.sh' \
+              ! -name '*.bak' \
+              ! -name '*.orig' \
+              ! -name '*~' \
+              ! -name '.DS_Store' \
+              ! -name 'Thumbs.db' \
+              -exec cp --parents {} build/$PACKAGE_NAME/ \;
             
             # Create zip package
             cd build
