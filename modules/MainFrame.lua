@@ -20,137 +20,6 @@ local ReorganizeGroupByRole, CheckRoleLimits
 
 
 
-local function CreateMemberRow(parent, index)
-    local row = CreateFrame("Button", nil, parent)
-    row:SetHeight(20)
-    row:SetPoint("TOPLEFT", parent, "TOPLEFT", 5, -((index - 1) * 22) - 5)
-    row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -5, -((index - 1) * 22) - 5)
-    
-    -- Create role text (left side)
-    row.roleText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.roleText:SetPoint("LEFT", row, "LEFT", 5, 0)
-    row.roleText:SetJustifyH("LEFT")
-    row.roleText:SetWidth(35)
-    row.roleText:SetText("")
-    
-    -- Create member name text (after role)
-    row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.text:SetPoint("LEFT", row.roleText, "RIGHT", 5, 0)
-    row.text:SetJustifyH("LEFT")
-    
-    row.scoreText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.scoreText:SetPoint("RIGHT", row, "RIGHT", -5, 0)
-    row.scoreText:SetJustifyH("RIGHT")
-    row.scoreText:SetText("")
-    
-    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-    row:GetHighlightTexture():SetAlpha(0.5)
-    
-    row:EnableMouse(true)
-    row:RegisterForDrag("LeftButton")
-    
-    -- Add tooltip functionality
-    row:SetScript("OnEnter", function(self)
-        if not self.memberName then return end
-        
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(self.memberName, 1, 1, 1)
-        
-        -- Add keystone information if available
-        if addon.Keystone then
-            local receivedKeystones = addon.Keystone:GetReceivedKeystones()
-            local keystoneData = receivedKeystones[self.memberName]
-            
-            if keystoneData and keystoneData.mapID and keystoneData.level then
-                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
-                local keystoneString = string.format("%s +%d", keystoneData.dungeonName or "Unknown Dungeon", keystoneData.level)
-                GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
-            else
-                -- Check if it's the current player (try both with and without realm)
-                local playerName = UnitName("player")
-                local playerFullName = UnitName("player") .. "-" .. GetRealmName()
-                
-                if self.memberName == playerName or self.memberName == playerFullName then
-                    local playerKeystoneInfo = addon.Keystone:GetKeystoneInfo()
-                    if playerKeystoneInfo.hasKeystone then
-                        GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                        GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
-                        local keystoneString = addon.Keystone:GetKeystoneString()
-                        GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
-                    end
-                end
-            end
-        end
-        
-        GameTooltip:Show()
-    end)
-    
-    row:SetScript("OnLeave", function(self)
-        GameTooltip:Hide()
-    end)
-    
-    addon.Debug("DEBUG", "CreateMemberRow: Setting up drag handlers for row", index)
-    
-    row:SetScript("OnMouseDown", function(self, button)
-        addon.Debug("DEBUG", "Row OnMouseDown:", button, "memberName:", self.memberName or "nil")
-    end)
-    
-    row:SetScript("OnMouseUp", function(self, button)
-        addon.Debug("DEBUG", "Row OnMouseUp:", button, "memberName:", self.memberName or "nil")
-    end)
-    
-    row:SetScript("OnDragStart", function(self)
-        addon.Debug("INFO", "Row OnDragStart triggered, memberName:", self.memberName or "nil")
-        if self.memberName then
-            addon.Debug("INFO", "Started dragging member:", self.memberName)
-            
-            -- Find the member info for class colors
-            local memberInfo = nil
-            memberInfo = addon.GuildMemberManager:FindMemberByName(self.memberName)
-            if memberInfo then
-                addon.Debug("DEBUG", "Found memberInfo for", self.memberName, "class:", memberInfo.class)
-            end
-            
-            draggedMember = {
-                name = self.memberName,
-                sourceRow = self,
-                memberInfo = memberInfo
-            }
-            addon.Debug("DEBUG", "draggedMember created:", draggedMember.name)
-            
-            addon.Debug("DEBUG", "About to call ShowDragFrame")
-            ShowDragFrame(self.memberName, memberInfo)
-            addon.Debug("DEBUG", "ShowDragFrame call completed")
-            
-            SetCursor("Interface\\Cursor\\Point")
-            UpdateDragFramePosition()
-            addon.Debug("DEBUG", "Drag started successfully, cursor and drag frame set")
-            addon.Debug("DEBUG", "Drag frame visible:", dragFrame and dragFrame:IsShown() or "dragFrame is nil")
-        else
-            addon.Debug("ERROR", "OnDragStart: memberName is nil!")
-        end
-    end)
-    
-    row:SetScript("OnDragStop", function(self)
-        addon.Debug("DEBUG", "Row OnDragStop triggered")
-        addon.Debug("DEBUG", "Stopped dragging member, draggedMember was:", draggedMember and draggedMember.name or "nil")
-        HideDragFrame()
-        -- Don't clear draggedMember here - let OnReceiveDrag handle it
-        -- This allows OnReceiveDrag to still access the dragged member info
-        C_Timer.After(0.1, function()
-            if draggedMember then
-                addon.Debug("DEBUG", "Drag timeout: clearing draggedMember after failed drop")
-                draggedMember = nil
-                ResetCursor()
-                HideDragFrame()
-                HideDragFrame()
-            end
-        end)
-    end)
-    
-    return row
-end
 
 local function UpdateMemberDisplay()
     addon.Debug("DEBUG", "UpdateMemberDisplay: Updating member display - ENTRY")
@@ -198,23 +67,13 @@ local function UpdateMemberDisplay()
     
     
     -- Initialize scrollChild.rows if it doesn't exist
-    if not scrollChild.rows then
-        scrollChild.rows = {}
-    end
+    addon.MemberRowUI:InitializeRows(scrollChild)
     
     -- Hide all existing rows first and clear their content
     addon.Debug("DEBUG", "UpdateMemberDisplay: Hiding", #scrollChild.rows, "existing rows")
     for i = 1, #scrollChild.rows do
         if scrollChild.rows[i] then
-            scrollChild.rows[i]:Hide()
-            -- Clear the row content to prevent showing stale data
-            scrollChild.rows[i].text:SetText("")
-            scrollChild.rows[i].scoreText:SetText("")
-            if scrollChild.rows[i].roleText then
-                scrollChild.rows[i].roleText:SetText("")
-            end
-            scrollChild.rows[i].memberName = nil
-            addon.Debug("TRACE", "UpdateMemberDisplay: Hid and cleared row", i)
+            addon.MemberRowUI:ClearMemberRow(scrollChild.rows[i])
         end
     end
     
@@ -226,103 +85,14 @@ local function UpdateMemberDisplay()
         local row = scrollChild.rows[i]
         if not row then
             addon.Debug("DEBUG", "UpdateMemberDisplay: Creating new row at position", i, "for member:", member.name)
-            row = CreateMemberRow(scrollChild, i)
+            row = addon.MemberRowUI:CreateMemberRow(scrollChild, i)
             scrollChild.rows[i] = row
         else
             addon.Debug("DEBUG", "UpdateMemberDisplay: Reusing existing row at position", i, "for member:", member.name)
         end
         
-        -- Always reposition and reset the row completely
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 5, -((i - 1) * 22) - 5)
-        row:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", -5, -((i - 1) * 22) - 5)
-        
-        -- Ensure row interaction is enabled
-        row:EnableMouse(true)
-        row:RegisterForDrag("LeftButton")
-        
-        local classColor = nil
-        if member.class then
-            classColor = RAID_CLASS_COLORS[member.class] or (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[member.class])
-            addon.Debug("DEBUG", "UpdateMemberDisplay: Looking up class color for", member.name, "class token:", member.class, "localized:", member.classLocalized or "nil")
-        else
-            addon.Debug("WARN", "UpdateMemberDisplay: No class data for", member.name)
-        end
-        
-        if classColor then
-            row.text:SetTextColor(classColor.r, classColor.g, classColor.b)
-            addon.Debug("INFO", "UpdateMemberDisplay: Applied class color for", member.name, "class:", member.class, "color:", string.format("%.2f,%.2f,%.2f", classColor.r, classColor.g, classColor.b))
-        else
-            row.text:SetTextColor(1, 1, 1)
-            addon.Debug("WARN", "UpdateMemberDisplay: No class color found for", member.name, "class:", member.class or "nil", "- using white")
-        end
-        -- Force complete text element reset and proper setup
-        row.text:Hide()       -- Hide first
-        row.text:SetText("")  -- Clear text
-        row.text:Show()       -- Show again
-        row.text:SetText(member.name)  -- Set the text
-        row.memberName = member.name
-        addon.Debug("DEBUG", "UpdateMemberDisplay: Set memberName for row", i, "to:", member.name)
-        
-        -- Set role text
-        if row.roleText then
-            local roleDisplay, roleColor = addon:GetRoleDisplay(member.role)
-            
-            row.roleText:SetText(roleDisplay)
-            row.roleText:SetTextColor(roleColor.r, roleColor.g, roleColor.b)
-            addon.Debug("DEBUG", "UpdateMemberDisplay: Set role for", member.name, ":", roleDisplay)
-        end
-        
-        -- Force text positioning and parent refresh
-        row.text:ClearAllPoints()
-        row.text:SetPoint("LEFT", row.roleText, "RIGHT", 5, 0)
-        row.text:SetParent(row)  -- Ensure proper parent relationship
-        
-        -- Verify the text was actually set and force row recreation if needed
-        local actualText = row.text:GetText()
-        if actualText ~= member.name then
-            addon.Debug("ERROR", "Row", i, "text verification failed for", member.name, "- recreating row")
-            -- Destroy the problematic row and create a new one
-            row:Hide()
-            row:SetParent(nil)
-            row = CreateMemberRow(scrollChild, i)
-            scrollChild.rows[i] = row
-            
-            -- Set up the new row completely
-            local classColor = nil
-            if member.class then
-                classColor = RAID_CLASS_COLORS[member.class] or (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[member.class])
-            end
-            if classColor then
-                row.text:SetTextColor(classColor.r, classColor.g, classColor.b)
-            else
-                row.text:SetTextColor(1, 1, 1)
-            end
-            row.text:SetText(member.name)
-            row.memberName = member.name
-            
-            -- Set role text for recreated row
-            if row.roleText then
-                local roleDisplay, roleColor = addon:GetRoleDisplay(member.role)
-                
-                row.roleText:SetText(roleDisplay)
-                row.roleText:SetTextColor(roleColor.r, roleColor.g, roleColor.b)
-            end
-            
-            addon.Debug("INFO", "Recreated row", i, "for", member.name, "with role:", member.role or "unknown")
-        end
-        
-        if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
-            local formattedScore = addon.RaiderIOIntegration:GetFormattedScoreWithFallback(member.name)
-            row.scoreText:SetText(formattedScore or "0")
-            addon.Debug("DEBUG", "UpdateMemberDisplay: Set RaiderIO score for", member.name, ":", formattedScore or "0")
-        else
-            row.scoreText:SetText("")
-            addon.Debug("TRACE", "UpdateMemberDisplay: RaiderIO integration not available")
-        end
-        
-        row:Show()
-        addon.Debug("TRACE", "UpdateMemberDisplay: Showed row", i, "for", member.name, "at position", string.format("y=%.0f", -((i - 1) * 22) - 5))
+        -- Update the member row using MemberRowUI module
+        addon.MemberRowUI:UpdateMemberRow(row, member, i)
         
         
     end
@@ -1680,6 +1450,15 @@ local function CreateMainFrame()
     mainFrame:SetResizable(true)
     mainFrame:EnableKeyboard(true)
     mainFrame:SetPropagateKeyboardInput(false)
+    
+    -- Set up MemberRowUI dependencies
+    addon.MemberRowUI:SetDependencies({
+        ShowDragFrame = ShowDragFrame,
+        HideDragFrame = HideDragFrame,
+        UpdateDragFramePosition = UpdateDragFramePosition,
+        GetDraggedMember = function() return draggedMember end,
+        SetDraggedMember = function(member) draggedMember = member end
+    })
     
     local titleBar = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
     titleBar:SetHeight(32)

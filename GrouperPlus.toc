@@ -24,4 +24,5 @@ modules\AutoFormation.lua
 modules\AddonUserList.lua
 modules\VersionWarning.lua
 modules\GuildMemberManager.lua
+modules\MemberRowUI.lua
 modules\MainFrame.lua
