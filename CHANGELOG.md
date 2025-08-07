@@ -5,6 +5,35 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-08-07
+
+### Added 🆕
+- **Collaborative Session Management**: Complete guild leader collaboration system
+  - Session creation, joining, and permission management
+  - Whitelist-based edit permissions with visual indicators
+  - Session control buttons (Start Session, Finalize, End Session)
+  - Right-click context menus for permission management
+  - Crown and assist icons for role visualization
+  - Session status and participant information display
+
+### Enhanced 🚀
+- **Advanced Drag & Drop System**: Full group-to-group member movement
+  - Visual drag frame feedback for group operations
+  - Smart group index adjustment during member moves
+  - Proper timing management for drag state handling
+  - Session permission integration throughout drag operations
+
+### Improved 🔧
+- **Cross-User Synchronization**: Extended AddonComm for session state sharing
+  - Session message types for collaborative features
+  - Real-time permission updates across guild members
+  - Robust session state management and persistence
+
+### Technical 🛠️
+- **Database Schema**: Updated for session configuration storage
+- **UI Integration**: Session controls integrated with existing framework
+- **Permission System**: Comprehensive access control throughout addon
+
 ## [0.7.2] - 2025-08-06
 
 ### CI/CD 🚀

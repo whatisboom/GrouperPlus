@@ -127,7 +127,7 @@ function AddonUserList:RefreshUserList()
     local playerName = UnitName("player")
     if playerName then
         connectedUsers[playerName] = {
-            version = "0.6.0", -- Current addon version
+            version = "0.8.0", -- Current addon version
             lastSeen = GetServerTime(),
             isCurrentPlayer = true
         }
