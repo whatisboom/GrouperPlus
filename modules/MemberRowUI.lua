@@ -65,6 +65,69 @@ local function SetupRowDragHandlers(row, index)
     
     row:SetScript("OnMouseUp", function(self, button)
         addon.Debug("DEBUG", "Row OnMouseUp:", button, "memberName:", self.memberName or "nil")
+        
+        -- Right-click for session whitelist management
+        if button == "RightButton" and self.memberName and addon.SessionManager then
+            local sessionInfo = addon.SessionManager:GetSessionInfo()
+            if sessionInfo and sessionInfo.isOwner then
+                local memberName = self.memberName
+                local whitelist = addon.SessionManager:GetWhitelist()
+                local isWhitelisted = whitelist[memberName] == true
+                
+                -- Create a simple tooltip-style menu instead of dropdown
+                local menuFrame = CreateFrame("Frame", "GrouperPlusWhitelistTooltip", UIParent, "BackdropTemplate")
+                menuFrame:SetBackdrop({
+                    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                    tile = true,
+                    tileSize = 16,
+                    edgeSize = 16,
+                    insets = { left = 4, right = 4, top = 4, bottom = 4 }
+                })
+                menuFrame:SetBackdropColor(0, 0, 0, 0.8)
+                menuFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+                menuFrame:SetFrameStrata("TOOLTIP")
+                menuFrame:SetSize(200, 60)
+                
+                -- Position near cursor
+                local x, y = GetCursorPosition()
+                local scale = UIParent:GetEffectiveScale()
+                menuFrame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x/scale + 10, y/scale - 10)
+                
+                -- Add text
+                local titleText = menuFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                titleText:SetPoint("TOP", menuFrame, "TOP", 0, -8)
+                titleText:SetText("Session Permissions: " .. memberName)
+                titleText:SetTextColor(1, 1, 1)
+                
+                -- Add action button
+                local actionBtn = CreateFrame("Button", nil, menuFrame, "UIPanelButtonTemplate")
+                actionBtn:SetSize(160, 20)
+                actionBtn:SetPoint("TOP", titleText, "BOTTOM", 0, -8)
+                
+                if isWhitelisted then
+                    actionBtn:SetText("Remove Edit Permission")
+                    actionBtn:SetScript("OnClick", function()
+                        addon.SessionManager:RemoveFromWhitelist(memberName)
+                        addon:Print("Removed edit permission from " .. memberName)
+                        menuFrame:Hide()
+                    end)
+                else
+                    actionBtn:SetText("Grant Edit Permission") 
+                    actionBtn:SetScript("OnClick", function()
+                        addon.SessionManager:AddToWhitelist(memberName)
+                        addon:Print("Granted edit permission to " .. memberName)
+                        menuFrame:Hide()
+                    end)
+                end
+                
+                -- Auto-hide after 5 seconds or on any click outside
+                menuFrame:SetScript("OnMouseDown", function() menuFrame:Hide() end)
+                C_Timer.After(5, function() if menuFrame then menuFrame:Hide() end end)
+                
+                menuFrame:Show()
+            end
+        end
     end)
     
     row:SetScript("OnDragStart", function(self)
@@ -176,9 +239,25 @@ function MemberRowUI:UpdateMemberRow(row, member, index)
     row:SetPoint("TOPLEFT", row:GetParent(), "TOPLEFT", 5, -((index - 1) * 22) - 5)
     row:SetPoint("TOPRIGHT", row:GetParent(), "TOPRIGHT", -5, -((index - 1) * 22) - 5)
     
-    -- Ensure row interaction is enabled
-    row:EnableMouse(true)
-    row:RegisterForDrag("LeftButton")
+    -- Ensure row interaction respects session permissions
+    local canEdit = true
+    if addon.SessionManager then
+        local sessionInfo = addon.SessionManager:GetSessionInfo()
+        if sessionInfo then
+            -- Only apply restrictions if we're actually in a session
+            canEdit = addon.SessionManager:CanEdit()
+        end
+        -- If no session info, leave canEdit = true (allow free dragging)
+    end
+    
+    row:EnableMouse(canEdit)
+    if canEdit then
+        row:RegisterForDrag("LeftButton")
+    else
+        row:RegisterForDrag()
+    end
+    
+    addon.Debug("TRACE", "MemberRowUI: Set drag permissions for", member.name, "canEdit:", canEdit)
     
     -- Set up class color
     local classColor = nil
@@ -201,7 +280,33 @@ function MemberRowUI:UpdateMemberRow(row, member, index)
     row.text:Hide()       -- Hide first
     row.text:SetText("")  -- Clear text
     row.text:Show()       -- Show again
-    row.text:SetText(member.name)  -- Set the text
+    
+    -- Build display name with session permissions
+    local displayName = member.name
+    
+    -- Add session permission indicators
+    if addon.SessionManager and addon.SessionManager:IsInSession() then
+        local sessionInfo = addon.SessionManager:GetSessionInfo()
+        if sessionInfo then
+            local fullName = member.name
+            if not string.find(fullName, "-") then
+                fullName = fullName .. "-" .. GetRealmName()
+            end
+            
+            if sessionInfo.owner == fullName then
+                -- Session owner gets a crown icon
+                displayName = "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:14:14|t " .. displayName
+            else
+                local whitelist = addon.SessionManager:GetWhitelist()
+                if whitelist[fullName] then
+                    -- Whitelisted players get an assist icon
+                    displayName = "|TInterface\\GroupFrame\\UI-Group-AssistantIcon:14:14|t " .. displayName
+                end
+            end
+        end
+    end
+    
+    row.text:SetText(displayName)  -- Set the text with icons
     row.memberName = member.name
     addon.Debug("DEBUG", "MemberRowUI: Set memberName for row", index, "to:", member.name)
     

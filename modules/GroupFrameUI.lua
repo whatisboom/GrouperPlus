@@ -9,7 +9,7 @@ addon.GroupFrameUI = GroupFrameUI
 -- Forward declarations for dependencies
 local MAX_GROUP_SIZE = 5
 local AddMemberToGroup, RemoveMemberFromGroup, GetDraggedMember, SetDraggedMember
-local RemoveMemberFromPlayerList, ResetCursor, HideDragFrame
+local RemoveMemberFromPlayerList, ResetCursor, HideDragFrame, ShowDragFrame
 
 -- Initialize dependencies from MainFrame
 function GroupFrameUI:SetDependencies(deps)
@@ -21,6 +21,7 @@ function GroupFrameUI:SetDependencies(deps)
     RemoveMemberFromPlayerList = deps.RemoveMemberFromPlayerList
     ResetCursor = deps.ResetCursor
     HideDragFrame = deps.HideDragFrame
+    ShowDragFrame = deps.ShowDragFrame
 end
 
 -- Check what utilities are available in a group
@@ -89,6 +90,50 @@ end
 
 -- Create drag and drop handlers for member slot
 local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex, slotIndex)
+    -- OnDragStart - Allow dragging members out of group frames
+    memberFrame:SetScript("OnDragStart", function(self)
+        local member = groupFrame.members[slotIndex]
+        if member then
+            addon.Debug("INFO", "=== Group OnDragStart ENTRY ===")
+            addon.Debug("INFO", "Group slot OnDragStart: dragging", member.name, "from group", groupIndex, "slot", slotIndex)
+            SetDraggedMember({
+                name = member.name,
+                memberInfo = member,
+                fromGroup = true,
+                sourceGroup = groupIndex,
+                sourceSlot = slotIndex
+            })
+            
+            -- Create drag visual feedback
+            if ShowDragFrame then
+                ShowDragFrame(member.name, member)
+                addon.Debug("DEBUG", "Group drag: ShowDragFrame called for", member.name)
+            else
+                addon.Debug("DEBUG", "Group drag visual feedback - ShowDragFrame not available via dependencies")
+            end
+            
+            SetCursor("Interface\\Cursor\\Point")
+        else
+            addon.Debug("DEBUG", "Group slot OnDragStart: No member in slot", slotIndex, "to drag")
+        end
+    end)
+    
+    -- OnDragStop - Clean up drag state (with delay to allow OnReceiveDrag to process)
+    memberFrame:SetScript("OnDragStop", function(self)
+        addon.Debug("DEBUG", "Group slot OnDragStop")
+        if HideDragFrame then
+            HideDragFrame()
+        end
+        -- Delay clearing draggedMember to allow OnReceiveDrag to process
+        C_Timer.After(0.1, function()
+            local currentDraggedMember = GetDraggedMember()
+            if currentDraggedMember then
+                addon.Debug("DEBUG", "Group OnDragStop: Delayed clear of draggedMember")
+                SetDraggedMember(nil)
+            end
+        end)
+    end)
+    
     memberFrame:SetScript("OnReceiveDrag", function(self)
         local draggedMember = GetDraggedMember()
         addon.Debug("INFO", "=== OnReceiveDrag ENTRY ===")
@@ -121,10 +166,8 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
             end
             
             if success then
-                if fromGroup and sourceGroup and sourceSlot then
-                    addon.Debug("INFO", "Removing member from source group", sourceGroup, "slot", sourceSlot)
-                    RemoveMemberFromGroup(sourceGroup, sourceSlot, true)
-                else
+                -- For group-to-group moves, the source removal is handled in AddMemberToGroup
+                if not fromGroup then
                     RemoveMemberFromPlayerList(memberName)
                     if sourceRow then
                         sourceRow:Hide()
@@ -133,9 +176,12 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
                 addon.Debug("INFO", "Successfully dropped", memberName, "on empty slot")
             end
             
+            -- Clear drag state immediately after successful drop
             SetDraggedMember(nil)
             ResetCursor()
-            HideDragFrame()
+            if HideDragFrame then
+                HideDragFrame()
+            end
             return
         end
         

@@ -98,7 +98,16 @@ local defaults = {
             showPatchUpdates = false,
             autoCheckInterval = 300
         },
-        dismissedVersions = {}
+        dismissedVersions = {},
+        sessions = {
+            currentSessionId = nil,
+            isSessionOwner = false,
+            sessionSettings = {
+                allowCollaboration = true,
+                requireApproval = false,
+                autoSync = true
+            }
+        }
     }
 }
 

@@ -36,6 +36,21 @@ local function Debug(level, ...)
     end
 end
 
+-- Print function for user messages
+function addon:Print(...)
+    local args = {...}
+    local message = ""
+    
+    for i, arg in ipairs(args) do
+        if i > 1 then
+            message = message .. " "
+        end
+        message = message .. tostring(arg)
+    end
+    
+    print("|cFFFFD700[GrouperPlus]|r " .. message)
+end
+
 -- Export to addon namespace for use in modules
 addon.Debug = Debug
 
@@ -104,6 +119,13 @@ frame:SetScript("OnEvent", function(self, event, ...)
                     addon.Keystone:Initialize()
                 end)
             end
+            
+            -- Initialize SessionManager module
+            if addon.SessionManager then
+                C_Timer.After(2, function()
+                    addon.SessionManager:Initialize()
+                end)
+            end
         end
     elseif event == "PLAYER_LOGIN" then
         Debug(addon.LOG_LEVEL.INFO, "Welcome to GrouperPlus!")
@@ -158,6 +180,28 @@ SlashCmdList["GROUPER"] = function(msg)
             button:Click()
         else
             Debug(addon.LOG_LEVEL.WARN, "Button not found! Frame might not be created yet.")
+        end
+    elseif command == "session" or command == "sess" then
+        if addon.SessionManager then
+            local sessionInfo = addon.SessionManager:GetSessionInfo()
+            if sessionInfo then
+                Debug(addon.LOG_LEVEL.INFO, "Session ID:", sessionInfo.sessionId)
+                Debug(addon.LOG_LEVEL.INFO, "Session Owner:", sessionInfo.owner)
+                Debug(addon.LOG_LEVEL.INFO, "Is Owner:", sessionInfo.isOwner)
+                Debug(addon.LOG_LEVEL.INFO, "Is Finalized:", sessionInfo.isFinalized)
+                Debug(addon.LOG_LEVEL.INFO, "Participants:", sessionInfo.participantCount)
+            else
+                Debug(addon.LOG_LEVEL.INFO, "No active session")
+            end
+        else
+            Debug(addon.LOG_LEVEL.WARN, "SessionManager not yet loaded")
+        end
+    elseif command == "refresh" or command == "perms" then
+        if addon.UpdateEditPermissions then
+            addon:UpdateEditPermissions()
+            Debug(addon.LOG_LEVEL.INFO, "Manually refreshed edit permissions")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "UpdateEditPermissions function not available")
         end
     elseif command == "comm" or command == "communication" then
         if addon.AddonComm then

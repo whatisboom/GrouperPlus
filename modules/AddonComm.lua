@@ -46,7 +46,14 @@ local MESSAGE_TYPES = {
     RAIDERIO_DATA = "RAIDERIO_DATA",
     FORMATION_REQUEST = "FORMATION_REQUEST",
     FORMATION_RESPONSE = "FORMATION_RESPONSE",
-    KEYSTONE_DATA = "KEYSTONE_DATA"
+    KEYSTONE_DATA = "KEYSTONE_DATA",
+    SESSION_CREATE = "SESSION_CREATE",
+    SESSION_JOIN = "SESSION_JOIN",
+    SESSION_LEAVE = "SESSION_LEAVE",
+    SESSION_WHITELIST = "SESSION_WHITELIST",
+    SESSION_FINALIZE = "SESSION_FINALIZE",
+    SESSION_STATE = "SESSION_STATE",
+    SESSION_END = "SESSION_END"
 }
 
 local connectedUsers = {}
@@ -54,6 +61,7 @@ local messageQueue = {}
 local lastSyncTime = {}
 local playerRole = nil
 local lastKnownSpec = nil
+local messageHandlers = {}
 
 local function EncodeMessage(messageType, data)
     local message = {
@@ -179,6 +187,53 @@ local function HandleIncomingMessage(message, distribution, sender)
         
     elseif message.type == MESSAGE_TYPES.KEYSTONE_DATA then
         AddonComm:HandleKeystoneData(message.data, sender)
+        
+    -- Session message handling
+    elseif message.type == MESSAGE_TYPES.SESSION_CREATE or
+           message.type == MESSAGE_TYPES.SESSION_JOIN or
+           message.type == MESSAGE_TYPES.SESSION_LEAVE or
+           message.type == MESSAGE_TYPES.SESSION_WHITELIST or
+           message.type == MESSAGE_TYPES.SESSION_FINALIZE or
+           message.type == MESSAGE_TYPES.SESSION_STATE or
+           message.type == MESSAGE_TYPES.SESSION_END then
+        
+        -- Call registered handlers for session messages
+        local handler = messageHandlers[message.type]
+        if handler then
+            handler(message.data, sender)
+        else
+            addon.Debug(addon.LOG_LEVEL.DEBUG, "No handler registered for message type:", message.type)
+        end
+    end
+end
+
+function AddonComm:RegisterHandler(messageType, handler)
+    if not messageType or not handler then
+        addon.Debug(addon.LOG_LEVEL.WARN, "RegisterHandler: Invalid messageType or handler")
+        return
+    end
+    
+    messageHandlers[messageType] = handler
+    addon.Debug(addon.LOG_LEVEL.DEBUG, "Registered handler for message type:", messageType)
+end
+
+function AddonComm:BroadcastMessage(messageType, data)
+    if not self.initialized then
+        addon.Debug(addon.LOG_LEVEL.WARN, "BroadcastMessage: AddonComm not initialized")
+        return
+    end
+    
+    if not addon.settings or not addon.settings.communication or not addon.settings.communication.enabled then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "BroadcastMessage: Communication disabled")
+        return
+    end
+    
+    local encoded = EncodeMessage(messageType, data)
+    if encoded then
+        C_ChatInfo.SendAddonMessage(COMM_PREFIX, encoded, "GUILD")
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted message type:", messageType)
+    else
+        addon.Debug(addon.LOG_LEVEL.WARN, "BroadcastMessage: Failed to encode message")
     end
 end
 

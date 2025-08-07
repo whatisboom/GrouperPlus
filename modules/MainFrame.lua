@@ -2,6 +2,9 @@ local addonName, addon = ...
 
 local AceDB = LibStub("AceDB-3.0")
 
+-- Create MainFrame module
+addon.MainFrame = addon.MainFrame or {}
+
 local mainFrame = nil
 local scrollFrame = nil
 local scrollChild = nil
@@ -1018,9 +1021,17 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     addon.Debug("DEBUG", "AddMemberToGroup: dynamicGroups count:", #dynamicGroups)
     
     -- Check if member is already in a group (unless being moved between groups)
-    if addon.GuildMemberManager:IsMemberInGroup(memberName) and not (draggedMember and draggedMember.fromGroup) then
+    local isGroupToGroupMove = draggedMember and draggedMember.fromGroup
+    if addon.GuildMemberManager:IsMemberInGroup(memberName) and not isGroupToGroupMove then
         addon.Debug("ERROR", "AddMemberToGroup: Member", memberName, "is already in a group - RETURNING FALSE")
         return false
+    end
+    
+    -- If this is a group-to-group move, first remove from source group
+    if isGroupToGroupMove and draggedMember.sourceGroup and draggedMember.sourceSlot then
+        addon.Debug("INFO", "AddMemberToGroup: Group-to-group move detected, removing from source group", draggedMember.sourceGroup, "slot", draggedMember.sourceSlot)
+        -- Remove from source group but skip cleanup to preserve target group
+        RemoveMemberFromGroup(draggedMember.sourceGroup, draggedMember.sourceSlot, true, true)
     end
     
     if not dynamicGroups[groupIndex] then
@@ -1125,10 +1136,14 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
         end
         
         if memberFrame.removeBtn then
-            if memberFrame.removeBtn then
-                memberFrame.removeBtn:Show()
-            end
+            memberFrame.removeBtn:Show()
         end
+        
+        -- Re-enable drag functionality for this populated slot
+        memberFrame:EnableMouse(true)
+        memberFrame:RegisterForDrag("LeftButton")
+        addon.Debug("DEBUG", "AddMemberToGroup: Re-enabled drag for populated slot", slotIndex)
+        
         addon.Debug("DEBUG", "AddMemberToGroup: Member frame updated successfully")
     else
         addon.Debug("ERROR", "AddMemberToGroup: memberFrame is nil!")
@@ -1155,6 +1170,15 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     
     -- Update group title to reflect utility availability
     addon.GroupFrameUI:UpdateGroupTitle(group)
+    
+    -- Ensure drag permissions are properly updated after adding member
+    addon:UpdateEditPermissions()
+    
+    -- Clean up empty groups after successful group-to-group move
+    if isGroupToGroupMove then
+        addon.Debug("DEBUG", "AddMemberToGroup: Running deferred group cleanup after successful group-to-group move")
+        RemoveExcessEmptyGroups()
+    end
     
     addon.Debug("INFO", "AddMemberToGroup: Successfully added", memberName, "to group", groupIndex, "with role-based positioning - RETURNING TRUE")
     return true
@@ -1288,7 +1312,7 @@ ReorganizeGroupByRole = function(groupIndex)
     end
 end
 
-RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate)
+RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate, skipGroupCleanup)
     addon.Debug("INFO", "RemoveMemberFromGroup: Removing member from group", groupIndex, "slot", slotIndex, "skipPlayerListUpdate:", skipPlayerListUpdate)
     
     if not dynamicGroups[groupIndex] then
@@ -1335,8 +1359,12 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate)
     -- Update group title to reflect utility availability
     addon.GroupFrameUI:UpdateGroupTitle(group)
     
-    -- Check and remove excess empty groups (keep only one)
-    RemoveExcessEmptyGroups()
+    -- Check and remove excess empty groups (keep only one) unless skipping cleanup
+    if not skipGroupCleanup then
+        RemoveExcessEmptyGroups()
+    else
+        addon.Debug("DEBUG", "RemoveMemberFromGroup: Skipping group cleanup for group-to-group move")
+    end
     
     addon.Debug("INFO", "RemoveMemberFromGroup: Successfully removed", memberName, "from group", groupIndex, "and reorganized by role")
     return true
@@ -1417,7 +1445,8 @@ local function CreateMainFrame()
         SetDraggedMember = function(member) draggedMember = member end,
         RemoveMemberFromPlayerList = RemoveMemberFromPlayerList,
         ResetCursor = ResetCursor,
-        HideDragFrame = HideDragFrame
+        HideDragFrame = HideDragFrame,
+        ShowDragFrame = ShowDragFrame
     })
     
     local titleBar = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
@@ -1500,9 +1529,79 @@ local function CreateMainFrame()
         addon:ClearAllGroups()
     end)
     
+    -- Session management buttons
+    local sessionFrame = CreateFrame("Frame", nil, leftPanel)
+    sessionFrame:SetPoint("TOPLEFT", autoFormButton, "BOTTOMLEFT", 0, -5)
+    sessionFrame:SetPoint("TOPRIGHT", clearButton, "BOTTOMRIGHT", 0, -5)
+    sessionFrame:SetHeight(30)
+    
+    local startSessionBtn = CreateFrame("Button", "GrouperPlusStartSessionBtn", sessionFrame, "UIPanelButtonTemplate")
+    startSessionBtn:SetSize(90, 22)
+    startSessionBtn:SetPoint("LEFT", sessionFrame, "LEFT", 0, 0)
+    startSessionBtn:SetText("Start Session")
+    startSessionBtn:SetScript("OnClick", function()
+        addon.Debug("INFO", "Start session button clicked")
+        if addon.SessionManager then
+            local success, result = addon.SessionManager:CreateSession()
+            if success then
+                addon:Print("Started a new grouping session")
+            else
+                addon:Print("Failed to start session: " .. tostring(result))
+            end
+        end
+    end)
+    
+    local finalizeBtn = CreateFrame("Button", "GrouperPlusFinalizeBtn", sessionFrame, "UIPanelButtonTemplate")
+    finalizeBtn:SetSize(90, 22)
+    finalizeBtn:SetPoint("CENTER", sessionFrame, "CENTER", 0, 0)
+    finalizeBtn:SetText("Finalize")
+    finalizeBtn:SetScript("OnClick", function()
+        addon.Debug("INFO", "Finalize button clicked")
+        if addon.SessionManager then
+            local success, result = addon.SessionManager:FinalizeGroups()
+            if success then
+                addon:Print("Groups have been finalized")
+            else
+                addon:Print("Failed to finalize: " .. tostring(result))
+            end
+        end
+    end)
+    
+    local endSessionBtn = CreateFrame("Button", "GrouperPlusEndSessionBtn", sessionFrame, "UIPanelButtonTemplate")
+    endSessionBtn:SetSize(90, 22)
+    endSessionBtn:SetPoint("RIGHT", sessionFrame, "RIGHT", 0, 0)
+    endSessionBtn:SetText("End Session")
+    endSessionBtn:SetScript("OnClick", function()
+        addon.Debug("INFO", "End session button clicked")
+        if addon.SessionManager then
+            if addon.SessionManager:IsSessionOwner() then
+                local success, result = addon.SessionManager:EndSession()
+                if success then
+                    addon:Print("Session ended")
+                else
+                    addon:Print("Failed to end session: " .. tostring(result))
+                end
+            else
+                local success, result = addon.SessionManager:LeaveSession()
+                if success then
+                    addon:Print("Left the session")
+                else
+                    addon:Print("Failed to leave session: " .. tostring(result))
+                end
+            end
+        end
+    end)
+    
+    -- Session status label
+    local sessionStatus = leftPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    sessionStatus:SetPoint("TOP", sessionFrame, "BOTTOM", 0, -5)
+    sessionStatus:SetText("")
+    sessionStatus:SetTextColor(0.8, 0.8, 0.8)
+    addon.sessionStatusLabel = sessionStatus
+    
     local columnHeader = CreateFrame("Frame", nil, leftPanel)
-    columnHeader:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -60)
-    columnHeader:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -30, -60)
+    columnHeader:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -105)
+    columnHeader:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -30, -105)
     columnHeader:SetHeight(15)
     
     local nameHeader = columnHeader:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1516,7 +1615,7 @@ local function CreateMainFrame()
     scoreHeader:SetTextColor(0.8, 0.8, 0.8)
     
     scrollFrame = CreateFrame("ScrollFrame", nil, leftPanel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -80)
+    scrollFrame:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -125)
     scrollFrame:SetPoint("BOTTOMRIGHT", leftPanel, "BOTTOMRIGHT", -30, 8)
     
     scrollChild = CreateFrame("Frame", nil, scrollFrame)
@@ -2083,5 +2182,148 @@ function addon:OnFormationResponseReceived(data, sender)
     -- Handle formation responses - could be used for coordinated group forming
     if data.response then
         addon.Debug(addon.LOG_LEVEL.INFO, "Response from", sender, ":", data.response)
+    end
+end
+
+function addon.MainFrame:UpdateSessionUI()
+    addon.Debug("TRACE", "MainFrame:UpdateSessionUI", "Updating session UI")
+    
+    if not addon.SessionManager then
+        return
+    end
+    
+    local sessionInfo = addon.SessionManager:GetSessionInfo()
+    local startBtn = _G["GrouperPlusStartSessionBtn"]
+    local finalizeBtn = _G["GrouperPlusFinalizeBtn"]
+    local endBtn = _G["GrouperPlusEndSessionBtn"]
+    local statusLabel = addon.sessionStatusLabel
+    
+    if sessionInfo then
+        -- In a session
+        startBtn:SetEnabled(false)
+        startBtn:SetText("In Session")
+        
+        if sessionInfo.isOwner then
+            finalizeBtn:SetEnabled(not sessionInfo.isFinalized)
+            endBtn:SetText("End Session")
+            
+            local statusText = string.format("Session Leader | %d participants", sessionInfo.participantCount)
+            if sessionInfo.isFinalized then
+                statusText = statusText .. " | FINALIZED"
+            end
+            statusLabel:SetText(statusText)
+            statusLabel:SetTextColor(0.2, 1, 0.2)
+        else
+            finalizeBtn:SetEnabled(false)
+            endBtn:SetText("Leave Session")
+            
+            local canEdit = addon.SessionManager:CanEdit()
+            local statusText = string.format("Session: %s | %s", 
+                sessionInfo.owner or "Unknown",
+                canEdit and "Can Edit" or "View Only")
+            if sessionInfo.isFinalized then
+                statusText = statusText .. " | FINALIZED"
+            end
+            statusLabel:SetText(statusText)
+            
+            if canEdit then
+                statusLabel:SetTextColor(0.8, 0.8, 0.2)
+            else
+                statusLabel:SetTextColor(0.8, 0.8, 0.8)
+            end
+        end
+        
+        endBtn:SetEnabled(true)
+    else
+        -- Not in a session
+        startBtn:SetEnabled(true)
+        startBtn:SetText("Start Session")
+        finalizeBtn:SetEnabled(false)
+        endBtn:SetEnabled(false)
+        endBtn:SetText("End Session")
+        statusLabel:SetText("No active session")
+        statusLabel:SetTextColor(0.8, 0.8, 0.8)
+    end
+    
+    -- Update edit permissions for drag/drop and other controls
+    addon:UpdateEditPermissions()
+end
+
+function addon:UpdateEditPermissions()
+    if not addon.SessionManager then
+        addon.Debug("DEBUG", "UpdateEditPermissions - SessionManager not available, allowing all edits")
+        return
+    end
+    
+    local sessionInfo = addon.SessionManager:GetSessionInfo()
+    local canEdit = true
+    
+    if sessionInfo then
+        -- We're in a session, apply session permissions
+        canEdit = addon.SessionManager:CanEdit()
+        addon.Debug("DEBUG", "UpdateEditPermissions - In session, canEdit:", canEdit)
+    else
+        -- No session, allow all editing
+        addon.Debug("DEBUG", "UpdateEditPermissions - No active session, allowing all edits")
+    end
+    
+    -- Update Auto-Form button
+    local autoFormBtn = _G["GrouperPlusAutoFormButton"]
+    if autoFormBtn then
+        autoFormBtn:SetEnabled(canEdit)
+        addon.Debug("DEBUG", "UpdateEditPermissions - AutoForm button enabled:", canEdit)
+    end
+    
+    -- Update Clear Groups button - find it and update
+    
+    -- Only disable drag/drop if in a session and can't edit
+    local allowDragDrop = canEdit
+    addon.Debug("DEBUG", "UpdateEditPermissions - allowDragDrop:", allowDragDrop)
+    
+    -- Update drag/drop permissions on member frames (member list)
+    if scrollChild and scrollChild.rows then
+        local updatedRowCount = 0
+        for _, row in ipairs(scrollChild.rows) do
+            if row and row.EnableMouse then
+                row:EnableMouse(allowDragDrop)
+                updatedRowCount = updatedRowCount + 1
+            end
+            if row and row.RegisterForDrag then
+                if allowDragDrop then
+                    row:RegisterForDrag("LeftButton")
+                else
+                    row:RegisterForDrag()
+                end
+            end
+        end
+        addon.Debug("DEBUG", "UpdateEditPermissions - Updated", updatedRowCount, "member rows, allowDragDrop:", allowDragDrop)
+    else
+        addon.Debug("DEBUG", "UpdateEditPermissions - scrollChild.rows not found")
+    end
+    
+    -- Update group frame permissions (dynamic groups)
+    if dynamicGroups then
+        local updatedGroupFrames = 0
+        local updatedMemberFrames = 0
+        for _, groupFrame in ipairs(dynamicGroups) do
+            if groupFrame.memberFrames then
+                for slotIndex, memberFrame in pairs(groupFrame.memberFrames) do
+                    if memberFrame and memberFrame.EnableMouse then
+                        memberFrame:EnableMouse(allowDragDrop)
+                        updatedMemberFrames = updatedMemberFrames + 1
+                    end
+                    if memberFrame and memberFrame.RegisterForDrag then
+                        if allowDragDrop then
+                            memberFrame:RegisterForDrag("LeftButton")
+                        else
+                            memberFrame:RegisterForDrag()
+                        end
+                    end
+                    addon.Debug("TRACE", "UpdateEditPermissions - Updated group frame drag permissions, slot:", slotIndex, "allowDragDrop:", allowDragDrop)
+                end
+                updatedGroupFrames = updatedGroupFrames + 1
+            end
+        end
+        addon.Debug("DEBUG", "UpdateEditPermissions - Updated", updatedGroupFrames, "group frames with", updatedMemberFrames, "member slots, allowDragDrop:", allowDragDrop)
     end
 end
