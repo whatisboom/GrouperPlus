@@ -141,12 +141,14 @@ local function HandleIncomingMessage(message, distribution, sender)
     end
     
     if message.type == MESSAGE_TYPES.VERSION_CHECK then
+        addon.Debug(addon.LOG_LEVEL.INFO, "Received version check from", sender, "- version:", message.data.addonVersion)
         AddonComm:SendVersionResponse(sender)
         connectedUsers[sender] = {
             version = message.version,
             addonVersion = message.data.addonVersion,
             lastSeen = GetServerTime()
         }
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Added/updated user in connected list:", sender)
         
         -- Trigger version check when we receive version info
         if addon.VersionWarning then
@@ -156,12 +158,13 @@ local function HandleIncomingMessage(message, distribution, sender)
         end
         
     elseif message.type == MESSAGE_TYPES.VERSION_RESPONSE then
+        addon.Debug(addon.LOG_LEVEL.INFO, "Received version response from", sender, "- version:", message.data.addonVersion)
         connectedUsers[sender] = {
             version = message.version,
             addonVersion = message.data.addonVersion,
             lastSeen = GetServerTime()
         }
-        addon.Debug(addon.LOG_LEVEL.INFO, "User", sender, "is running GrouperPlus version", message.data.addonVersion or message.version)
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Added/updated user in connected list:", sender)
         
         -- Trigger version check when we receive version response
         if addon.VersionWarning then
@@ -293,14 +296,23 @@ end
 
 function AddonComm:BroadcastVersionCheck()
     if not IsInGuild() then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Not in guild, skipping version check broadcast")
+        addon.Debug(addon.LOG_LEVEL.WARN, "Not in guild, skipping version check broadcast")
         return
     end
     
+    if not self.initialized then
+        addon.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized, skipping version check broadcast")
+        return
+    end
+    
+    local addonVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "Unknown"
+    addon.Debug(addon.LOG_LEVEL.INFO, "Broadcasting version check to guild - addon version:", addonVersion)
+    
     self:SendMessage(MESSAGE_TYPES.VERSION_CHECK, {
-        addonVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "Unknown"
+        addonVersion = addonVersion
     })
-    addon.Debug(addon.LOG_LEVEL.INFO, "Broadcasting version check to guild")
+    
+    addon.Debug(addon.LOG_LEVEL.DEBUG, "Version check broadcast sent successfully")
 end
 
 function AddonComm:SendVersionResponse(target)
@@ -494,13 +506,23 @@ end
 function AddonComm:GetConnectedUsers()
     local now = GetServerTime()
     local activeUsers = {}
+    local totalUsers = 0
+    local activeCount = 0
     
     for user, info in pairs(connectedUsers) do
-        if info.lastSeen and (now - info.lastSeen) < 300 then
+        totalUsers = totalUsers + 1
+        local timeSinceLastSeen = info.lastSeen and (now - info.lastSeen) or nil
+        
+        if info.lastSeen and timeSinceLastSeen < 300 then
             activeUsers[user] = info
+            activeCount = activeCount + 1
+            addon.Debug(addon.LOG_LEVEL.TRACE, "Active user:", user, "last seen", timeSinceLastSeen, "seconds ago")
+        else
+            addon.Debug(addon.LOG_LEVEL.TRACE, "Inactive user:", user, "last seen", timeSinceLastSeen and (timeSinceLastSeen .. " seconds ago") or "never")
         end
     end
     
+    addon.Debug(addon.LOG_LEVEL.DEBUG, "GetConnectedUsers: Found", activeCount, "active users out of", totalUsers, "total users")
     return activeUsers
 end
 

@@ -64,11 +64,14 @@ function AddonUserList:CreateUserListWindow()
     refreshButton:SetPoint("BOTTOMLEFT", userListFrame.Inset, "BOTTOMLEFT", 10, 10)
     refreshButton:SetText("Refresh")
     refreshButton:SetScript("OnClick", function()
-        addon.Debug(addon.LOG_LEVEL.INFO, "Manual refresh of addon user list")
-        AddonUserList:RefreshUserList()
+        addon.Debug(addon.LOG_LEVEL.INFO, "Manual refresh of addon user list - broadcasting version check")
         if addon.AddonComm then
             addon.AddonComm:BroadcastVersionCheck()
         end
+        -- Refresh the list after a short delay to allow responses
+        C_Timer.After(2, function()
+            AddonUserList:RefreshUserList()
+        end)
     end)
     userListFrame.refreshButton = refreshButton
     
@@ -83,8 +86,18 @@ function AddonUserList:CreateUserListWindow()
     
     -- Auto-refresh every 30 seconds when visible
     userListFrame:SetScript("OnShow", function()
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Addon user list window shown")
-        AddonUserList:RefreshUserList()
+        addon.Debug(addon.LOG_LEVEL.INFO, "Addon user list window shown - initializing")
+        
+        -- Broadcast version check to discover users
+        if addon.AddonComm and IsInGuild() then
+            addon.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasting version check on user list show")
+            addon.AddonComm:BroadcastVersionCheck()
+        end
+        
+        -- Refresh after allowing time for responses
+        C_Timer.After(1, function()
+            AddonUserList:RefreshUserList()
+        end)
         
         -- Start auto-refresh timer
         if not refreshTimer then
@@ -120,7 +133,18 @@ function AddonUserList:RefreshUserList()
         connectedUsers = addon.AddonComm:GetConnectedUsers()
         for user, info in pairs(connectedUsers) do
             userCount = userCount + 1
+            addon.Debug(addon.LOG_LEVEL.DEBUG, "Found connected user:", user, "version:", info.version, "last seen:", info.lastSeen)
         end
+        addon.Debug(addon.LOG_LEVEL.INFO, "AddonComm returned", userCount, "connected users")
+    else
+        addon.Debug(addon.LOG_LEVEL.WARN, "AddonComm not available for user list refresh")
+    end
+    
+    -- Debug guild status
+    if IsInGuild() then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Player is in guild - communication should work")
+    else
+        addon.Debug(addon.LOG_LEVEL.WARN, "Player is not in guild - addon communication disabled")
     end
     
     -- Add current player to the list
@@ -150,13 +174,19 @@ function AddonUserList:RefreshUserList()
         local helpText = userListFrame.contentFrame:CreateFontString(nil, "OVERLAY")
         helpText:SetFontObject("GameFontNormalSmall")
         helpText:SetPoint("TOPLEFT", noUsersText, "BOTTOMLEFT", 0, -10)
-        helpText:SetText("Other guild members need to install GrouperPlus\nand be online to appear in this list.")
+        
+        if not IsInGuild() then
+            helpText:SetText("You must be in a guild for addon communication to work.\nOther users will only appear if they're guild members.")
+        else
+            helpText:SetText("Other guild members need to install GrouperPlus\nand be online to appear in this list.\n\nTry clicking 'Refresh' to broadcast a version check.")
+        end
+        
         helpText:SetJustifyH("LEFT")
         helpText:SetTextColor(0.6, 0.6, 0.6, 1)
         
         -- Still show current player entry below the message
-        userListFrame.contentFrame:SetHeight(120)
-        yOffset = -80 -- Start user entries below the help text
+        userListFrame.contentFrame:SetHeight(140)
+        yOffset = -100 -- Start user entries below the help text
     else
         -- Normal display - no special message needed
         yOffset = -10

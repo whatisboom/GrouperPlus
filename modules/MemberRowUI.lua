@@ -27,27 +27,29 @@ local function CreateMemberTooltip(row)
     
     -- Add keystone information if available
     if addon.Keystone then
-        local receivedKeystones = addon.Keystone:GetReceivedKeystones()
-        local keystoneData = receivedKeystones[row.memberName]
+        local playerName = UnitName("player")
+        local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+        local isCurrentPlayer = (row.memberName == playerName or row.memberName == playerFullName)
         
-        if keystoneData and keystoneData.mapID and keystoneData.level then
-            GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-            GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
-            local keystoneString = string.format("%s +%d", keystoneData.dungeonName or "Unknown Dungeon", keystoneData.level)
-            GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
+        -- Always show the current player's keystone from their own data
+        if isCurrentPlayer then
+            local playerKeystoneInfo = addon.Keystone:GetKeystoneInfo()
+            if playerKeystoneInfo.hasKeystone then
+                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
+                local keystoneString = addon.Keystone:GetKeystoneString()
+                GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
+            end
         else
-            -- Check if it's the current player (try both with and without realm)
-            local playerName = UnitName("player")
-            local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+            -- For other players, check received keystone data
+            local receivedKeystones = addon.Keystone:GetReceivedKeystones()
+            local keystoneData = receivedKeystones[row.memberName]
             
-            if row.memberName == playerName or row.memberName == playerFullName then
-                local playerKeystoneInfo = addon.Keystone:GetKeystoneInfo()
-                if playerKeystoneInfo.hasKeystone then
-                    GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                    GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
-                    local keystoneString = addon.Keystone:GetKeystoneString()
-                    GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
-                end
+            if keystoneData and keystoneData.mapID and keystoneData.level then
+                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
+                local keystoneString = string.format("%s +%d", keystoneData.dungeonName or "Unknown Dungeon", keystoneData.level)
+                GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
             end
         end
     end
@@ -73,6 +75,7 @@ local function SetupRowDragHandlers(row, index)
                 local memberName = self.memberName
                 local whitelist = addon.SessionManager:GetWhitelist()
                 local isWhitelisted = whitelist[memberName] == true
+                local isSessionOwner = (memberName == sessionInfo.owner)
                 
                 -- Create a simple tooltip-style menu instead of dropdown
                 local menuFrame = CreateFrame("Frame", "GrouperPlusWhitelistTooltip", UIParent, "BackdropTemplate")
@@ -100,25 +103,33 @@ local function SetupRowDragHandlers(row, index)
                 titleText:SetText("Session Permissions: " .. memberName)
                 titleText:SetTextColor(1, 1, 1)
                 
-                -- Add action button
-                local actionBtn = CreateFrame("Button", nil, menuFrame, "UIPanelButtonTemplate")
-                actionBtn:SetSize(160, 20)
-                actionBtn:SetPoint("TOP", titleText, "BOTTOM", 0, -8)
-                
-                if isWhitelisted then
-                    actionBtn:SetText("Remove Edit Permission")
-                    actionBtn:SetScript("OnClick", function()
-                        addon.SessionManager:RemoveFromWhitelist(memberName)
-                        addon:Print("Removed edit permission from " .. memberName)
-                        menuFrame:Hide()
-                    end)
+                -- Add action button (but not for session owner)
+                if not isSessionOwner then
+                    local actionBtn = CreateFrame("Button", nil, menuFrame, "UIPanelButtonTemplate")
+                    actionBtn:SetSize(160, 20)
+                    actionBtn:SetPoint("TOP", titleText, "BOTTOM", 0, -8)
+                    
+                    if isWhitelisted then
+                        actionBtn:SetText("Remove Edit Permission")
+                        actionBtn:SetScript("OnClick", function()
+                            addon.SessionManager:RemoveFromWhitelist(memberName)
+                            addon:Print("Removed edit permission from " .. memberName)
+                            menuFrame:Hide()
+                        end)
+                    else
+                        actionBtn:SetText("Grant Edit Permission") 
+                        actionBtn:SetScript("OnClick", function()
+                            addon.SessionManager:AddToWhitelist(memberName)
+                            addon:Print("Granted edit permission to " .. memberName)
+                            menuFrame:Hide()
+                        end)
+                    end
                 else
-                    actionBtn:SetText("Grant Edit Permission") 
-                    actionBtn:SetScript("OnClick", function()
-                        addon.SessionManager:AddToWhitelist(memberName)
-                        addon:Print("Granted edit permission to " .. memberName)
-                        menuFrame:Hide()
-                    end)
+                    -- For session owner, show a note that they always have permissions
+                    local noteText = menuFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    noteText:SetPoint("TOP", titleText, "BOTTOM", 0, -8)
+                    noteText:SetText("(Session Leader - Always has edit permissions)")
+                    noteText:SetTextColor(0.8, 0.8, 0.8)
                 end
                 
                 -- Auto-hide after 5 seconds or on any click outside

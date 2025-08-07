@@ -297,27 +297,29 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                     
                     -- Add keystone information if available
                     if addon.Keystone then
-                        local receivedKeystones = addon.Keystone:GetReceivedKeystones()
-                        local keystoneData = receivedKeystones[memberInfo.name]
+                        local playerName = UnitName("player")
+                        local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+                        local isCurrentPlayer = (memberInfo.name == playerName or memberInfo.name == playerFullName)
                         
-                        if keystoneData and keystoneData.mapID and keystoneData.level then
-                            GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                            GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
-                            local keystoneString = string.format("%s +%d", keystoneData.dungeonName or "Unknown Dungeon", keystoneData.level)
-                            GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
+                        -- Always show the current player's keystone from their own data
+                        if isCurrentPlayer then
+                            local playerKeystoneInfo = addon.Keystone:GetKeystoneInfo()
+                            if playerKeystoneInfo.hasKeystone then
+                                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                                GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
+                                local keystoneString = addon.Keystone:GetKeystoneString()
+                                GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
+                            end
                         else
-                            -- Check if it's the current player (try both with and without realm)
-                            local playerName = UnitName("player")
-                            local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+                            -- For other players, check received keystone data
+                            local receivedKeystones = addon.Keystone:GetReceivedKeystones()
+                            local keystoneData = receivedKeystones[memberInfo.name]
                             
-                            if memberInfo.name == playerName or memberInfo.name == playerFullName then
-                                local playerKeystoneInfo = addon.Keystone:GetKeystoneInfo()
-                                if playerKeystoneInfo.hasKeystone then
-                                    GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                                    GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
-                                    local keystoneString = addon.Keystone:GetKeystoneString()
-                                    GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
-                                end
+                            if keystoneData and keystoneData.mapID and keystoneData.level then
+                                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                                GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
+                                local keystoneString = string.format("%s +%d", keystoneData.dungeonName or "Unknown Dungeon", keystoneData.level)
+                                GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
                             end
                         end
                     end
@@ -2247,6 +2249,9 @@ function addon.MainFrame:UpdateSessionUI()
     
     -- Update edit permissions for drag/drop and other controls
     addon:UpdateEditPermissions()
+    
+    -- Refresh member display to show updated permission icons (crown, assist)
+    UpdateMemberDisplay()
 end
 
 function addon:UpdateEditPermissions()
