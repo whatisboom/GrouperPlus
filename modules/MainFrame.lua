@@ -129,12 +129,7 @@ CreateDragFrame = function()
     
     dragFrame.bg = dragFrame:CreateTexture(nil, "BACKGROUND")
     dragFrame.bg:SetAllPoints()
-    dragFrame.bg:SetColorTexture(0.1, 0.1, 0.2, 0.9)
-    
-    dragFrame.border = dragFrame:CreateTexture(nil, "BORDER")
-    dragFrame.border:SetAllPoints()
-    dragFrame.border:SetTexture("Interface\\Tooltips\\UI-Tooltip-Border")
-    dragFrame.border:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+    dragFrame.bg:SetColorTexture(0, 0, 0, 0.6)
     
     dragFrame.text = dragFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     dragFrame.text:SetPoint("CENTER")
@@ -213,67 +208,6 @@ GetMemberBackgroundColor = function(memberName)
     return defaultColor
 end
 
-local function CheckGroupUtilities(groupFrame)
-    local utilities = {
-        COMBAT_REZ = false,
-        BLOODLUST = false,
-        INTELLECT = false,
-        STAMINA = false,
-        ATTACK_POWER = false,
-        VERSATILITY = false,
-        SKYFURY = false,
-        MYSTIC_TOUCH = false,
-        CHAOS_BRAND = false
-    }
-    
-    for _, member in pairs(groupFrame.members) do
-        if member and member.class then
-            local className = string.upper(member.class)
-            local classUtilities = addon.CLASS_UTILITIES[className]
-            
-            if classUtilities then
-                for _, utility in ipairs(classUtilities) do
-                    if utilities[utility] ~= nil then
-                        utilities[utility] = true
-                    end
-                end
-            end
-        end
-    end
-    
-    addon.Debug("DEBUG", "CheckGroupUtilities: Group", groupFrame.groupIndex, 
-        "brez:", utilities.COMBAT_REZ, "lust:", utilities.BLOODLUST,
-        "int:", utilities.INTELLECT, "stam:", utilities.STAMINA,
-        "ap:", utilities.ATTACK_POWER, "vers:", utilities.VERSATILITY,
-        "sky:", utilities.SKYFURY, "mt:", utilities.MYSTIC_TOUCH,
-        "cb:", utilities.CHAOS_BRAND)
-    
-    return utilities
-end
-
-local function UpdateGroupTitle(groupFrame)
-    if not groupFrame.header then return end
-    
-    local utilities = CheckGroupUtilities(groupFrame)
-    
-    -- Priority 1 buffs (red when missing)
-    local brezText = utilities.COMBAT_REZ and "|cFF00FF00brez|r" or "|cFFFF0000brez|r"
-    local lustText = utilities.BLOODLUST and "|cFF00FF00lust|r" or "|cFFFF0000lust|r"
-    
-    -- Priority 2 buffs (yellow when missing)
-    local intText = utilities.INTELLECT and "|cFF00FF00int|r" or "|cFFFFFF00int|r"
-    local stamText = utilities.STAMINA and "|cFF00FF00stam|r" or "|cFFFFFF00stam|r"
-    local apText = utilities.ATTACK_POWER and "|cFF00FF00ap|r" or "|cFFFFFF00ap|r"
-    local versText = utilities.VERSATILITY and "|cFF00FF00vers|r" or "|cFFFFFF00vers|r"
-    local skyText = utilities.SKYFURY and "|cFF00FF00sky|r" or "|cFFFFFF00sky|r"
-    
-    -- Priority 3 buffs (gray when missing)
-    local mtText = utilities.MYSTIC_TOUCH and "|cFF00FF00Mystic Touch|r" or "|cFFAAAAAAMystic Touch|r"
-    local cbText = utilities.CHAOS_BRAND and "|cFF00FF00Chaos Brand|r" or "|cFFAAAAAAChaos Brand|r"
-    
-    groupFrame.header:SetText(brezText .. " " .. lustText .. "\n" .. intText .. " " .. stamText .. " " .. apText .. " " .. versText .. " " .. skyText .. "\n" .. mtText .. " " .. cbText)
-    addon.Debug("DEBUG", "UpdateGroupTitle: Updated group", groupFrame.groupIndex, "title with all utilities")
-end
 
 local function CreateGroupFrame(parent, groupIndex, groupWidth)
     addon.Debug("DEBUG", "CreateGroupFrame: Creating group frame", groupIndex, "with width", groupWidth)
@@ -331,7 +265,9 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
         memberFrame.removeBtn:SetNormalTexture("Interface\\Buttons\\UI-MinusButton-Up")
         memberFrame.removeBtn:SetPushedTexture("Interface\\Buttons\\UI-MinusButton-Down")
         memberFrame.removeBtn:SetHighlightTexture("Interface\\Buttons\\UI-PlusButton-Hilight")
-        memberFrame.removeBtn:Hide()
+        if memberFrame.removeBtn then
+            memberFrame.removeBtn:Hide()
+        end
         
         memberFrame.removeBtn:SetScript("OnClick", function()
             addon.Debug("INFO", "Group member remove button clicked for slot", i, "in group", groupIndex)
@@ -925,7 +861,7 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
     addon.Debug("DEBUG", "CreateGroupFrame: Group frame", groupIndex, "created successfully with width", groupWidth, "and group-level drag handling")
     
     -- Initialize with default title showing missing utilities
-    UpdateGroupTitle(groupFrame)
+    addon.GroupFrameUI:UpdateGroupTitle(groupFrame)
     
     return groupFrame
 end
@@ -1068,7 +1004,7 @@ CreateNewGroup = function()
     local groupIndex = #dynamicGroups + 1
     local containerWidth, numGroups, groupWidth, numRows = CalculateGroupLayout()
     
-    local groupFrame = CreateGroupFrame(groupsContainer, groupIndex, groupWidth)
+    local groupFrame = addon.GroupFrameUI:CreateGroupFrame(groupsContainer, groupIndex, groupWidth)
     groupFrame.members = {}
     table.insert(dynamicGroups, groupFrame)
     
@@ -1188,7 +1124,11 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
             memberFrame.text:SetTextColor(1, 1, 1)
         end
         
-        memberFrame.removeBtn:Show()
+        if memberFrame.removeBtn then
+            if memberFrame.removeBtn then
+                memberFrame.removeBtn:Show()
+            end
+        end
         addon.Debug("DEBUG", "AddMemberToGroup: Member frame updated successfully")
     else
         addon.Debug("ERROR", "AddMemberToGroup: memberFrame is nil!")
@@ -1214,7 +1154,7 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     ReorganizeGroupByRole(groupIndex)
     
     -- Update group title to reflect utility availability
-    UpdateGroupTitle(group)
+    addon.GroupFrameUI:UpdateGroupTitle(group)
     
     addon.Debug("INFO", "AddMemberToGroup: Successfully added", memberName, "to group", groupIndex, "with role-based positioning - RETURNING TRUE")
     return true
@@ -1290,7 +1230,11 @@ ReorganizeGroupByRole = function(groupIndex)
             memberFrame.text:SetText("Empty")
             memberFrame.text:SetTextColor(0.5, 0.5, 0.5)
             memberFrame.roleText:SetText("")
+            if memberFrame.removeBtn then
+                if memberFrame.removeBtn then
             memberFrame.removeBtn:Hide()
+        end
+            end
         end
     end
     
@@ -1332,7 +1276,9 @@ ReorganizeGroupByRole = function(groupIndex)
                 memberFrame.text:SetTextColor(1, 1, 1)
             end
             
-            memberFrame.removeBtn:Show()
+            if memberFrame.removeBtn then
+                memberFrame.removeBtn:Show()
+            end
         end
     end
     
@@ -1374,7 +1320,9 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate)
         memberFrame.text:SetText("Empty")
         memberFrame.text:SetTextColor(0.5, 0.5, 0.5)
         memberFrame.roleText:SetText("")
-        memberFrame.removeBtn:Hide()
+        if memberFrame.removeBtn then
+            memberFrame.removeBtn:Hide()
+        end
     end
     
     if not skipPlayerListUpdate then
@@ -1385,7 +1333,7 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate)
     ReorganizeGroupByRole(groupIndex)
     
     -- Update group title to reflect utility availability
-    UpdateGroupTitle(group)
+    addon.GroupFrameUI:UpdateGroupTitle(group)
     
     -- Check and remove excess empty groups (keep only one)
     RemoveExcessEmptyGroups()
@@ -1458,6 +1406,18 @@ local function CreateMainFrame()
         UpdateDragFramePosition = UpdateDragFramePosition,
         GetDraggedMember = function() return draggedMember end,
         SetDraggedMember = function(member) draggedMember = member end
+    })
+    
+    -- Set up GroupFrameUI dependencies
+    addon.GroupFrameUI:SetDependencies({
+        MAX_GROUP_SIZE = MAX_GROUP_SIZE,
+        AddMemberToGroup = AddMemberToGroup,
+        RemoveMemberFromGroup = RemoveMemberFromGroup,
+        GetDraggedMember = function() return draggedMember end,
+        SetDraggedMember = function(member) draggedMember = member end,
+        RemoveMemberFromPlayerList = RemoveMemberFromPlayerList,
+        ResetCursor = ResetCursor,
+        HideDragFrame = HideDragFrame
     })
     
     local titleBar = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
@@ -1820,12 +1780,16 @@ function addon:ClearAllGroups()
                     memberFrame.text:SetText("Empty")
                     memberFrame.text:SetTextColor(0.5, 0.5, 0.5)
                     memberFrame.roleText:SetText("")
-                    memberFrame.removeBtn:Hide()
+                    if memberFrame.removeBtn then
+                if memberFrame.removeBtn then
+            memberFrame.removeBtn:Hide()
+        end
+            end
                 end
             end
         end
         -- Update group title to show no buffs
-        UpdateGroupTitle(groupFrame)
+        addon.GroupFrameUI:UpdateGroupTitle(groupFrame)
     end
     
     -- Reset group member counts
