@@ -80,4 +80,28 @@
   - [ ] Flag groups without keystones as support/backup groups
   - [ ] Prioritize higher keystones for higher-rated player groups
 
+### Grouping Session Management
+- [ ] Add "Start Session" button to main frame
+  - [ ] When clicked, initiates a grouping session that locks editing to authorized users
+  - [ ] Session owner (person who started) has full control
+  - [ ] Other players see groups in read-only mode by default
+- [ ] Implement whitelist system for collaboration permissions
+  - [ ] Allow session owner to grant edit permissions to specific players
+  - [ ] Whitelist persists during the session
+  - [ ] Visual indicator showing who has edit permissions (use raid assist icon)
+  - [ ] Session owner shown with raid leader icon
+  - [ ] Quick add/remove buttons for managing whitelist
+- [ ] Add "Finalize Groups" button
+  - [ ] Locks in the current group composition
+  - [ ] Prevents any further edits
+  - [ ] Broadcasts final groups to all addon users
+- [ ] Session state synchronization
+  - [ ] Sync session state across all addon users
+  - [ ] Show current session status (open/locked/finalized)
+  - [ ] Display who started the session and who has permissions
+- [ ] Future actions to implement
+  - [ ] Auto-invite finalized group members
+  - [ ] Convert to actual in-game raid groups
+  - [ ] Session history and restoration
+
 <!-- Add items here as they come up -->
