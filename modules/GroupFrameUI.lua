@@ -6,6 +6,11 @@ local addonName, addon = ...
 local GroupFrameUI = {}
 addon.GroupFrameUI = GroupFrameUI
 
+for k, v in pairs(addon.DebugMixin) do
+    GroupFrameUI[k] = v
+end
+GroupFrameUI:InitDebug("GroupUI")
+
 -- Forward declarations for dependencies
 local MAX_GROUP_SIZE = 5
 local AddMemberToGroup, RemoveMemberFromGroup, GetDraggedMember, SetDraggedMember
@@ -53,7 +58,7 @@ function GroupFrameUI:CheckGroupUtilities(groupFrame)
         end
     end
     
-    addon.Debug("DEBUG", "GroupFrameUI: Group", groupFrame.groupIndex, 
+    GroupFrameUI.Debug("DEBUG", "GroupFrameUI: Group", groupFrame.groupIndex, 
         "brez:", utilities.COMBAT_REZ, "lust:", utilities.BLOODLUST,
         "int:", utilities.INTELLECT, "stam:", utilities.STAMINA,
         "ap:", utilities.ATTACK_POWER, "vers:", utilities.VERSATILITY,
@@ -85,7 +90,7 @@ function GroupFrameUI:UpdateGroupTitle(groupFrame)
     local cbText = utilities.CHAOS_BRAND and "|cFF00FF00Chaos Brand|r" or "|cFFAAAAAAChaos Brand|r"
     
     groupFrame.header:SetText(brezText .. " " .. lustText .. "\n" .. intText .. " " .. stamText .. " " .. apText .. " " .. versText .. " " .. skyText .. "\n" .. mtText .. " " .. cbText)
-    addon.Debug("DEBUG", "GroupFrameUI: Updated group", groupFrame.groupIndex, "title with all utilities")
+    GroupFrameUI.Debug("DEBUG", "GroupFrameUI: Updated group", groupFrame.groupIndex, "title with all utilities")
 end
 
 -- Create drag and drop handlers for member slot
@@ -94,8 +99,8 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
     memberFrame:SetScript("OnDragStart", function(self)
         local member = groupFrame.members[slotIndex]
         if member then
-            addon.Debug("INFO", "=== Group OnDragStart ENTRY ===")
-            addon.Debug("INFO", "Group slot OnDragStart: dragging", member.name, "from group", groupIndex, "slot", slotIndex)
+            GroupFrameUI.Debug("INFO", "=== Group OnDragStart ENTRY ===")
+            GroupFrameUI.Debug("INFO", "Group slot OnDragStart: dragging", member.name, "from group", groupIndex, "slot", slotIndex)
             SetDraggedMember({
                 name = member.name,
                 memberInfo = member,
@@ -107,20 +112,20 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
             -- Create drag visual feedback
             if ShowDragFrame then
                 ShowDragFrame(member.name, member)
-                addon.Debug("DEBUG", "Group drag: ShowDragFrame called for", member.name)
+                GroupFrameUI.Debug("DEBUG", "Group drag: ShowDragFrame called for", member.name)
             else
-                addon.Debug("DEBUG", "Group drag visual feedback - ShowDragFrame not available via dependencies")
+                GroupFrameUI.Debug("DEBUG", "Group drag visual feedback - ShowDragFrame not available via dependencies")
             end
             
             SetCursor("Interface\\Cursor\\Point")
         else
-            addon.Debug("DEBUG", "Group slot OnDragStart: No member in slot", slotIndex, "to drag")
+            GroupFrameUI.Debug("DEBUG", "Group slot OnDragStart: No member in slot", slotIndex, "to drag")
         end
     end)
     
     -- OnDragStop - Clean up drag state (with delay to allow OnReceiveDrag to process)
     memberFrame:SetScript("OnDragStop", function(self)
-        addon.Debug("DEBUG", "Group slot OnDragStop")
+        GroupFrameUI.Debug("DEBUG", "Group slot OnDragStop")
         if HideDragFrame then
             HideDragFrame()
         end
@@ -128,7 +133,7 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
         C_Timer.After(0.1, function()
             local currentDraggedMember = GetDraggedMember()
             if currentDraggedMember then
-                addon.Debug("DEBUG", "Group OnDragStop: Delayed clear of draggedMember")
+                GroupFrameUI.Debug("DEBUG", "Group OnDragStop: Delayed clear of draggedMember")
                 SetDraggedMember(nil)
             end
         end)
@@ -136,20 +141,20 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
     
     memberFrame:SetScript("OnReceiveDrag", function(self)
         local draggedMember = GetDraggedMember()
-        addon.Debug("INFO", "=== OnReceiveDrag ENTRY ===")
-        addon.Debug("INFO", "Group slot OnReceiveDrag: group", groupIndex, "slot", slotIndex, "draggedMember:", draggedMember and draggedMember.name or "nil")
+        GroupFrameUI.Debug("INFO", "=== OnReceiveDrag ENTRY ===")
+        GroupFrameUI.Debug("INFO", "Group slot OnReceiveDrag: group", groupIndex, "slot", slotIndex, "draggedMember:", draggedMember and draggedMember.name or "nil")
         
         if not draggedMember then
-            addon.Debug("WARN", "OnReceiveDrag: No draggedMember")
+            GroupFrameUI.Debug("WARN", "OnReceiveDrag: No draggedMember")
             return
         end
         
         local targetMember = groupFrame.members[slotIndex]
-        addon.Debug("DEBUG", "OnReceiveDrag: Target slot has member:", targetMember and targetMember.name or "empty")
+        GroupFrameUI.Debug("DEBUG", "OnReceiveDrag: Target slot has member:", targetMember and targetMember.name or "empty")
         
         -- Case 1: Dropping on empty slot (existing behavior)
         if not targetMember then
-            addon.Debug("INFO", "Case 1: Dropping", draggedMember.name, "on empty slot", slotIndex, "in group", groupIndex)
+            GroupFrameUI.Debug("INFO", "Case 1: Dropping", draggedMember.name, "on empty slot", slotIndex, "in group", groupIndex)
             
             local memberName = draggedMember.name
             local sourceRow = draggedMember.sourceRow
@@ -162,7 +167,7 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
             if status then
                 success = result
             else
-                addon.Debug("ERROR", "AddMemberToGroup failed with error:", result)
+                GroupFrameUI.Debug("ERROR", "AddMemberToGroup failed with error:", result)
             end
             
             if success then
@@ -173,7 +178,7 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
                         sourceRow:Hide()
                     end
                 end
-                addon.Debug("INFO", "Successfully dropped", memberName, "on empty slot")
+                GroupFrameUI.Debug("INFO", "Successfully dropped", memberName, "on empty slot")
             end
             
             -- Clear drag state immediately after successful drop
@@ -186,7 +191,7 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
         end
         
         -- Additional drag/drop logic would go here for member swapping, etc.
-        addon.Debug("DEBUG", "OnReceiveDrag: Complex drop scenarios not yet implemented in GroupFrameUI")
+        GroupFrameUI.Debug("DEBUG", "OnReceiveDrag: Complex drop scenarios not yet implemented in GroupFrameUI")
     end)
 end
 
@@ -194,11 +199,11 @@ end
 local function CreateGroupDragHandlers(groupFrame, groupIndex)
     groupFrame:SetScript("OnReceiveDrag", function(self)
         local draggedMember = GetDraggedMember()
-        addon.Debug("INFO", "=== Group-level OnReceiveDrag ENTRY ===")
-        addon.Debug("INFO", "Group OnReceiveDrag: group", groupIndex, "draggedMember:", draggedMember and draggedMember.name or "nil")
+        GroupFrameUI.Debug("INFO", "=== Group-level OnReceiveDrag ENTRY ===")
+        GroupFrameUI.Debug("INFO", "Group OnReceiveDrag: group", groupIndex, "draggedMember:", draggedMember and draggedMember.name or "nil")
         
         if not draggedMember then
-            addon.Debug("WARN", "Group OnReceiveDrag: No draggedMember")
+            GroupFrameUI.Debug("WARN", "Group OnReceiveDrag: No draggedMember")
             return
         end
         
@@ -207,7 +212,7 @@ local function CreateGroupDragHandlers(groupFrame, groupIndex)
         for slot = 1, MAX_GROUP_SIZE do
             if not groupFrame.members[slot] then
                 emptySlotIndex = slot
-                addon.Debug("DEBUG", "Group OnReceiveDrag: Found empty slot", slot, "in group", groupIndex)
+                GroupFrameUI.Debug("DEBUG", "Group OnReceiveDrag: Found empty slot", slot, "in group", groupIndex)
                 break
             end
         end
@@ -219,14 +224,14 @@ local function CreateGroupDragHandlers(groupFrame, groupIndex)
                 memberFrame:GetScript("OnReceiveDrag")(memberFrame)
             end
         else
-            addon.Debug("WARN", "Group OnReceiveDrag: No empty slots available in group", groupIndex)
+            GroupFrameUI.Debug("WARN", "Group OnReceiveDrag: No empty slots available in group", groupIndex)
         end
     end)
 end
 
 -- Create a group frame with member slots and drag/drop handling
 function GroupFrameUI:CreateGroupFrame(parent, groupIndex, groupWidth)
-    addon.Debug("DEBUG", "GroupFrameUI: Creating group frame", groupIndex, "with width", groupWidth)
+    GroupFrameUI.Debug("DEBUG", "GroupFrameUI: Creating group frame", groupIndex, "with width", groupWidth)
     
     local groupFrame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     groupFrame:SetSize(groupWidth, 220)
@@ -290,7 +295,7 @@ function GroupFrameUI:CreateGroupFrame(parent, groupIndex, groupWidth)
         removeBtn:Hide()
         
         removeBtn:SetScript("OnClick", function()
-            addon.Debug("INFO", "Remove button clicked for group", groupIndex, "slot", i)
+            GroupFrameUI.Debug("INFO", "Remove button clicked for group", groupIndex, "slot", i)
             if RemoveMemberFromGroup then
                 RemoveMemberFromGroup(groupIndex, i)
             end
@@ -306,7 +311,7 @@ function GroupFrameUI:CreateGroupFrame(parent, groupIndex, groupWidth)
         
         groupFrame.memberFrames[i] = memberFrame
         
-        addon.Debug("DEBUG", "GroupFrameUI: Setting up drag and drop handlers for group", groupIndex, "slot", i)
+        GroupFrameUI.Debug("DEBUG", "GroupFrameUI: Setting up drag and drop handlers for group", groupIndex, "slot", i)
     end
     
     -- Set up group-level drag and drop handling
@@ -314,7 +319,7 @@ function GroupFrameUI:CreateGroupFrame(parent, groupIndex, groupWidth)
     groupFrame:RegisterForDrag("LeftButton")
     CreateGroupDragHandlers(groupFrame, groupIndex)
     
-    addon.Debug("DEBUG", "GroupFrameUI: Group frame", groupIndex, "created successfully with width", groupWidth, "and group-level drag handling")
+    GroupFrameUI.Debug("DEBUG", "GroupFrameUI: Group frame", groupIndex, "created successfully with width", groupWidth, "and group-level drag handling")
     
     -- Initialize with default title showing missing utilities
     self:UpdateGroupTitle(groupFrame)

@@ -6,35 +6,13 @@ local AceDB = LibStub("AceDB-3.0")
 local db
 local settings
 
-local function Debug(level, ...)
-    if not settings then return end
-    
-    level = level or "DEBUG"
-    level = string.upper(level)
-    
-    if not addon.DEBUG_LEVELS[level] then
-        level = "DEBUG"
-    end
-    
-    local currentLevel = string.upper(settings.debugLevel)
-    if not addon.DEBUG_LEVELS[currentLevel] then
-        currentLevel = "INFO"
-    end
-    
-    if addon.DEBUG_LEVELS[level] <= addon.DEBUG_LEVELS[currentLevel] then
-        local args = {...}
-        local message = ""
-        
-        for i, arg in ipairs(args) do
-            if i > 1 then
-                message = message .. " "
-            end
-            message = message .. tostring(arg)
-        end
-        
-        print("|cFFFFD700[GrouperPlus:" .. level .. "]|r |cFF87CEEB" .. message .. "|r")
-    end
+local mainModule = {}
+for k, v in pairs(addon.DebugMixin) do
+    mainModule[k] = v
 end
+mainModule:InitDebug("Main")
+
+local Debug = function(...) return mainModule.Debug(...) end
 
 -- Print function for user messages
 function addon:Print(...)
@@ -51,7 +29,7 @@ function addon:Print(...)
     print("|cFFFFD700[GrouperPlus]|r " .. message)
 end
 
--- Export to addon namespace for use in modules
+-- Export to addon namespace for use in modules (for backward compatibility)
 addon.Debug = Debug
 
 local LibDBIcon = LibStub("LibDBIcon-1.0")

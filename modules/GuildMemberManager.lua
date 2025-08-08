@@ -6,32 +6,40 @@ local addonName, addon = ...
 local GuildMemberManager = {}
 addon.GuildMemberManager = GuildMemberManager
 
+for k, v in pairs(addon.DebugMixin) do
+    GuildMemberManager[k] = v
+end
+GuildMemberManager:InitDebug("GuildMgr")
+
 -- Private state
 local memberList = {}
 local membersInGroups = {} -- Track which members are assigned to groups
 local MAX_LEVEL = GetMaxPlayerLevel()
 
 -- Initialize the member list
-function GuildMemberManager:Initialize()
-    addon.Debug("DEBUG", "GuildMemberManager: Initializing")
+function GuildMemberManager:Initialize(clearGroups)
+    self.Debug("DEBUG", "GuildMemberManager: Initializing", clearGroups and "(clearing group tracking)" or "(preserving group tracking)")
     table.wipe(memberList)
-    table.wipe(membersInGroups)
+    -- Only wipe membersInGroups if explicitly requested (e.g., when clearing all groups)
+    if clearGroups then
+        table.wipe(membersInGroups)
+    end
 end
 
 -- Update guild member list with filtering and role detection
 function GuildMemberManager:UpdateMemberList()
-    addon.Debug("DEBUG", "GuildMemberManager: Starting guild roster update")
-    addon.Debug("DEBUG", "GuildMemberManager: Current membersInGroups count:", next(membersInGroups) and "has members" or "empty")
+    self.Debug("DEBUG", "GuildMemberManager: Starting guild roster update")
+    self.Debug("DEBUG", "GuildMemberManager: Current membersInGroups count:", next(membersInGroups) and "has members" or "empty")
     
     table.wipe(memberList)
     
     if not IsInGuild() then
-        addon.Debug("WARN", "GuildMemberManager: Player is not in a guild")
+        self.Debug("WARN", "GuildMemberManager: Player is not in a guild")
         return memberList
     end
     
     local numMembers = GetNumGuildMembers()
-    addon.Debug("DEBUG", "GuildMemberManager: Found", numMembers, "guild members")
+    self.Debug("DEBUG", "GuildMemberManager: Found", numMembers, "guild members")
     
     for i = 1, numMembers do
         local name, rank, rankIndex, level, class, zone, note, officernote, online, status, classFileName = GetGuildRosterInfo(i)
@@ -48,19 +56,19 @@ function GuildMemberManager:UpdateMemberList()
                 -- Add role information for all members, especially the player
                 if addon.AutoFormation and addon.AutoFormation.GetPlayerRole then
                     memberData.role = addon.AutoFormation:GetPlayerRole(name)
-                    addon.Debug("TRACE", "GuildMemberManager: Determined role for", name, ":", memberData.role)
+                    self.Debug("TRACE", "GuildMemberManager: Determined role for", name, ":", memberData.role)
                 end
                 
                 -- For the player, ensure we get the most current role
                 local playerName = UnitName("player")
                 local playerFullName = UnitName("player") .. "-" .. GetRealmName()
-                addon.Debug("DEBUG", "GuildMemberManager: Checking if", name, "equals player", playerName, "or", playerFullName)
+                self.Debug("DEBUG", "GuildMemberManager: Checking if", name, "equals player", playerName, "or", playerFullName)
                 if name == playerName or name == playerFullName then
                     local currentSpec = GetSpecialization()
-                    addon.Debug("DEBUG", "GuildMemberManager: Player spec ID:", currentSpec)
+                    self.Debug("DEBUG", "GuildMemberManager: Player spec ID:", currentSpec)
                     if currentSpec then
                         local role = GetSpecializationRole(currentSpec)
-                        addon.Debug("DEBUG", "GuildMemberManager: Raw role from GetSpecializationRole:", role)
+                        self.Debug("DEBUG", "GuildMemberManager: Raw role from GetSpecializationRole:", role)
                         if role == "TANK" then
                             memberData.role = "TANK"
                         elseif role == "HEALER" then
@@ -68,29 +76,29 @@ function GuildMemberManager:UpdateMemberList()
                         else
                             memberData.role = "DPS"
                         end
-                        addon.Debug("INFO", "GuildMemberManager: Updated player's own role to:", memberData.role, "from spec", currentSpec, "raw role:", role)
+                        self.Debug("INFO", "GuildMemberManager: Updated player's own role to:", memberData.role, "from spec", currentSpec, "raw role:", role)
                     else
-                        addon.Debug("WARN", "GuildMemberManager: Could not get player specialization")
+                        self.Debug("WARN", "GuildMemberManager: Could not get player specialization")
                     end
                 else
-                    addon.Debug("TRACE", "GuildMemberManager: Member", name, "is not the player")
+                    self.Debug("TRACE", "GuildMemberManager: Member", name, "is not the player")
                 end
                 
                 table.insert(memberList, memberData)
-                addon.Debug("TRACE", "GuildMemberManager: Added member", name, "level", level, "class:", classFileName or class, "role:", memberData.role or "unknown")
+                self.Debug("TRACE", "GuildMemberManager: Added member", name, "level", level, "class:", classFileName or class, "role:", memberData.role or "unknown")
             else
-                addon.Debug("INFO", "GuildMemberManager: Skipped member", name, "- already in group")
+                self.Debug("INFO", "GuildMemberManager: Skipped member", name, "- already in group")
             end
         else
             if not online then
-                addon.Debug("TRACE", "GuildMemberManager: Skipped member", name, "- offline")
+                self.Debug("TRACE", "GuildMemberManager: Skipped member", name, "- offline")
             elseif level ~= MAX_LEVEL then
-                addon.Debug("TRACE", "GuildMemberManager: Skipped member", name, "- level", level, "(not max level", MAX_LEVEL, ")")
+                self.Debug("TRACE", "GuildMemberManager: Skipped member", name, "- level", level, "(not max level", MAX_LEVEL, ")")
             end
         end
     end
     
-    addon.Debug("INFO", "GuildMemberManager: Found", #memberList, "online max level members (after filtering out grouped members)")
+    self.Debug("INFO", "GuildMemberManager: Found", #memberList, "online max level members (after filtering out grouped members)")
     
     return memberList
 end
@@ -114,16 +122,16 @@ end
 function GuildMemberManager:SetMemberInGroup(memberName, inGroup)
     if inGroup then
         membersInGroups[memberName] = true
-        addon.Debug("DEBUG", "GuildMemberManager: Added", memberName, "to membersInGroups tracking")
+        self.Debug("DEBUG", "GuildMemberManager: Added", memberName, "to membersInGroups tracking")
     else
         membersInGroups[memberName] = nil
-        addon.Debug("DEBUG", "GuildMemberManager: Removed", memberName, "from membersInGroups tracking")
+        self.Debug("DEBUG", "GuildMemberManager: Removed", memberName, "from membersInGroups tracking")
     end
 end
 
 -- Clear all group memberships (used when clearing all groups)
 function GuildMemberManager:ClearAllGroupMemberships()
-    addon.Debug("DEBUG", "GuildMemberManager: Clearing all group memberships")
+    self.Debug("DEBUG", "GuildMemberManager: Clearing all group memberships")
     table.wipe(membersInGroups)
 end
 
@@ -138,9 +146,9 @@ end
 
 -- Debug function to log current state
 function GuildMemberManager:DebugState()
-    addon.Debug("DEBUG", "GuildMemberManager: Current membersInGroups:")
+    self.Debug("DEBUG", "GuildMemberManager: Current membersInGroups:")
     for name, _ in pairs(membersInGroups) do
-        addon.Debug("DEBUG", "  -", name)
+        self.Debug("DEBUG", "  -", name)
     end
 end
 

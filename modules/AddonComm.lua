@@ -3,6 +3,11 @@ local addonName, addon = ...
 local AddonComm = {}
 addon.AddonComm = AddonComm
 
+for k, v in pairs(addon.DebugMixin) do
+    AddonComm[k] = v
+end
+AddonComm:InitDebug("Comm")
+
 -- Simple serialization functions for addon communication
 function addon:Serialize(data)
     if type(data) == "table" then
@@ -99,11 +104,11 @@ local function DecodeMessage(encodedMessage)
             if decompressed then
                 messageData = decompressed
             else
-                addon.Debug(addon.LOG_LEVEL.WARN, "Failed to decompress message")
+                AddonComm.Debug(addon.LOG_LEVEL.WARN, "Failed to decompress message")
                 return nil
             end
         else
-            addon.Debug(addon.LOG_LEVEL.WARN, "Received compressed message but LibCompress not available")
+            AddonComm.Debug(addon.LOG_LEVEL.WARN, "Received compressed message but LibCompress not available")
             return nil
         end
     end
@@ -133,22 +138,22 @@ local function HandleIncomingMessage(message, distribution, sender)
         return
     end
     
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Received message from", sender, "type:", message.type)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received message from", sender, "type:", message.type)
     
     if not IsVersionCompatible(message.version) then
-        addon.Debug(addon.LOG_LEVEL.WARN, "Version incompatible with", sender, "- their version:", message.version, "our version:", COMM_VERSION)
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Version incompatible with", sender, "- their version:", message.version, "our version:", COMM_VERSION)
         return
     end
     
     if message.type == MESSAGE_TYPES.VERSION_CHECK then
-        addon.Debug(addon.LOG_LEVEL.INFO, "Received version check from", sender, "- version:", message.data.addonVersion)
+        AddonComm.Debug(addon.LOG_LEVEL.INFO, "Received version check from", sender, "- version:", message.data.addonVersion)
         AddonComm:SendVersionResponse(sender)
         connectedUsers[sender] = {
             version = message.version,
             addonVersion = message.data.addonVersion,
             lastSeen = GetServerTime()
         }
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Added/updated user in connected list:", sender)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Added/updated user in connected list:", sender)
         
         -- Trigger version check when we receive version info
         if addon.VersionWarning then
@@ -158,13 +163,13 @@ local function HandleIncomingMessage(message, distribution, sender)
         end
         
     elseif message.type == MESSAGE_TYPES.VERSION_RESPONSE then
-        addon.Debug(addon.LOG_LEVEL.INFO, "Received version response from", sender, "- version:", message.data.addonVersion)
+        AddonComm.Debug(addon.LOG_LEVEL.INFO, "Received version response from", sender, "- version:", message.data.addonVersion)
         connectedUsers[sender] = {
             version = message.version,
             addonVersion = message.data.addonVersion,
             lastSeen = GetServerTime()
         }
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Added/updated user in connected list:", sender)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Added/updated user in connected list:", sender)
         
         -- Trigger version check when we receive version response
         if addon.VersionWarning then
@@ -205,38 +210,38 @@ local function HandleIncomingMessage(message, distribution, sender)
         if handler then
             handler(message.data, sender)
         else
-            addon.Debug(addon.LOG_LEVEL.DEBUG, "No handler registered for message type:", message.type)
+            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "No handler registered for message type:", message.type)
         end
     end
 end
 
 function AddonComm:RegisterHandler(messageType, handler)
     if not messageType or not handler then
-        addon.Debug(addon.LOG_LEVEL.WARN, "RegisterHandler: Invalid messageType or handler")
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "RegisterHandler: Invalid messageType or handler")
         return
     end
     
     messageHandlers[messageType] = handler
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Registered handler for message type:", messageType)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Registered handler for message type:", messageType)
 end
 
 function AddonComm:BroadcastMessage(messageType, data)
     if not self.initialized then
-        addon.Debug(addon.LOG_LEVEL.WARN, "BroadcastMessage: AddonComm not initialized")
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "BroadcastMessage: AddonComm not initialized")
         return
     end
     
     if not addon.settings or not addon.settings.communication or not addon.settings.communication.enabled then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "BroadcastMessage: Communication disabled")
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "BroadcastMessage: Communication disabled")
         return
     end
     
     local encoded = EncodeMessage(messageType, data)
     if encoded then
         C_ChatInfo.SendAddonMessage(COMM_PREFIX, encoded, "GUILD")
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted message type:", messageType)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted message type:", messageType)
     else
-        addon.Debug(addon.LOG_LEVEL.WARN, "BroadcastMessage: Failed to encode message")
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "BroadcastMessage: Failed to encode message")
     end
 end
 
@@ -256,7 +261,7 @@ function AddonComm:Initialize()
         end)
         
         self.initialized = true
-        addon.Debug(addon.LOG_LEVEL.INFO, "AddonComm initialized with prefix:", COMM_PREFIX)
+        AddonComm.Debug(addon.LOG_LEVEL.INFO, "AddonComm initialized with prefix:", COMM_PREFIX)
         
         C_Timer.After(2, function()
             self:BroadcastVersionCheck()
@@ -271,7 +276,7 @@ end
 
 function AddonComm:SendMessage(messageType, data, target, distribution)
     if not self.initialized then
-        addon.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized, cannot send message")
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized, cannot send message")
         return false
     end
     
@@ -279,16 +284,16 @@ function AddonComm:SendMessage(messageType, data, target, distribution)
     local encodedMessage = EncodeMessage(messageType, data)
     
     if string.len(encodedMessage) > 255 then
-        addon.Debug(addon.LOG_LEVEL.WARN, "Message too large, breaking into chunks")
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Message too large, breaking into chunks")
         return false
     end
     
     local success = C_ChatInfo.SendAddonMessage(COMM_PREFIX, encodedMessage, distribution, target)
     
     if success then
-        addon.Debug(addon.LOG_LEVEL.TRACE, "Sent message type", messageType, "to", target or distribution)
+        AddonComm.Debug(addon.LOG_LEVEL.TRACE, "Sent message type", messageType, "to", target or distribution)
     else
-        addon.Debug(addon.LOG_LEVEL.ERROR, "Failed to send message type", messageType)
+        AddonComm.Debug(addon.LOG_LEVEL.ERROR, "Failed to send message type", messageType)
     end
     
     return success
@@ -296,23 +301,23 @@ end
 
 function AddonComm:BroadcastVersionCheck()
     if not IsInGuild() then
-        addon.Debug(addon.LOG_LEVEL.WARN, "Not in guild, skipping version check broadcast")
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Not in guild, skipping version check broadcast")
         return
     end
     
     if not self.initialized then
-        addon.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized, skipping version check broadcast")
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized, skipping version check broadcast")
         return
     end
     
     local addonVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "Unknown"
-    addon.Debug(addon.LOG_LEVEL.INFO, "Broadcasting version check to guild - addon version:", addonVersion)
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Broadcasting version check to guild - addon version:", addonVersion)
     
     self:SendMessage(MESSAGE_TYPES.VERSION_CHECK, {
         addonVersion = addonVersion
     })
     
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Version check broadcast sent successfully")
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Version check broadcast sent successfully")
 end
 
 function AddonComm:SendVersionResponse(target)
@@ -328,7 +333,7 @@ function AddonComm:SyncGroupFormation(groups)
     
     local now = GetServerTime()
     if lastSyncTime.groups and (now - lastSyncTime.groups) < 5 then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Group sync throttled - too recent")
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Group sync throttled - too recent")
         return
     end
     
@@ -360,21 +365,21 @@ function AddonComm:SyncGroupFormation(groups)
     
     self:SendMessage(MESSAGE_TYPES.GROUP_SYNC, syncData)
     lastSyncTime.groups = now
-    addon.Debug(addon.LOG_LEVEL.INFO, "Synced group formation with", #syncData.groups, "groups")
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Synced group formation with", #syncData.groups, "groups")
 end
 
 function AddonComm:HandleGroupSync(data, sender)
     if not addon.settings.communication or not addon.settings.communication.acceptGroupSync then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Group sync disabled, ignoring message from", sender)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Group sync disabled, ignoring message from", sender)
         return
     end
     
     if not data or not data.groups or not data.timestamp then
-        addon.Debug(addon.LOG_LEVEL.WARN, "Invalid group sync data from", sender)
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Invalid group sync data from", sender)
         return
     end
     
-    addon.Debug(addon.LOG_LEVEL.INFO, "Received group sync from", sender, "with", #data.groups, "groups")
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Received group sync from", sender, "with", #data.groups, "groups")
     
     if addon.OnGroupSyncReceived then
         addon:OnGroupSyncReceived(data, sender)
@@ -395,7 +400,7 @@ function AddonComm:SharePlayerData(playerName, playerData)
     }
     
     self:SendMessage(MESSAGE_TYPES.PLAYER_DATA, shareData)
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Shared player data for", playerName)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Shared player data for", playerName)
 end
 
 function AddonComm:HandlePlayerData(data, sender)
@@ -407,7 +412,7 @@ function AddonComm:HandlePlayerData(data, sender)
         return
     end
     
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Received player data from", sender, "for player", data.player)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received player data from", sender, "for player", data.player)
     
     if addon.OnPlayerDataReceived then
         addon:OnPlayerDataReceived(data, sender)
@@ -428,7 +433,7 @@ function AddonComm:ShareRaiderIOData(playerName, raiderIOData)
     }
     
     self:SendMessage(MESSAGE_TYPES.RAIDERIO_DATA, shareData)
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Shared RaiderIO data for", playerName)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Shared RaiderIO data for", playerName)
 end
 
 function AddonComm:HandleRaiderIOData(data, sender)
@@ -440,7 +445,7 @@ function AddonComm:HandleRaiderIOData(data, sender)
         return
     end
     
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Received RaiderIO data from", sender, "for player", data.player)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received RaiderIO data from", sender, "for player", data.player)
     
     if addon.OnRaiderIODataReceived then
         addon:OnRaiderIODataReceived(data, sender)
@@ -455,7 +460,7 @@ function AddonComm:RequestFormation(criteria)
     }
     
     self:SendMessage(MESSAGE_TYPES.FORMATION_REQUEST, requestData)
-    addon.Debug(addon.LOG_LEVEL.INFO, "Requested group formation from guild")
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Requested group formation from guild")
 end
 
 function AddonComm:HandleFormationRequest(data, sender)
@@ -463,7 +468,7 @@ function AddonComm:HandleFormationRequest(data, sender)
         return
     end
     
-    addon.Debug(addon.LOG_LEVEL.INFO, "Formation request received from", sender)
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Formation request received from", sender)
     
     if addon.OnFormationRequestReceived then
         addon:OnFormationRequestReceived(data, sender)
@@ -479,11 +484,11 @@ function AddonComm:RespondToFormation(requester, response)
     }
     
     self:SendMessage(MESSAGE_TYPES.FORMATION_RESPONSE, responseData, requester)
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Sent formation response to", requester)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Sent formation response to", requester)
 end
 
 function AddonComm:HandleFormationResponse(data, sender)
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Formation response received from", sender)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Formation response received from", sender)
     
     if addon.OnFormationResponseReceived then
         addon:OnFormationResponseReceived(data, sender)
@@ -492,11 +497,11 @@ end
 
 function AddonComm:HandleKeystoneData(data, sender)
     if not addon.settings.communication or not addon.settings.communication.acceptKeystoneData then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Keystone data sharing disabled, ignoring message from", sender)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Keystone data sharing disabled, ignoring message from", sender)
         return
     end
     
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "Keystone data received from", sender)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Keystone data received from", sender)
     
     if addon.Keystone and addon.Keystone.HandleKeystoneData then
         addon.Keystone:HandleKeystoneData(data, sender)
@@ -516,13 +521,13 @@ function AddonComm:GetConnectedUsers()
         if info.lastSeen and timeSinceLastSeen < 300 then
             activeUsers[user] = info
             activeCount = activeCount + 1
-            addon.Debug(addon.LOG_LEVEL.TRACE, "Active user:", user, "last seen", timeSinceLastSeen, "seconds ago")
+            AddonComm.Debug(addon.LOG_LEVEL.TRACE, "Active user:", user, "last seen", timeSinceLastSeen, "seconds ago")
         else
-            addon.Debug(addon.LOG_LEVEL.TRACE, "Inactive user:", user, "last seen", timeSinceLastSeen and (timeSinceLastSeen .. " seconds ago") or "never")
+            AddonComm.Debug(addon.LOG_LEVEL.TRACE, "Inactive user:", user, "last seen", timeSinceLastSeen and (timeSinceLastSeen .. " seconds ago") or "never")
         end
     end
     
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "GetConnectedUsers: Found", activeCount, "active users out of", totalUsers, "total users")
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "GetConnectedUsers: Found", activeCount, "active users out of", totalUsers, "total users")
     return activeUsers
 end
 
@@ -538,7 +543,7 @@ function AddonComm:CleanupStaleConnections()
     end
     
     if cleaned > 0 then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Cleaned up", cleaned, "stale connections")
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Cleaned up", cleaned, "stale connections")
     end
 end
 
@@ -578,7 +583,7 @@ function AddonComm:SharePlayerRole(forceUpdate)
     end
     
     if not currentRole then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Could not determine player role, skipping share")
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Could not determine player role, skipping share")
         return
     end
     
@@ -612,27 +617,27 @@ function AddonComm:SharePlayerRole(forceUpdate)
         addon:UpdatePlayerRoleInUI()
     end
     
-    addon.Debug(addon.LOG_LEVEL.INFO, "Shared player role:", currentRole, "for", playerName)
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Shared player role:", currentRole, "for", playerName)
 end
 
 function AddonComm:CheckForRoleChange()
     if not self.initialized then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: Not initialized, skipping")
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: Not initialized, skipping")
         return
     end
     
     local currentSpec = GetSpecialization()
     local currentRole = GetPlayerCurrentRole()
     
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: Current spec:", currentSpec, "role:", currentRole)
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: Last known spec:", lastKnownSpec, "role:", playerRole)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: Current spec:", currentSpec, "role:", currentRole)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: Last known spec:", lastKnownSpec, "role:", playerRole)
     
     -- Check if spec or role changed
     if currentSpec ~= lastKnownSpec or currentRole ~= playerRole then
-        addon.Debug(addon.LOG_LEVEL.INFO, "Player role/spec changed - was spec:", lastKnownSpec, "role:", playerRole, "now spec:", currentSpec, "role:", currentRole)
+        AddonComm.Debug(addon.LOG_LEVEL.INFO, "Player role/spec changed - was spec:", lastKnownSpec, "role:", playerRole, "now spec:", currentSpec, "role:", currentRole)
         self:SharePlayerRole(true)
     else
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: No role/spec change detected")
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: No role/spec change detected")
     end
 end
 
@@ -648,7 +653,7 @@ function AddonComm:StartRoleMonitoring()
     frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
     
     frame:SetScript("OnEvent", function(self, event, ...)
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "Role monitoring event:", event)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Role monitoring event:", event)
         -- Small delay to ensure spec info is updated
         C_Timer.After(0.5, function()
             AddonComm:CheckForRoleChange()
@@ -665,7 +670,7 @@ function AddonComm:StartRoleMonitoring()
         AddonComm:SharePlayerRole(false)
     end)
     
-    addon.Debug(addon.LOG_LEVEL.INFO, "Role monitoring and sharing started")
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Role monitoring and sharing started")
 end
 
 local cleanupTimer = C_Timer.NewTicker(60, function()
