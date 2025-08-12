@@ -46,6 +46,11 @@
 
 ### Automatic Group Formation
 - [ ] Consider class composition and synergies when forming groups
+  - See [GROUP_SYNERGY.md](GROUP_SYNERGY.md) for detailed implementation plan
+  - Includes dungeon-specific optimization, class synergy scoring, and keystone-aware formation
+- [ ] Implement group rotation system to encourage player diversity
+  - See [GROUP_ROTATION.md](GROUP_ROTATION.md) for rotation tracking and pairing history
+  - Prevents repeated pairings and encourages guild members to play with different people
 
 ### Keystone Management ✅ PARTIALLY IMPLEMENTED
 - [x] Detect and display player's current mythic+ keystone
