@@ -5,6 +5,27 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-08-12
+
+### Added 🆕
+- **Tooltip Integration**: Addon version information now displays in member tooltips
+  - Shows GrouperPlus version for all guild members with the addon installed
+  - Color-coded status indicators (green for online, yellow for recent activity)
+  - Activity status tracking (Online, Recent, or just version number)
+  - Contextual display - information appears when hovering over members
+
+### Removed 🗑️
+- **Addon User List Window**: Replaced separate user list with integrated tooltip system
+  - Removed `/grouper users` slash command functionality
+  - Eliminated complex UI frame positioning issues
+  - Streamlined user experience with contextual information display
+
+### Enhanced 🚀
+- **Communication System**: Improved addon communication and user detection
+  - Better integration with existing tooltip infrastructure
+  - Consistent naming format across communication modules
+  - Cleaner member identification and version tracking
+
 ## [0.8.0] - 2025-08-07
 
 ### Added 🆕
