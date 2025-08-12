@@ -41,13 +41,6 @@ A World of Warcraft addon for enhanced group management and guild member organiz
 - `/grouper main` or `/grouper toggle` - Open/close the main group management window
 - `/grouper show` or `/grouper minimap` - Show minimap icon
 - `/grouper hide` - Hide minimap icon
-- `/grouper auto` or `/grouper autoform` - Automatically form balanced groups based on player roles and ratings
-- `/grouper comm` - Check connected GrouperPlus users in guild
-- `/grouper users` - Show addon user list window with all guild members who have GrouperPlus installed
-- `/grouper broadcast` - Send version check to other addon users
-- `/grouper share` - Share RaiderIO data with guild members
-- `/grouper role` - Force share current player role with guild
-- `/grouper test` - Test RaiderIO integration functionality
 - `/grouperopt` or `/grouperptions` - Open options panel
 
 ### Visual Buff Indicators
@@ -82,7 +75,6 @@ Each group header displays buff availability with clear color coding:
 ### Tips
 - Members show their class colors and RaiderIO scores (when available)
 - Groups automatically resize and reposition based on window size
-- All changes are automatically saved and persist between sessions
 - Auto-formation creates balanced groups based on player roles, skill ratings, and utility distribution
 - Group buff indicators update in real-time as you move players
 
@@ -110,11 +102,6 @@ Each group header displays buff availability with clear color coding:
 
 See [TODO.md](TODO.md) for the complete list of planned features and development roadmap.
 
-## Requirements
-
-- World of Warcraft (Retail)
-- Interface version 110107 or higher
-
 ## Contributing
 
 ### Reporting Issues
@@ -134,3 +121,15 @@ When reporting issues:
 
 Your feedback helps make GrouperPlus better for everyone!
 
+### Opening a Pull Request
+
+We welcome contributions! When opening a pull request:
+- Fork the repository and create a new branch for your changes
+- Follow the existing code style and conventions
+- Add debug logging for new features (INFO level for user actions, DEBUG for details)
+- Test your changes thoroughly in-game
+- Fill out the pull request template completely
+- Ensure your changes don't break existing functionality
+- Check for Lua errors using BugSack/BugGrabber or similar addons
+
+Our pull request template will guide you through providing all necessary information.
