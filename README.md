@@ -88,14 +88,19 @@ Each group header displays buff availability with clear color coding:
 
 ## Installation
 
-### Option 1: Download Release (Recommended)
+### Option 1: CurseForge (Recommended)
+1. Visit the [GrouperPlus CurseForge page](https://www.curseforge.com/wow/addons/grouperplus)
+2. Click "Install" to use with the CurseForge app, or download manually
+3. The addon will automatically appear on your minimap after installation
+
+### Option 2: Download from GitHub
 1. Go to the [Releases page](https://github.com/whatisboom/GrouperPlus/releases)
 2. Download the latest release archive
 3. Extract the `GrouperPlus` folder to your `World of Warcraft/_retail_/Interface/AddOns/` directory
 4. Restart World of Warcraft or type `/reload` in-game
 5. The addon will automatically appear on your minimap
 
-### Option 2: Clone Repository (Development)
+### Option 3: Clone Repository (Development)
 1. Clone this repository: `git clone https://github.com/whatisboom/GrouperPlus.git`
 2. Place the `GrouperPlus` folder in your `World of Warcraft/_retail_/Interface/AddOns/` directory
 3. Restart World of Warcraft or type `/reload` in-game
