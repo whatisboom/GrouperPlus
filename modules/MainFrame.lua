@@ -1434,27 +1434,36 @@ local function CreateMainFrame()
     mainFrame:EnableKeyboard(true)
     mainFrame:SetPropagateKeyboardInput(false)
     
-    -- Set up MemberRowUI dependencies
-    addon.MemberRowUI:SetDependencies({
-        ShowDragFrame = ShowDragFrame,
-        HideDragFrame = HideDragFrame,
-        UpdateDragFramePosition = UpdateDragFramePosition,
-        GetDraggedMember = function() return draggedMember end,
-        SetDraggedMember = function(member) draggedMember = member end
-    })
+    -- Set up UI module dependencies using the new dependency injection system
+    if addon.MemberRowUI and addon.MemberRowUI.SetDependency then
+        addon.MemberRowUI:SetDependency("ShowDragFrame", ShowDragFrame)
+        addon.MemberRowUI:SetDependency("HideDragFrame", HideDragFrame)
+        addon.MemberRowUI:SetDependency("UpdateDragFramePosition", UpdateDragFramePosition)
+        addon.MemberRowUI:SetDependency("GetDraggedMember", function() return draggedMember end)
+        addon.MemberRowUI:SetDependency("SetDraggedMember", function(member) draggedMember = member end)
+        
+        -- Initialize the UI module now that dependencies are set
+        if addon.MemberRowUI.Initialize and not addon.MemberRowUI:IsInitialized() then
+            addon.MemberRowUI:Initialize()
+        end
+    end
     
-    -- Set up GroupFrameUI dependencies
-    addon.GroupFrameUI:SetDependencies({
-        MAX_GROUP_SIZE = MAX_GROUP_SIZE,
-        AddMemberToGroup = AddMemberToGroup,
-        RemoveMemberFromGroup = RemoveMemberFromGroup,
-        GetDraggedMember = function() return draggedMember end,
-        SetDraggedMember = function(member) draggedMember = member end,
-        RemoveMemberFromPlayerList = RemoveMemberFromPlayerList,
-        ResetCursor = ResetCursor,
-        HideDragFrame = HideDragFrame,
-        ShowDragFrame = ShowDragFrame
-    })
+    if addon.GroupFrameUI and addon.GroupFrameUI.SetDependency then
+        addon.GroupFrameUI:SetDependency("MAX_GROUP_SIZE", MAX_GROUP_SIZE)
+        addon.GroupFrameUI:SetDependency("AddMemberToGroup", AddMemberToGroup)
+        addon.GroupFrameUI:SetDependency("RemoveMemberFromGroup", RemoveMemberFromGroup)
+        addon.GroupFrameUI:SetDependency("GetDraggedMember", function() return draggedMember end)
+        addon.GroupFrameUI:SetDependency("SetDraggedMember", function(member) draggedMember = member end)
+        addon.GroupFrameUI:SetDependency("RemoveMemberFromPlayerList", RemoveMemberFromPlayerList)
+        addon.GroupFrameUI:SetDependency("ResetCursor", ResetCursor)
+        addon.GroupFrameUI:SetDependency("HideDragFrame", HideDragFrame)
+        addon.GroupFrameUI:SetDependency("ShowDragFrame", ShowDragFrame)
+        
+        -- Initialize the UI module now that dependencies are set
+        if addon.GroupFrameUI.Initialize and not addon.GroupFrameUI:IsInitialized() then
+            addon.GroupFrameUI:Initialize()
+        end
+    end
     
     local titleBar = CreateFrame("Frame", nil, mainFrame, "BackdropTemplate")
     titleBar:SetHeight(32)

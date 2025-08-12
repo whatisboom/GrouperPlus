@@ -1,12 +1,7 @@
 local addonName, addon = ...
 
-local OptionsPanel = {}
+local OptionsPanel = addon.ModuleBase:New("Options")
 addon.OptionsPanel = OptionsPanel
-
-for k, v in pairs(addon.DebugMixin) do
-    OptionsPanel[k] = v
-end
-OptionsPanel:InitDebug("Options")
 
 local function CreateOptionsPanel()
     if not addon.db then 

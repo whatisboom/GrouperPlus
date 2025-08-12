@@ -1,14 +1,7 @@
 local addonName, addon = ...
 
-local SessionManager = {}
+local SessionManager = addon.ModuleBase:New("Session")
 addon.SessionManager = SessionManager
-
-for k, v in pairs(addon.DebugMixin) do
-    SessionManager[k] = v
-end
-SessionManager:InitDebug("Session")
-
-local AceDB = LibStub("AceDB-3.0")
 
 local sessionState = {
     sessionId = nil,
@@ -20,7 +13,7 @@ local sessionState = {
     participants = {},
 }
 
-function SessionManager:Initialize()
+function SessionManager:OnInitialize()
     self.Debug("INFO", "Initializing session manager")
     
     self.sessionState = sessionState

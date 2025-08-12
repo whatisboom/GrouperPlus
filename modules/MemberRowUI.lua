@@ -3,24 +3,25 @@ local addonName, addon = ...
 -- Member Row UI Module
 -- Handles creation, display, and interaction of member rows in the guild member list
 
-local MemberRowUI = {}
+local MemberRowUI = addon.ModuleBase:New("MemberUI")
 addon.MemberRowUI = MemberRowUI
-
-for k, v in pairs(addon.DebugMixin) do
-    MemberRowUI[k] = v
-end
-MemberRowUI:InitDebug("MemberUI")
 
 -- Forward declarations for MainFrame dependencies
 local ShowDragFrame, HideDragFrame, UpdateDragFramePosition, GetDraggedMember, SetDraggedMember
 
--- Initialize dependencies from MainFrame
-function MemberRowUI:SetDependencies(deps)
-    ShowDragFrame = deps.ShowDragFrame
-    HideDragFrame = deps.HideDragFrame 
-    UpdateDragFramePosition = deps.UpdateDragFramePosition
-    GetDraggedMember = deps.GetDraggedMember
-    SetDraggedMember = deps.SetDraggedMember
+function MemberRowUI:OnInitialize()
+    -- Dependencies are injected individually by MainFrame
+    ShowDragFrame = self:GetDependency("ShowDragFrame")
+    HideDragFrame = self:GetDependency("HideDragFrame")
+    UpdateDragFramePosition = self:GetDependency("UpdateDragFramePosition")
+    GetDraggedMember = self:GetDependency("GetDraggedMember")
+    SetDraggedMember = self:GetDependency("SetDraggedMember")
+    
+    if ShowDragFrame and HideDragFrame and UpdateDragFramePosition and GetDraggedMember and SetDraggedMember then
+        self.Debug("DEBUG", "MemberRowUI dependencies initialized successfully")
+    else
+        self.Debug("WARN", "MemberRowUI: Some dependencies missing - MainFrame may not be fully loaded yet")
+    end
 end
 
 -- Create tooltip content for member row

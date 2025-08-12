@@ -3,30 +3,31 @@ local addonName, addon = ...
 -- Group Frame UI Module
 -- Handles group frame creation, utility display, and visual management
 
-local GroupFrameUI = {}
+local GroupFrameUI = addon.ModuleBase:New("GroupUI")
 addon.GroupFrameUI = GroupFrameUI
-
-for k, v in pairs(addon.DebugMixin) do
-    GroupFrameUI[k] = v
-end
-GroupFrameUI:InitDebug("GroupUI")
 
 -- Forward declarations for dependencies
 local MAX_GROUP_SIZE = 5
 local AddMemberToGroup, RemoveMemberFromGroup, GetDraggedMember, SetDraggedMember
 local RemoveMemberFromPlayerList, ResetCursor, HideDragFrame, ShowDragFrame
 
--- Initialize dependencies from MainFrame
-function GroupFrameUI:SetDependencies(deps)
-    MAX_GROUP_SIZE = deps.MAX_GROUP_SIZE or 5
-    AddMemberToGroup = deps.AddMemberToGroup
-    RemoveMemberFromGroup = deps.RemoveMemberFromGroup
-    GetDraggedMember = deps.GetDraggedMember
-    SetDraggedMember = deps.SetDraggedMember
-    RemoveMemberFromPlayerList = deps.RemoveMemberFromPlayerList
-    ResetCursor = deps.ResetCursor
-    HideDragFrame = deps.HideDragFrame
-    ShowDragFrame = deps.ShowDragFrame
+function GroupFrameUI:OnInitialize()
+    -- Dependencies are injected individually by MainFrame
+    MAX_GROUP_SIZE = self:GetDependency("MAX_GROUP_SIZE") or 5
+    AddMemberToGroup = self:GetDependency("AddMemberToGroup")
+    RemoveMemberFromGroup = self:GetDependency("RemoveMemberFromGroup")
+    GetDraggedMember = self:GetDependency("GetDraggedMember")
+    SetDraggedMember = self:GetDependency("SetDraggedMember")
+    RemoveMemberFromPlayerList = self:GetDependency("RemoveMemberFromPlayerList")
+    ResetCursor = self:GetDependency("ResetCursor")
+    HideDragFrame = self:GetDependency("HideDragFrame")
+    ShowDragFrame = self:GetDependency("ShowDragFrame")
+    
+    if AddMemberToGroup and RemoveMemberFromGroup and GetDraggedMember and SetDraggedMember then
+        self.Debug("DEBUG", "GroupFrameUI dependencies initialized successfully")
+    else
+        self.Debug("WARN", "GroupFrameUI: Some dependencies missing - MainFrame may not be fully loaded yet")
+    end
 end
 
 -- Check what utilities are available in a group
