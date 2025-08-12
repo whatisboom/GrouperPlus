@@ -1,40 +1,13 @@
 local addonName, addon = ...
 addon = addon or {}
 
-local AceDB = LibStub("AceDB-3.0")
-
-local db
-local settings
-
-local function Debug(level, ...)
-    if not settings then return end
-    
-    level = level or "DEBUG"
-    level = string.upper(level)
-    
-    if not addon.DEBUG_LEVELS[level] then
-        level = "DEBUG"
-    end
-    
-    local currentLevel = string.upper(settings.debugLevel)
-    if not addon.DEBUG_LEVELS[currentLevel] then
-        currentLevel = "INFO"
-    end
-    
-    if addon.DEBUG_LEVELS[level] <= addon.DEBUG_LEVELS[currentLevel] then
-        local args = {...}
-        local message = ""
-        
-        for i, arg in ipairs(args) do
-            if i > 1 then
-                message = message .. " "
-            end
-            message = message .. tostring(arg)
-        end
-        
-        print("|cFFFFD700[GrouperPlus:" .. level .. "]|r |cFF87CEEB" .. message .. "|r")
-    end
+local mainModule = {}
+for k, v in pairs(addon.DebugMixin) do
+    mainModule[k] = v
 end
+mainModule:InitDebug("Main")
+
+local Debug = function(...) return mainModule.Debug(...) end
 
 -- Print function for user messages
 function addon:Print(...)
@@ -51,10 +24,11 @@ function addon:Print(...)
     print("|cFFFFD700[GrouperPlus]|r " .. message)
 end
 
--- Export to addon namespace for use in modules
+-- Export to addon namespace for use in modules (for backward compatibility)
 addon.Debug = Debug
 
-local LibDBIcon = LibStub("LibDBIcon-1.0")
+local db
+local settings
 
 local minimapLDB = {
     type = "launcher",
@@ -86,6 +60,7 @@ local minimapLDB = {
 }
 
 local function InitializeMinimap()
+    local LibDBIcon = addon.LibraryManager:GetLibrary("LibDBIcon-1.0")
     if LibDBIcon and not LibDBIcon:IsRegistered("GrouperPlus") and settings then
         LibDBIcon:Register("GrouperPlus", minimapLDB, settings.minimap)
         Debug(addon.LOG_LEVEL.INFO, "Minimap icon registered successfully")
@@ -100,6 +75,15 @@ frame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
         local loadedAddonName = ...
         if loadedAddonName == addonName then
+            -- Initialize library manager first
+            addon.LibraryManager:Initialize()
+            
+            local AceDB = addon.LibraryManager:GetLibrary("AceDB-3.0")
+            if not AceDB then
+                Debug(addon.LOG_LEVEL.ERROR, "AceDB-3.0 not available")
+                return
+            end
+            
             GrouperDB = GrouperDB or {}
             db = AceDB:New("GrouperDB", addon.defaults, true)
             settings = db.profile
@@ -113,17 +97,27 @@ frame:SetScript("OnEvent", function(self, event, ...)
             Debug(addon.LOG_LEVEL.DEBUG, "Settings initialized with debugLevel:", settings.debugLevel)
             InitializeMinimap()
             
-            -- Initialize Keystone module
+            -- Register modules with ModuleManager
+            addon.ModuleManager:RegisterModule("SessionManager", addon.SessionManager, {})
+            addon.ModuleManager:RegisterModule("MinimapMenu", addon.MinimapMenu, {})
+            addon.ModuleManager:RegisterModule("OptionsPanel", addon.OptionsPanel, {})
+            
+            -- Note: UI modules (GroupFrameUI, MemberRowUI) will be initialized by MainFrame when it's first shown
+            
+            -- Initialize all modules
+            C_Timer.After(1, function()
+                local success = addon.ModuleManager:InitializeAll()
+                if success then
+                    Debug(addon.LOG_LEVEL.INFO, "All modules initialized successfully")
+                else
+                    Debug(addon.LOG_LEVEL.ERROR, "Module initialization failed")
+                end
+            end)
+            
+            -- Initialize legacy modules that haven't been refactored yet
             if addon.Keystone then
                 C_Timer.After(2, function()
                     addon.Keystone:Initialize()
-                end)
-            end
-            
-            -- Initialize SessionManager module
-            if addon.SessionManager then
-                C_Timer.After(2, function()
-                    addon.SessionManager:Initialize()
                 end)
             end
         end
@@ -138,12 +132,18 @@ SlashCmdList["GROUPER"] = function(msg)
     
     if command == "minimap" or command == "show" then
         settings.minimap.hide = false
-        LibDBIcon:Show("GrouperPlus")
-        Debug(addon.LOG_LEVEL.INFO, "Minimap button shown")
+        local LibDBIcon = addon.LibraryManager:GetLibrary("LibDBIcon-1.0")
+        if LibDBIcon then
+            LibDBIcon:Show("GrouperPlus")
+            Debug(addon.LOG_LEVEL.INFO, "Minimap button shown")
+        end
     elseif command == "hide" then
         settings.minimap.hide = true
-        LibDBIcon:Hide("GrouperPlus")
-        Debug(addon.LOG_LEVEL.INFO, "Minimap button hidden")
+        local LibDBIcon = addon.LibraryManager:GetLibrary("LibDBIcon-1.0")
+        if LibDBIcon then
+            LibDBIcon:Hide("GrouperPlus")
+            Debug(addon.LOG_LEVEL.INFO, "Minimap button hidden")
+        end
     elseif command == "main" or command == "frame" or command == "gui" then
         if addon.ShowMainFrame then
             addon:ShowMainFrame()

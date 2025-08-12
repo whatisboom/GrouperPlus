@@ -13,6 +13,10 @@ libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 libs\LibCompress\LibCompress.lua
 
 constants.lua
+modules\DebugMixin.lua
+modules\ModuleBase.lua
+modules\LibraryManager.lua
+modules\ModuleManager.lua
 GrouperPlus.lua
 modules\Utilities.lua
 modules\AddonComm.lua

@@ -1,9 +1,7 @@
 local addonName, addon = ...
 
-local SessionManager = {}
+local SessionManager = addon.ModuleBase:New("Session")
 addon.SessionManager = SessionManager
-
-local AceDB = LibStub("AceDB-3.0")
 
 local sessionState = {
     sessionId = nil,
@@ -15,23 +13,23 @@ local sessionState = {
     participants = {},
 }
 
-function SessionManager:Initialize()
-    addon.Debug("INFO", "SessionManager:Initialize - Initializing session manager")
+function SessionManager:OnInitialize()
+    self.Debug("INFO", "Initializing session manager")
     
     self.sessionState = sessionState
     
     self:RegisterEvents()
     self:RegisterCommHandlers()
     
-    addon.Debug("DEBUG", "SessionManager:Initialize - Session manager initialized successfully")
+    self.Debug("DEBUG", "Session manager initialized successfully")
 end
 
 function SessionManager:RegisterEvents()
-    addon.Debug("TRACE", "SessionManager:RegisterEvents - Registering session events")
+    self.Debug("TRACE", "Registering session events")
 end
 
 function SessionManager:RegisterCommHandlers()
-    addon.Debug("TRACE", "SessionManager:RegisterCommHandlers - Registering session comm handlers")
+    self.Debug("TRACE", "SessionManager:RegisterCommHandlers - Registering session comm handlers")
     
     local AddonComm = addon.AddonComm
     if AddonComm and AddonComm.RegisterHandler then
@@ -46,10 +44,10 @@ function SessionManager:RegisterCommHandlers()
 end
 
 function SessionManager:CreateSession()
-    addon.Debug("INFO", "SessionManager:CreateSession - Creating new grouping session")
+    self.Debug("INFO", "SessionManager:CreateSession - Creating new grouping session")
     
     if self:IsInSession() then
-        addon.Debug("WARN", "SessionManager:CreateSession - Already in a session")
+        self.Debug("WARN", "SessionManager:CreateSession - Already in a session")
         return false, "Already in a session"
     end
     
@@ -65,7 +63,7 @@ function SessionManager:CreateSession()
     sessionState.sessionStartTime = GetTime()
     sessionState.participants = { [fullName] = { joinTime = GetTime(), hasEditPermission = true } }
     
-    addon.Debug("INFO", "SessionManager:CreateSession - Session created with ID: " .. sessionState.sessionId)
+    self.Debug("INFO", "SessionManager:CreateSession - Session created with ID: " .. sessionState.sessionId)
     
     self:BroadcastSessionCreate()
     self:UpdateUI()
@@ -74,10 +72,10 @@ function SessionManager:CreateSession()
 end
 
 function SessionManager:JoinSession(sessionId, owner)
-    addon.Debug("INFO", "SessionManager:JoinSession", "Joining session: " .. tostring(sessionId))
+    self.Debug("INFO", "SessionManager:JoinSession", "Joining session: " .. tostring(sessionId))
     
     if self:IsInSession() then
-        addon.Debug("WARN", "SessionManager:JoinSession", "Already in a session")
+        self.Debug("WARN", "SessionManager:JoinSession", "Already in a session")
         return false, "Already in a session"
     end
     
@@ -99,10 +97,10 @@ function SessionManager:JoinSession(sessionId, owner)
 end
 
 function SessionManager:LeaveSession()
-    addon.Debug("INFO", "SessionManager:LeaveSession", "Leaving current session")
+    self.Debug("INFO", "SessionManager:LeaveSession", "Leaving current session")
     
     if not self:IsInSession() then
-        addon.Debug("WARN", "SessionManager:LeaveSession", "Not in a session")
+        self.Debug("WARN", "SessionManager:LeaveSession", "Not in a session")
         return false, "Not in a session"
     end
     
@@ -119,10 +117,10 @@ function SessionManager:LeaveSession()
 end
 
 function SessionManager:EndSession()
-    addon.Debug("INFO", "SessionManager:EndSession", "Ending current session")
+    self.Debug("INFO", "SessionManager:EndSession", "Ending current session")
     
     if not sessionState.isOwner then
-        addon.Debug("WARN", "SessionManager:EndSession", "Only session owner can end the session")
+        self.Debug("WARN", "SessionManager:EndSession", "Only session owner can end the session")
         return false, "Only session owner can end the session"
     end
     
@@ -134,10 +132,10 @@ function SessionManager:EndSession()
 end
 
 function SessionManager:AddToWhitelist(playerName)
-    addon.Debug("INFO", "SessionManager:AddToWhitelist", "Adding player to whitelist: " .. tostring(playerName))
+    self.Debug("INFO", "SessionManager:AddToWhitelist", "Adding player to whitelist: " .. tostring(playerName))
     
     if not sessionState.isOwner then
-        addon.Debug("WARN", "SessionManager:AddToWhitelist", "Only session owner can modify whitelist")
+        self.Debug("WARN", "SessionManager:AddToWhitelist", "Only session owner can modify whitelist")
         return false, "Only session owner can modify whitelist"
     end
     
@@ -154,16 +152,16 @@ function SessionManager:AddToWhitelist(playerName)
 end
 
 function SessionManager:RemoveFromWhitelist(playerName)
-    addon.Debug("INFO", "SessionManager:RemoveFromWhitelist", "Removing player from whitelist: " .. tostring(playerName))
+    self.Debug("INFO", "SessionManager:RemoveFromWhitelist", "Removing player from whitelist: " .. tostring(playerName))
     
     if not sessionState.isOwner then
-        addon.Debug("WARN", "SessionManager:RemoveFromWhitelist", "Only session owner can modify whitelist")
+        self.Debug("WARN", "SessionManager:RemoveFromWhitelist", "Only session owner can modify whitelist")
         return false, "Only session owner can modify whitelist"
     end
     
     local playerNameFull = UnitName("player") .. "-" .. GetRealmName()
     if playerName == sessionState.sessionOwner or playerName == playerNameFull then
-        addon.Debug("WARN", "SessionManager:RemoveFromWhitelist", "Cannot remove session owner from whitelist")
+        self.Debug("WARN", "SessionManager:RemoveFromWhitelist", "Cannot remove session owner from whitelist")
         return false, "Cannot remove session owner from whitelist"
     end
     
@@ -180,15 +178,15 @@ function SessionManager:RemoveFromWhitelist(playerName)
 end
 
 function SessionManager:FinalizeGroups()
-    addon.Debug("INFO", "SessionManager:FinalizeGroups", "Finalizing group composition")
+    self.Debug("INFO", "SessionManager:FinalizeGroups", "Finalizing group composition")
     
     if not sessionState.isOwner then
-        addon.Debug("WARN", "SessionManager:FinalizeGroups", "Only session owner can finalize groups")
+        self.Debug("WARN", "SessionManager:FinalizeGroups", "Only session owner can finalize groups")
         return false, "Only session owner can finalize groups"
     end
     
     if sessionState.isFinalized then
-        addon.Debug("WARN", "SessionManager:FinalizeGroups", "Groups already finalized")
+        self.Debug("WARN", "SessionManager:FinalizeGroups", "Groups already finalized")
         return false, "Groups already finalized"
     end
     
@@ -197,33 +195,33 @@ function SessionManager:FinalizeGroups()
     self:BroadcastSessionFinalize()
     self:UpdateUI()
     
-    addon.Debug("INFO", "SessionManager:FinalizeGroups", "Groups finalized successfully")
+    self.Debug("INFO", "SessionManager:FinalizeGroups", "Groups finalized successfully")
     
     return true
 end
 
 function SessionManager:CanEdit()
     local inSession = self:IsInSession()
-    addon.Debug("TRACE", "SessionManager:CanEdit - inSession:", inSession)
+    self.Debug("TRACE", "SessionManager:CanEdit - inSession:", inSession)
     
     if not inSession then
-        addon.Debug("TRACE", "SessionManager:CanEdit - Not in session, allowing edit")
+        self.Debug("TRACE", "SessionManager:CanEdit - Not in session, allowing edit")
         return true
     end
     
     if sessionState.isFinalized then
-        addon.Debug("TRACE", "SessionManager:CanEdit - Session is finalized, denying edit")
+        self.Debug("TRACE", "SessionManager:CanEdit - Session is finalized, denying edit")
         return false
     end
     
     if sessionState.isOwner then
-        addon.Debug("TRACE", "SessionManager:CanEdit - Is session owner, allowing edit")
+        self.Debug("TRACE", "SessionManager:CanEdit - Is session owner, allowing edit")
         return true
     end
     
     local playerName = UnitName("player") .. "-" .. GetRealmName()
     local isWhitelisted = sessionState.whitelist[playerName] == true
-    addon.Debug("TRACE", "SessionManager:CanEdit - Player:", playerName, "isWhitelisted:", isWhitelisted)
+    self.Debug("TRACE", "SessionManager:CanEdit - Player:", playerName, "isWhitelisted:", isWhitelisted)
     
     return isWhitelisted
 end
@@ -265,7 +263,7 @@ function SessionManager:GetWhitelist()
 end
 
 function SessionManager:BroadcastSessionCreate()
-    addon.Debug("DEBUG", "SessionManager:BroadcastSessionCreate", "Broadcasting session creation")
+    self.Debug("DEBUG", "SessionManager:BroadcastSessionCreate", "Broadcasting session creation")
     
     local data = {
         sessionId = sessionState.sessionId,
@@ -279,7 +277,7 @@ function SessionManager:BroadcastSessionCreate()
 end
 
 function SessionManager:BroadcastSessionJoin()
-    addon.Debug("DEBUG", "SessionManager:BroadcastSessionJoin", "Broadcasting session join")
+    self.Debug("DEBUG", "SessionManager:BroadcastSessionJoin", "Broadcasting session join")
     
     local playerName = UnitName("player") .. "-" .. GetRealmName()
     local data = {
@@ -293,7 +291,7 @@ function SessionManager:BroadcastSessionJoin()
 end
 
 function SessionManager:BroadcastSessionLeave()
-    addon.Debug("DEBUG", "SessionManager:BroadcastSessionLeave", "Broadcasting session leave")
+    self.Debug("DEBUG", "SessionManager:BroadcastSessionLeave", "Broadcasting session leave")
     
     local playerName = UnitName("player") .. "-" .. GetRealmName()
     local data = {
@@ -307,7 +305,7 @@ function SessionManager:BroadcastSessionLeave()
 end
 
 function SessionManager:BroadcastWhitelistUpdate()
-    addon.Debug("DEBUG", "SessionManager:BroadcastWhitelistUpdate", "Broadcasting whitelist update")
+    self.Debug("DEBUG", "SessionManager:BroadcastWhitelistUpdate", "Broadcasting whitelist update")
     
     local data = {
         sessionId = sessionState.sessionId,
@@ -320,7 +318,7 @@ function SessionManager:BroadcastWhitelistUpdate()
 end
 
 function SessionManager:BroadcastSessionFinalize()
-    addon.Debug("DEBUG", "SessionManager:BroadcastSessionFinalize", "Broadcasting session finalization")
+    self.Debug("DEBUG", "SessionManager:BroadcastSessionFinalize", "Broadcasting session finalization")
     
     local data = {
         sessionId = sessionState.sessionId
@@ -332,7 +330,7 @@ function SessionManager:BroadcastSessionFinalize()
 end
 
 function SessionManager:BroadcastSessionEnd()
-    addon.Debug("DEBUG", "SessionManager:BroadcastSessionEnd", "Broadcasting session end")
+    self.Debug("DEBUG", "SessionManager:BroadcastSessionEnd", "Broadcasting session end")
     
     local data = {
         sessionId = sessionState.sessionId
@@ -344,10 +342,10 @@ function SessionManager:BroadcastSessionEnd()
 end
 
 function SessionManager:OnSessionCreate(data, sender)
-    addon.Debug("DEBUG", "SessionManager:OnSessionCreate", "Received session create from: " .. tostring(sender))
+    self.Debug("DEBUG", "SessionManager:OnSessionCreate", "Received session create from: " .. tostring(sender))
     
     if self:IsInSession() then
-        addon.Debug("DEBUG", "SessionManager:OnSessionCreate", "Already in a session, ignoring")
+        self.Debug("DEBUG", "SessionManager:OnSessionCreate", "Already in a session, ignoring")
         return
     end
     
@@ -356,7 +354,7 @@ function SessionManager:OnSessionCreate(data, sender)
 end
 
 function SessionManager:OnSessionJoin(data, sender)
-    addon.Debug("DEBUG", "SessionManager:OnSessionJoin", "Player joined session: " .. tostring(data.player))
+    self.Debug("DEBUG", "SessionManager:OnSessionJoin", "Player joined session: " .. tostring(data.player))
     
     if not self:IsInSession() or sessionState.sessionId ~= data.sessionId then
         return
@@ -371,7 +369,7 @@ function SessionManager:OnSessionJoin(data, sender)
 end
 
 function SessionManager:OnSessionLeave(data, sender)
-    addon.Debug("DEBUG", "SessionManager:OnSessionLeave", "Player left session: " .. tostring(data.player))
+    self.Debug("DEBUG", "SessionManager:OnSessionLeave", "Player left session: " .. tostring(data.player))
     
     if not self:IsInSession() or sessionState.sessionId ~= data.sessionId then
         return
@@ -383,14 +381,14 @@ function SessionManager:OnSessionLeave(data, sender)
 end
 
 function SessionManager:OnWhitelistUpdate(data, sender)
-    addon.Debug("DEBUG", "SessionManager:OnWhitelistUpdate", "Received whitelist update")
+    self.Debug("DEBUG", "SessionManager:OnWhitelistUpdate", "Received whitelist update")
     
     if not self:IsInSession() or sessionState.sessionId ~= data.sessionId then
         return
     end
     
     if sender ~= sessionState.sessionOwner then
-        addon.Debug("WARN", "SessionManager:OnWhitelistUpdate", "Whitelist update from non-owner, ignoring")
+        self.Debug("WARN", "SessionManager:OnWhitelistUpdate", "Whitelist update from non-owner, ignoring")
         return
     end
     
@@ -405,14 +403,14 @@ function SessionManager:OnWhitelistUpdate(data, sender)
 end
 
 function SessionManager:OnSessionFinalize(data, sender)
-    addon.Debug("DEBUG", "SessionManager:OnSessionFinalize", "Session finalized")
+    self.Debug("DEBUG", "SessionManager:OnSessionFinalize", "Session finalized")
     
     if not self:IsInSession() or sessionState.sessionId ~= data.sessionId then
         return
     end
     
     if sender ~= sessionState.sessionOwner then
-        addon.Debug("WARN", "SessionManager:OnSessionFinalize", "Finalize from non-owner, ignoring")
+        self.Debug("WARN", "SessionManager:OnSessionFinalize", "Finalize from non-owner, ignoring")
         return
     end
     
@@ -423,14 +421,14 @@ function SessionManager:OnSessionFinalize(data, sender)
 end
 
 function SessionManager:OnSessionEnd(data, sender)
-    addon.Debug("DEBUG", "SessionManager:OnSessionEnd", "Session ended")
+    self.Debug("DEBUG", "SessionManager:OnSessionEnd", "Session ended")
     
     if not self:IsInSession() or sessionState.sessionId ~= data.sessionId then
         return
     end
     
     if sender ~= sessionState.sessionOwner then
-        addon.Debug("WARN", "SessionManager:OnSessionEnd", "End session from non-owner, ignoring")
+        self.Debug("WARN", "SessionManager:OnSessionEnd", "End session from non-owner, ignoring")
         return
     end
     
@@ -440,7 +438,7 @@ function SessionManager:OnSessionEnd(data, sender)
 end
 
 function SessionManager:ClearSessionState()
-    addon.Debug("DEBUG", "SessionManager:ClearSessionState", "Clearing session state")
+    self.Debug("DEBUG", "SessionManager:ClearSessionState", "Clearing session state")
     
     sessionState.sessionId = nil
     sessionState.sessionOwner = nil
@@ -452,7 +450,7 @@ function SessionManager:ClearSessionState()
 end
 
 function SessionManager:UpdateUI()
-    addon.Debug("TRACE", "SessionManager:UpdateUI", "Updating UI for session state")
+    self.Debug("TRACE", "SessionManager:UpdateUI", "Updating UI for session state")
     
     if addon.MainFrame and addon.MainFrame.UpdateSessionUI then
         addon.MainFrame:UpdateSessionUI()

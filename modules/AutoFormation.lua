@@ -2,6 +2,11 @@ local addonName, addon = ...
 
 local AutoFormation = {}
 
+for k, v in pairs(addon.DebugMixin) do
+    AutoFormation[k] = v
+end
+AutoFormation:InitDebug("AutoForm")
+
 -- Role mapping for all specializations
 local SPEC_ROLE_MAP = {
     -- Death Knight
@@ -88,7 +93,7 @@ local CLASS_FALLBACK_ROLES = {
 }
 
 function AutoFormation:GetPlayerRole(unitOrNameOrMember)
-    addon.Debug("DEBUG", "AutoFormation:GetPlayerRole called for:", type(unitOrNameOrMember) == "table" and unitOrNameOrMember.name or unitOrNameOrMember)
+    AutoFormation.Debug("DEBUG", "AutoFormation:GetPlayerRole called for:", type(unitOrNameOrMember) == "table" and unitOrNameOrMember.name or unitOrNameOrMember)
     
     local unit = unitOrNameOrMember
     local playerName = nil
@@ -110,7 +115,7 @@ function AutoFormation:GetPlayerRole(unitOrNameOrMember)
         else
             -- For guild members not in group, we can't get their spec directly
             -- Fall back to class-based role detection
-            addon.Debug("DEBUG", "Player not in unit range, using class fallback for:", playerName)
+            AutoFormation.Debug("DEBUG", "Player not in unit range, using class fallback for:", playerName)
             return self:GetRoleFromClass(memberData or playerName)
         end
     else
@@ -122,18 +127,18 @@ function AutoFormation:GetPlayerRole(unitOrNameOrMember)
     if specIndex and specIndex > 0 then
         local role = SPEC_ROLE_MAP[specIndex]
         if role then
-            addon.Debug("INFO", "Found role for", playerName, "spec", specIndex, "role:", role)
+            AutoFormation.Debug("INFO", "Found role for", playerName, "spec", specIndex, "role:", role)
             return role
         end
     end
     
     -- Fallback to class-based detection
-    addon.Debug("DEBUG", "Spec detection failed, using class fallback for:", playerName)
+    AutoFormation.Debug("DEBUG", "Spec detection failed, using class fallback for:", playerName)
     return self:GetRoleFromClass(playerName)
 end
 
 function AutoFormation:GetRoleFromClass(playerNameOrMember)
-    addon.Debug("DEBUG", "AutoFormation:GetRoleFromClass called for:", type(playerNameOrMember) == "table" and playerNameOrMember.name or playerNameOrMember)
+    AutoFormation.Debug("DEBUG", "AutoFormation:GetRoleFromClass called for:", type(playerNameOrMember) == "table" and playerNameOrMember.name or playerNameOrMember)
     
     local playerName = playerNameOrMember
     local className = nil
@@ -142,7 +147,7 @@ function AutoFormation:GetRoleFromClass(playerNameOrMember)
     if type(playerNameOrMember) == "table" then
         className = playerNameOrMember.class
         playerName = playerNameOrMember.name
-        addon.Debug("DEBUG", "Using class from member object:", className)
+        AutoFormation.Debug("DEBUG", "Using class from member object:", className)
     end
     
     -- If no class yet, try UnitClass
@@ -151,14 +156,14 @@ function AutoFormation:GetRoleFromClass(playerNameOrMember)
     end
     
     if not className then
-        addon.Debug("DEBUG", "UnitClass failed for", playerName, ", checking guild roster")
+        AutoFormation.Debug("DEBUG", "UnitClass failed for", playerName, ", checking guild roster")
         -- Try to get class from guild roster
         local numMembers = GetNumGuildMembers()
         for i = 1, numMembers do
             local name, _, _, _, _, _, _, _, _, _, classFileName = GetGuildRosterInfo(i)
             if name == playerName then
                 className = classFileName
-                addon.Debug("DEBUG", "Found class in guild roster:", className)
+                AutoFormation.Debug("DEBUG", "Found class in guild roster:", className)
                 break
             end
         end
@@ -166,13 +171,13 @@ function AutoFormation:GetRoleFromClass(playerNameOrMember)
     
     if className and CLASS_FALLBACK_ROLES[className] then
         local possibleRoles = CLASS_FALLBACK_ROLES[className]
-        addon.Debug("DEBUG", "Class fallback for", playerName, "class:", className, "possible roles:", table.concat(possibleRoles, ", "))
+        AutoFormation.Debug("DEBUG", "Class fallback for", playerName, "class:", className, "possible roles:", table.concat(possibleRoles, ", "))
         
         -- For multi-role classes, prefer DPS as the default since it's most common
         -- Unless the class can ONLY tank or ONLY heal
         for _, role in ipairs(possibleRoles) do
             if role == "DPS" then
-                addon.Debug("DEBUG", "Defaulting to DPS role for multi-role class:", className)
+                AutoFormation.Debug("DEBUG", "Defaulting to DPS role for multi-role class:", className)
                 return "DPS"
             end
         end
@@ -181,12 +186,12 @@ function AutoFormation:GetRoleFromClass(playerNameOrMember)
         return possibleRoles[1]
     end
     
-    addon.Debug("WARN", "Could not determine role for player:", playerName)
+    AutoFormation.Debug("WARN", "Could not determine role for player:", playerName)
     return "DPS" -- Default fallback
 end
 
 function AutoFormation:ValidateRoleComposition(members)
-    addon.Debug("DEBUG", "AutoFormation:ValidateRoleComposition called with", #members, "members")
+    AutoFormation.Debug("DEBUG", "AutoFormation:ValidateRoleComposition called with", #members, "members")
     
     local roleCounts = {
         TANK = 0,
@@ -197,20 +202,20 @@ function AutoFormation:ValidateRoleComposition(members)
     for _, member in ipairs(members) do
         local role = self:GetPlayerRole(member.name)
         roleCounts[role] = roleCounts[role] + 1
-        addon.Debug("TRACE", "Member", member.name, "assigned role:", role)
+        AutoFormation.Debug("TRACE", "Member", member.name, "assigned role:", role)
     end
     
-    addon.Debug("INFO", "Role composition - Tanks:", roleCounts.TANK, "Healers:", roleCounts.HEALER, "DPS:", roleCounts.DPS)
+    AutoFormation.Debug("INFO", "Role composition - Tanks:", roleCounts.TANK, "Healers:", roleCounts.HEALER, "DPS:", roleCounts.DPS)
     
     -- Check if composition follows mythic+ rules (1 tank, 1 healer, 3 DPS)
     local isValid = roleCounts.TANK == 1 and roleCounts.HEALER == 1 and roleCounts.DPS == 3
-    addon.Debug("INFO", "Role composition valid:", isValid)
+    AutoFormation.Debug("INFO", "Role composition valid:", isValid)
     
     return isValid, roleCounts
 end
 
 function AutoFormation:GetMemberUtilities(member)
-    addon.Debug("DEBUG", "AutoFormation:GetMemberUtilities called for:", member.name)
+    AutoFormation.Debug("DEBUG", "AutoFormation:GetMemberUtilities called for:", member.name)
     
     local className = member.class
     if not className then
@@ -218,7 +223,7 @@ function AutoFormation:GetMemberUtilities(member)
     end
     
     if not className then
-        addon.Debug("DEBUG", "Could not determine class for", member.name, "checking guild roster")
+        AutoFormation.Debug("DEBUG", "Could not determine class for", member.name, "checking guild roster")
         local numMembers = GetNumGuildMembers()
         for i = 1, numMembers do
             local name, _, _, _, _, _, _, _, _, _, classFileName = GetGuildRosterInfo(i)
@@ -231,16 +236,16 @@ function AutoFormation:GetMemberUtilities(member)
     
     if className and addon.CLASS_UTILITIES[className] then
         local utilities = addon.CLASS_UTILITIES[className]
-        addon.Debug("DEBUG", "Found utilities for", member.name, "class:", className, "utilities:", table.concat(utilities, ", "))
+        AutoFormation.Debug("DEBUG", "Found utilities for", member.name, "class:", className, "utilities:", table.concat(utilities, ", "))
         return utilities
     end
     
-    addon.Debug("DEBUG", "No utilities found for", member.name, "class:", className or "unknown")
+    AutoFormation.Debug("DEBUG", "No utilities found for", member.name, "class:", className or "unknown")
     return {}
 end
 
 function AutoFormation:CalculateGroupUtilityScore(group)
-    addon.Debug("DEBUG", "AutoFormation:CalculateGroupUtilityScore called for group with", #group, "members")
+    AutoFormation.Debug("DEBUG", "AutoFormation:CalculateGroupUtilityScore called for group with", #group, "members")
     
     local utilities = {
         COMBAT_REZ = false,
@@ -295,7 +300,7 @@ function AutoFormation:CalculateGroupUtilityScore(group)
         end
     end
     
-    addon.Debug("DEBUG", "Group utility score:", score, 
+    AutoFormation.Debug("DEBUG", "Group utility score:", score, 
         "critical missing:", table.concat(criticalMissing, ", "),
         "important missing:", table.concat(importantMissing, ", "))
     
@@ -303,7 +308,7 @@ function AutoFormation:CalculateGroupUtilityScore(group)
 end
 
 function AutoFormation:GetUtilityCoverageGaps(groups)
-    addon.Debug("DEBUG", "AutoFormation:GetUtilityCoverageGaps called for", #groups, "groups")
+    AutoFormation.Debug("DEBUG", "AutoFormation:GetUtilityCoverageGaps called for", #groups, "groups")
     
     local groupUtilities = {}
     local overallGaps = {
@@ -329,7 +334,7 @@ function AutoFormation:GetUtilityCoverageGaps(groups)
         end
     end
     
-    addon.Debug("INFO", "Utility coverage analysis complete - groups with critical gaps:", 
+    AutoFormation.Debug("INFO", "Utility coverage analysis complete - groups with critical gaps:", 
         overallGaps.critical.COMBAT_REZ or 0, "missing combat rez,",
         overallGaps.critical.BLOODLUST or 0, "missing bloodlust")
     
@@ -337,7 +342,7 @@ function AutoFormation:GetUtilityCoverageGaps(groups)
 end
 
 function AutoFormation:GetMemberScore(memberName)
-    addon.Debug("DEBUG", "AutoFormation:GetMemberScore called for:", memberName)
+    AutoFormation.Debug("DEBUG", "AutoFormation:GetMemberScore called for:", memberName)
     
     -- Use existing RaiderIO integration with shared data support
     if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
@@ -345,7 +350,7 @@ function AutoFormation:GetMemberScore(memberName)
         local profile = addon.RaiderIOIntegration:GetProfile(memberName)
         if profile and profile.mythicKeystoneProfile then
             local score = profile.mythicKeystoneProfile.currentScore or 0
-            addon.Debug("INFO", "Found local RaiderIO score for", memberName, ":", score)
+            AutoFormation.Debug("INFO", "Found local RaiderIO score for", memberName, ":", score)
             return score
         end
         
@@ -353,18 +358,18 @@ function AutoFormation:GetMemberScore(memberName)
         if addon.RaiderIOIntegration.GetMythicPlusScoreWithSharedData then
             local sharedScore = addon.RaiderIOIntegration:GetMythicPlusScoreWithSharedData(memberName)
             if sharedScore and sharedScore > 0 then
-                addon.Debug("INFO", "Found shared RaiderIO score for", memberName, ":", sharedScore)
+                AutoFormation.Debug("INFO", "Found shared RaiderIO score for", memberName, ":", sharedScore)
                 return sharedScore
             end
         end
     end
     
-    addon.Debug("DEBUG", "No RaiderIO score found for", memberName, "using default score 0")
+    AutoFormation.Debug("DEBUG", "No RaiderIO score found for", memberName, "using default score 0")
     return 0 -- Default score if no RaiderIO data
 end
 
 function AutoFormation:SortMembersByScore(members)
-    addon.Debug("DEBUG", "AutoFormation:SortMembersByScore called with", #members, "members")
+    AutoFormation.Debug("DEBUG", "AutoFormation:SortMembersByScore called with", #members, "members")
     
     -- Add scores to members and sort by score descending
     local membersWithScores = {}
@@ -376,23 +381,23 @@ function AutoFormation:SortMembersByScore(members)
         memberCopy.score = self:GetMemberScore(member.name)
         memberCopy.role = self:GetPlayerRole(member.name)
         table.insert(membersWithScores, memberCopy)
-        addon.Debug("TRACE", "Member", member.name, "score:", memberCopy.score, "role:", memberCopy.role)
+        AutoFormation.Debug("TRACE", "Member", member.name, "score:", memberCopy.score, "role:", memberCopy.role)
     end
     
     table.sort(membersWithScores, function(a, b)
         return a.score > b.score
     end)
     
-    addon.Debug("INFO", "Sorted members by score - highest:", membersWithScores[1] and membersWithScores[1].score or "none")
+    AutoFormation.Debug("INFO", "Sorted members by score - highest:", membersWithScores[1] and membersWithScores[1].score or "none")
     return membersWithScores
 end
 
 function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
-    addon.Debug("INFO", "AutoFormation:CreateBalancedGroups called with", #availableMembers, "members, group size:", groupSize or 5)
+    AutoFormation.Debug("INFO", "AutoFormation:CreateBalancedGroups called with", #availableMembers, "members, group size:", groupSize or 5)
     
     -- Debug the input members
     for i, member in ipairs(availableMembers) do
-        addon.Debug("DEBUG", "Input member", i, ":", member.name, "class:", member.class)
+        AutoFormation.Debug("DEBUG", "Input member", i, ":", member.name, "class:", member.class)
     end
     
     groupSize = groupSize or 5
@@ -400,11 +405,11 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
     local groups = {}
     
     if #sortedMembers == 0 then
-        addon.Debug("WARN", "No members available for grouping")
+        AutoFormation.Debug("WARN", "No members available for grouping")
         return groups
     end
     
-    addon.Debug("INFO", "After sorting, have", #sortedMembers, "members with scores")
+    AutoFormation.Debug("INFO", "After sorting, have", #sortedMembers, "members with scores")
     
     -- Separate members by role
     local tanks = {}
@@ -421,11 +426,11 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
         end
     end
     
-    addon.Debug("INFO", "Available roles - Tanks:", #tanks, "Healers:", #healers, "DPS:", #dps)
+    AutoFormation.Debug("INFO", "Available roles - Tanks:", #tanks, "Healers:", #healers, "DPS:", #dps)
     
     -- Try ideal composition first (1 tank, 1 healer, 3 DPS)
     local idealGroups = math.min(#tanks, #healers, math.floor(#dps / 3))
-    addon.Debug("INFO", "Can create", idealGroups, "ideal groups")
+    AutoFormation.Debug("INFO", "Can create", idealGroups, "ideal groups")
     
     local usedTanks, usedHealers, usedDPS = 0, 0, 0
     
@@ -444,7 +449,7 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
         usedHealers = usedHealers + 1
         usedDPS = usedDPS + 3
         
-        addon.Debug("INFO", "Created ideal group", i, "with 5 members")
+        AutoFormation.Debug("INFO", "Created ideal group", i, "with 5 members")
     end
     
     -- Now handle remaining members - create groups respecting role limits
@@ -465,7 +470,7 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
         table.insert(remainingDPS, dps[i])
     end
     
-    addon.Debug("INFO", "Remaining members - Tanks:", #remainingTanks, "Healers:", #remainingHealers, "DPS:", #remainingDPS)
+    AutoFormation.Debug("INFO", "Remaining members - Tanks:", #remainingTanks, "Healers:", #remainingHealers, "DPS:", #remainingDPS)
     
     -- Create additional groups with remaining members, respecting role limits
     while #remainingTanks > 0 or #remainingHealers > 0 or #remainingDPS > 0 do
@@ -494,20 +499,20 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
         
         -- If we couldn't add any members, break to avoid infinite loop
         if #currentGroup == 0 then
-            addon.Debug("WARN", "No more members can be added while respecting role limits")
+            AutoFormation.Debug("WARN", "No more members can be added while respecting role limits")
             break
         end
         
         -- Add the group
         table.insert(groups, currentGroup)
-        addon.Debug("INFO", "Created leftover group with", #currentGroup, "members - Tanks:", groupTanks, "Healers:", groupHealers, "DPS:", groupDPS)
+        AutoFormation.Debug("INFO", "Created leftover group with", #currentGroup, "members - Tanks:", groupTanks, "Healers:", groupHealers, "DPS:", groupDPS)
     end
     
-    addon.Debug("INFO", "Auto-formation complete - created", #groups, "total groups")
+    AutoFormation.Debug("INFO", "Auto-formation complete - created", #groups, "total groups")
     
     -- Apply utility optimization to improve group compositions
     if #groups > 1 then
-        addon.Debug("INFO", "Applying utility optimization to", #groups, "groups")
+        AutoFormation.Debug("INFO", "Applying utility optimization to", #groups, "groups")
         groups = self:OptimizeGroupUtilities(groups)
     end
     
@@ -521,10 +526,10 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
             end
         end
         
-        addon.Debug("INFO", "Final group", i, "has", #group, "members, utility score:", utilityScore)
-        addon.Debug("INFO", "  Utilities:", table.concat(utilityList, ", "))
+        AutoFormation.Debug("INFO", "Final group", i, "has", #group, "members, utility score:", utilityScore)
+        AutoFormation.Debug("INFO", "  Utilities:", table.concat(utilityList, ", "))
         for j, member in ipairs(group) do
-            addon.Debug("DEBUG", "  Member", j, ":", member.name, "role:", member.role, "score:", member.score)
+            AutoFormation.Debug("DEBUG", "  Member", j, ":", member.name, "role:", member.role, "score:", member.score)
         end
     end
     
@@ -537,7 +542,7 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
 end
 
 function AutoFormation:OptimizeGroupUtilities(groups)
-    addon.Debug("INFO", "AutoFormation:OptimizeGroupUtilities called with", #groups, "groups")
+    AutoFormation.Debug("INFO", "AutoFormation:OptimizeGroupUtilities called with", #groups, "groups")
     
     local maxIterations = 10 -- Prevent infinite loops
     local improved = true
@@ -546,7 +551,7 @@ function AutoFormation:OptimizeGroupUtilities(groups)
     while improved and iteration < maxIterations do
         improved = false
         iteration = iteration + 1
-        addon.Debug("DEBUG", "Utility optimization iteration", iteration)
+        AutoFormation.Debug("DEBUG", "Utility optimization iteration", iteration)
         
         -- Get current utility analysis
         local groupUtilities, overallGaps = self:GetUtilityCoverageGaps(groups)
@@ -592,7 +597,7 @@ function AutoFormation:OptimizeGroupUtilities(groups)
                         
                         -- Check if this swap improves overall utility distribution
                         if newTotal > currentTotal then
-                            addon.Debug("INFO", "Beneficial swap found: exchanging", 
+                            AutoFormation.Debug("INFO", "Beneficial swap found: exchanging", 
                                 dps1.member.name, "and", dps2.member.name,
                                 "improved total score from", currentTotal, "to", newTotal)
                             
@@ -618,12 +623,12 @@ function AutoFormation:OptimizeGroupUtilities(groups)
         end
         
         if not improved then
-            addon.Debug("DEBUG", "No more beneficial swaps found after", iteration, "iterations")
+            AutoFormation.Debug("DEBUG", "No more beneficial swaps found after", iteration, "iterations")
         end
     end
     
     if iteration >= maxIterations then
-        addon.Debug("WARN", "Utility optimization reached maximum iterations (", maxIterations, ")")
+        AutoFormation.Debug("WARN", "Utility optimization reached maximum iterations (", maxIterations, ")")
     end
     
     -- Final utility analysis
@@ -638,8 +643,8 @@ function AutoFormation:OptimizeGroupUtilities(groups)
         totalImportantGaps = totalImportantGaps + count
     end
     
-    addon.Debug("INFO", "Utility optimization complete after", iteration, "iterations")
-    addon.Debug("INFO", "Final gaps - Critical:", totalCriticalGaps, "Important:", totalImportantGaps)
+    AutoFormation.Debug("INFO", "Utility optimization complete after", iteration, "iterations")
+    AutoFormation.Debug("INFO", "Final gaps - Critical:", totalCriticalGaps, "Important:", totalImportantGaps)
     
     return groups
 end

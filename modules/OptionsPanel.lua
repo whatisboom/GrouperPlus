@@ -1,12 +1,15 @@
 local addonName, addon = ...
 
+local OptionsPanel = addon.ModuleBase:New("Options")
+addon.OptionsPanel = OptionsPanel
+
 local function CreateOptionsPanel()
     if not addon.db then 
-        addon.Debug(addon.LOG_LEVEL.ERROR, "OptionsPanel: Cannot create options panel - database not initialized")
+        OptionsPanel.Debug(addon.LOG_LEVEL.ERROR, "OptionsPanel: Cannot create options panel - database not initialized")
         return 
     end
     
-    addon.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Creating options panel")
+    OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Creating options panel")
     local category = Settings.RegisterVerticalLayoutCategory("GrouperPlus")
     
     -- Debug Level Dropdown
@@ -28,13 +31,13 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = addon.settings.debugLevel or defaultValue
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting debug level:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting debug level:", currentValue)
                 return currentValue
             end,
             function(value) 
                 local oldValue = addon.settings.debugLevel
                 addon.settings.debugLevel = value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Debug level changed from", oldValue, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Debug level changed from", oldValue, "to", value)
             end
         )
         
@@ -51,21 +54,21 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = not addon.settings.minimap.hide
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting minimap visibility:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting minimap visibility:", currentValue)
                 return currentValue
             end,
             function(value)
                 local wasHidden = addon.settings.minimap.hide
                 addon.settings.minimap.hide = not value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Minimap icon visibility changed from", not wasHidden, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Minimap icon visibility changed from", not wasHidden, "to", value)
                 
                 local LibDBIcon = LibStub("LibDBIcon-1.0")
                 if value then
                     LibDBIcon:Show("GrouperPlus")
-                    addon.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Minimap icon shown")
+                    OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Minimap icon shown")
                 else
                     LibDBIcon:Hide("GrouperPlus")
-                    addon.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Minimap icon hidden")
+                    OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Minimap icon hidden")
                 end
             end
         )
@@ -83,13 +86,13 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = addon.settings.raiderIO.enabled
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting RaiderIO enabled:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting RaiderIO enabled:", currentValue)
                 return currentValue
             end,
             function(value)
                 local oldValue = addon.settings.raiderIO.enabled
                 addon.settings.raiderIO.enabled = value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: RaiderIO integration changed from", oldValue, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: RaiderIO integration changed from", oldValue, "to", value)
             end
         )
         
@@ -106,13 +109,13 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = addon.settings.raiderIO.showInTooltips
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting RaiderIO tooltips:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting RaiderIO tooltips:", currentValue)
                 return currentValue
             end,
             function(value)
                 local oldValue = addon.settings.raiderIO.showInTooltips
                 addon.settings.raiderIO.showInTooltips = value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: RaiderIO tooltips changed from", oldValue, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: RaiderIO tooltips changed from", oldValue, "to", value)
             end
         )
         
@@ -129,13 +132,13 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = addon.settings.communication.enabled
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting communication enabled:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting communication enabled:", currentValue)
                 return currentValue
             end,
             function(value)
                 local oldValue = addon.settings.communication.enabled
                 addon.settings.communication.enabled = value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Addon communication changed from", oldValue, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Addon communication changed from", oldValue, "to", value)
             end
         )
         
@@ -152,13 +155,13 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = addon.settings.communication.acceptGroupSync
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept group sync:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept group sync:", currentValue)
                 return currentValue
             end,
             function(value)
                 local oldValue = addon.settings.communication.acceptGroupSync
                 addon.settings.communication.acceptGroupSync = value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept group sync changed from", oldValue, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept group sync changed from", oldValue, "to", value)
             end
         )
         
@@ -175,13 +178,13 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = addon.settings.communication.acceptPlayerData
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept player data:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept player data:", currentValue)
                 return currentValue
             end,
             function(value)
                 local oldValue = addon.settings.communication.acceptPlayerData
                 addon.settings.communication.acceptPlayerData = value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept player data changed from", oldValue, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept player data changed from", oldValue, "to", value)
             end
         )
         
@@ -198,13 +201,13 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = addon.settings.communication.acceptRaiderIOData
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept RaiderIO data:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept RaiderIO data:", currentValue)
                 return currentValue
             end,
             function(value)
                 local oldValue = addon.settings.communication.acceptRaiderIOData
                 addon.settings.communication.acceptRaiderIOData = value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept RaiderIO data changed from", oldValue, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept RaiderIO data changed from", oldValue, "to", value)
             end
         )
         
@@ -221,13 +224,13 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = addon.settings.communication.respondToRequests
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting respond to requests:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting respond to requests:", currentValue)
                 return currentValue
             end,
             function(value)
                 local oldValue = addon.settings.communication.respondToRequests
                 addon.settings.communication.respondToRequests = value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Respond to requests changed from", oldValue, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Respond to requests changed from", oldValue, "to", value)
             end
         )
         
@@ -244,21 +247,21 @@ local function CreateOptionsPanel()
             name, defaultValue,
             function() 
                 local currentValue = addon.settings.communication.compression
-                addon.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting compression enabled:", currentValue)
+                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting compression enabled:", currentValue)
                 return currentValue
             end,
             function(value)
                 local oldValue = addon.settings.communication.compression
                 addon.settings.communication.compression = value
-                addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Message compression changed from", oldValue, "to", value)
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Message compression changed from", oldValue, "to", value)
                 
                 -- Test LibCompress availability when enabling
                 if value then
                     local LibCompress = LibStub("LibCompress", true)
                     if not LibCompress then
-                        addon.Debug(addon.LOG_LEVEL.WARN, "LibCompress not available - compression will not work")
+                        OptionsPanel.Debug(addon.LOG_LEVEL.WARN, "LibCompress not available - compression will not work")
                     else
-                        addon.Debug(addon.LOG_LEVEL.INFO, "LibCompress available - compression enabled")
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "LibCompress available - compression enabled")
                     end
                 end
             end
@@ -269,7 +272,7 @@ local function CreateOptionsPanel()
     
     
     Settings.RegisterAddOnCategory(category)
-    addon.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Options panel registered successfully")
+    OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Options panel registered successfully")
     return category:GetID()
 end
 
@@ -278,7 +281,7 @@ local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:SetScript("OnEvent", function(self, event, loadedAddon)
     if loadedAddon == addonName then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Addon loaded, scheduling panel creation")
+        OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Addon loaded, scheduling panel creation")
         C_Timer.After(0.1, function()
             addon.optionsCategoryID = CreateOptionsPanel()
         end)
@@ -291,9 +294,9 @@ SLASH_GROUPEROPTIONS1 = "/grouperopt"
 SLASH_GROUPEROPTIONS2 = "/grouperptions"
 SlashCmdList["GROUPEROPTIONS"] = function()
     if addon.optionsCategoryID then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Opening options panel via slash command")
+        OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Opening options panel via slash command")
         Settings.OpenToCategory(addon.optionsCategoryID)
     else
-        addon.Debug(addon.LOG_LEVEL.WARN, "OptionsPanel: Options panel not yet initialized")
+        OptionsPanel.Debug(addon.LOG_LEVEL.WARN, "OptionsPanel: Options panel not yet initialized")
     end
 end
