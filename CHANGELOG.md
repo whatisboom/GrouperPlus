@@ -5,6 +5,15 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2025-08-12
+
+### Fixed 🐛
+- **CurseForge Game Version**: Corrected deployment to properly target WoW 11.2.0
+  - Found and implemented correct game version ID 13433 for WoW 11.2.0
+  - Previous deployments were incorrectly targeting 11.1.7 due to wrong ID mapping
+  - Queried CurseForge API directly to obtain accurate version mapping
+  - Ensures addon appears under correct game version on CurseForge
+
 ## [0.9.1] - 2025-08-12
 
 ### Fixed 🐛
