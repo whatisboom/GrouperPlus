@@ -60,6 +60,41 @@ local function CreateMemberTooltip(row)
         end
     end
     
+    -- Add addon version information if available
+    if addon.AddonComm then
+        local connectedUsers = addon.AddonComm:GetConnectedUsers()
+        local playerName = UnitName("player")
+        local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+        local isCurrentPlayer = (row.memberName == playerName or row.memberName == playerFullName)
+        
+        if isCurrentPlayer then
+            -- Show current player's addon version
+            local currentVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "Unknown"
+            GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+            GameTooltip:AddLine("GrouperPlus:", 0.8, 0.8, 0.8)
+            GameTooltip:AddLine("v" .. currentVersion .. " (You)", 0.0, 1.0, 0.0) -- Green for current player
+        else
+            -- Check if this member has GrouperPlus installed
+            local memberAddonInfo = connectedUsers[row.memberName]
+            if memberAddonInfo then
+                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
+                GameTooltip:AddLine("GrouperPlus:", 0.8, 0.8, 0.8)
+                local versionColor = {1.0, 1.0, 0.0} -- Yellow for other users
+                local timeSinceLastSeen = memberAddonInfo.lastSeen and (GetServerTime() - memberAddonInfo.lastSeen) or nil
+                
+                local statusText = "v" .. (memberAddonInfo.addonVersion or memberAddonInfo.version or "Unknown")
+                if timeSinceLastSeen and timeSinceLastSeen < 60 then
+                    statusText = statusText .. " (Online)"
+                    versionColor = {0.0, 1.0, 0.0} -- Green for recently active
+                elseif timeSinceLastSeen and timeSinceLastSeen < 300 then
+                    statusText = statusText .. " (Recent)"
+                end
+                
+                GameTooltip:AddLine(statusText, versionColor[1], versionColor[2], versionColor[3])
+            end
+        end
+    end
+    
     GameTooltip:Show()
 end
 

@@ -26,7 +26,6 @@ modules\MinimapMenu.lua
 modules\OptionsPanel.lua
 modules\RaiderIOIntegration.lua
 modules\AutoFormation.lua
-modules\AddonUserList.lua
 modules\VersionWarning.lua
 modules\GuildMemberManager.lua
 modules\MemberRowUI.lua

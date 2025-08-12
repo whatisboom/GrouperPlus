@@ -270,13 +270,6 @@ SlashCmdList["GROUPER"] = function(msg)
         else
             Debug(addon.LOG_LEVEL.WARN, "UI refresh function not available")
         end
-    elseif command == "users" or command == "userlist" or command == "list" then
-        if addon.AddonUserList then
-            addon.AddonUserList:ToggleUserList()
-            Debug(addon.LOG_LEVEL.INFO, "Addon user list toggled")
-        else
-            Debug(addon.LOG_LEVEL.WARN, "AddonUserList module not loaded")
-        end
     elseif command == "versioncheck" or command == "checkversion" then
         if addon.VersionWarning then
             addon.VersionWarning:CheckForNewerVersions()
@@ -338,7 +331,6 @@ SlashCmdList["GROUPER"] = function(msg)
         Debug(addon.LOG_LEVEL.INFO, "/grouper checkrole - Check for role changes")
         Debug(addon.LOG_LEVEL.INFO, "/grouper spec - Debug player specialization info")
         Debug(addon.LOG_LEVEL.INFO, "/grouper refresh - Force UI refresh")
-        Debug(addon.LOG_LEVEL.INFO, "/grouper users - Show addon user list window")
         Debug(addon.LOG_LEVEL.INFO, "/grouper versioncheck - Check for newer versions")
         Debug(addon.LOG_LEVEL.INFO, "/grouper versiontest - Test version warning display")
         Debug(addon.LOG_LEVEL.INFO, "/grouper versiondismiss - Dismiss current version warning")
