@@ -42,11 +42,15 @@ rm -f "$PACKAGE_DIR"/CLAUDE.md 2>/dev/null || true
 rm -rf "$PACKAGE_DIR"/node_modules 2>/dev/null || true
 rm -rf "$PACKAGE_DIR"/build 2>/dev/null || true
 
+# Remove .DS_Store files (macOS system files)
+echo "Removing .DS_Store files..."
+find "$PACKAGE_DIR" -name ".DS_Store" -type f -delete 2>/dev/null || true
+
 # Create archive with version in filename
 cd "$BUILD_DIR"
 ARCHIVE_NAME="${PROJECT_NAME}-v${VERSION}.zip"
 echo "Creating archive: $ARCHIVE_NAME"
-zip -r "$ARCHIVE_NAME" "$PROJECT_NAME/"
+zip -r "$ARCHIVE_NAME" "$PROJECT_NAME/" -x "*.DS_Store"
 
 echo "Build complete! Archive created at: $BUILD_DIR/$ARCHIVE_NAME"
 echo "Archive size: $(du -h $ARCHIVE_NAME | cut -f1)"
