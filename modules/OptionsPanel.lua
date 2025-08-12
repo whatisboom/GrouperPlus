@@ -3,298 +3,345 @@ local addonName, addon = ...
 local OptionsPanel = addon.ModuleBase:New("Options")
 addon.OptionsPanel = OptionsPanel
 
-local function CreateOptionsPanel()
-    if not addon.db then 
-        OptionsPanel.Debug(addon.LOG_LEVEL.ERROR, "OptionsPanel: Cannot create options panel - database not initialized")
-        return 
-    end
-    
-    OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Creating options panel")
-    local category = Settings.RegisterVerticalLayoutCategory("GrouperPlus")
-    
-    -- Debug Level Dropdown
-    do
-        local name = "Debug Level"
-        local tooltip = "Set the level of debug messages to display"
-        local options = function()
-            local container = Settings.CreateControlTextContainer()
-            container:Add("ERROR", "ERROR")
-            container:Add("WARN", "WARN")
-            container:Add("INFO", "INFO")
-            container:Add("DEBUG", "DEBUG")
-            container:Add("TRACE", "TRACE")
-            return container:GetData()
-        end
-        
-        local defaultValue = "INFO"
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusDebugLevel", Settings.VarType.String,
-            name, defaultValue,
-            function() 
-                local currentValue = addon.settings.debugLevel or defaultValue
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting debug level:", currentValue)
-                return currentValue
+-- AceConfig options table
+local options = {
+    name = "GrouperPlus",
+    type = "group",
+    args = {
+        generalHeader = {
+            order = 1,
+            type = "header",
+            name = "General Settings",
+        },
+        debugLevel = {
+            order = 2,
+            type = "select",
+            name = "Debug Level",
+            desc = "Set the level of debug messages to display",
+            values = {
+                ERROR = "ERROR",
+                WARN = "WARN",
+                INFO = "INFO",
+                DEBUG = "DEBUG",
+                TRACE = "TRACE"
+            },
+            get = function()
+                return addon.settings.debugLevel or "INFO"
             end,
-            function(value) 
+            set = function(info, value)
                 local oldValue = addon.settings.debugLevel
                 addon.settings.debugLevel = value
                 OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Debug level changed from", oldValue, "to", value)
-            end
-        )
-        
-        Settings.CreateDropdown(category, setting, options, tooltip)
-    end
-    
-    -- Show Minimap Icon Checkbox
-    do
-        local name = "Show Minimap Icon"
-        local tooltip = "Toggle the visibility of the minimap icon"
-        local defaultValue = true
-        
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusShowMinimap", Settings.VarType.Boolean,
-            name, defaultValue,
-            function() 
-                local currentValue = not addon.settings.minimap.hide
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting minimap visibility:", currentValue)
-                return currentValue
             end,
-            function(value)
-                local wasHidden = addon.settings.minimap.hide
+        },
+        showMinimap = {
+            order = 3,
+            type = "toggle",
+            name = "Show Minimap Icon",
+            desc = "Toggle the visibility of the minimap icon",
+            get = function()
+                return not addon.settings.minimap.hide
+            end,
+            set = function(info, value)
                 addon.settings.minimap.hide = not value
-                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Minimap icon visibility changed from", not wasHidden, "to", value)
-                
                 local LibDBIcon = LibStub("LibDBIcon-1.0")
                 if value then
                     LibDBIcon:Show("GrouperPlus")
-                    OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Minimap icon shown")
                 else
                     LibDBIcon:Hide("GrouperPlus")
-                    OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Minimap icon hidden")
                 end
-            end
-        )
-        
-        Settings.CreateCheckbox(category, setting, tooltip)
-    end
-    
-    -- Enable RaiderIO Integration Checkbox
-    do
-        local name = "Enable RaiderIO Integration"
-        local tooltip = "Enable or disable RaiderIO addon integration features"
-        local defaultValue = true
-        
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusRaiderIOEnabled", Settings.VarType.Boolean,
-            name, defaultValue,
-            function() 
-                local currentValue = addon.settings.raiderIO.enabled
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting RaiderIO enabled:", currentValue)
-                return currentValue
+                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Minimap icon visibility changed to", value)
             end,
-            function(value)
-                local oldValue = addon.settings.raiderIO.enabled
-                addon.settings.raiderIO.enabled = value
-                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: RaiderIO integration changed from", oldValue, "to", value)
-            end
-        )
-        
-        Settings.CreateCheckbox(category, setting, tooltip)
+        },
+        integrationHeader = {
+            order = 10,
+            type = "header",
+            name = "Integration Settings",
+        },
+        raiderIOGroup = {
+            order = 11,
+            type = "group",
+            name = "RaiderIO",
+            inline = true,
+            args = {
+                enabled = {
+                    order = 1,
+                    type = "toggle",
+                    name = "Enable RaiderIO Integration",
+                    desc = "Enable or disable RaiderIO addon integration features",
+                    width = "full",
+                    get = function()
+                        return addon.settings.raiderIO.enabled
+                    end,
+                    set = function(info, value)
+                        addon.settings.raiderIO.enabled = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: RaiderIO integration changed to", value)
+                    end,
+                },
+                showInTooltips = {
+                    order = 2,
+                    type = "toggle",
+                    name = "Show RaiderIO Info in Tooltips",
+                    desc = "Automatically add RaiderIO information to unit tooltips",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.raiderIO.enabled
+                    end,
+                    get = function()
+                        return addon.settings.raiderIO.showInTooltips
+                    end,
+                    set = function(info, value)
+                        addon.settings.raiderIO.showInTooltips = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: RaiderIO tooltips changed to", value)
+                    end,
+                },
+            },
+        },
+        communicationHeader = {
+            order = 20,
+            type = "header",
+            name = "Communication Settings",
+        },
+        communicationGroup = {
+            order = 21,
+            type = "group",
+            name = "Addon Communication",
+            inline = true,
+            args = {
+                enabled = {
+                    order = 1,
+                    type = "toggle",
+                    name = "Enable Addon Communication",
+                    desc = "Enable communication with other GrouperPlus users in your guild",
+                    width = "full",
+                    get = function()
+                        return addon.settings.communication.enabled
+                    end,
+                    set = function(info, value)
+                        addon.settings.communication.enabled = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Addon communication changed to", value)
+                    end,
+                },
+                dataSharingDesc = {
+                    order = 2,
+                    type = "description",
+                    name = "\n|cFFFFD700Data Sharing Options|r",
+                },
+                acceptGroupSync = {
+                    order = 3,
+                    type = "toggle",
+                    name = "Accept Group Synchronization",
+                    desc = "Allow other addon users to sync their group formations to your interface",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.communication.enabled
+                    end,
+                    get = function()
+                        return addon.settings.communication.acceptGroupSync
+                    end,
+                    set = function(info, value)
+                        addon.settings.communication.acceptGroupSync = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept group sync changed to", value)
+                    end,
+                },
+                acceptPlayerData = {
+                    order = 4,
+                    type = "toggle",
+                    name = "Accept Player Data Sharing",
+                    desc = "Allow receiving player information (roles, ratings) from other addon users",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.communication.enabled
+                    end,
+                    get = function()
+                        return addon.settings.communication.acceptPlayerData
+                    end,
+                    set = function(info, value)
+                        addon.settings.communication.acceptPlayerData = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept player data changed to", value)
+                    end,
+                },
+                acceptRaiderIOData = {
+                    order = 5,
+                    type = "toggle",
+                    name = "Accept RaiderIO Data Sharing",
+                    desc = "Allow receiving RaiderIO scores from other addon users (useful when you don't have RaiderIO installed)",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.communication.enabled
+                    end,
+                    get = function()
+                        return addon.settings.communication.acceptRaiderIOData
+                    end,
+                    set = function(info, value)
+                        addon.settings.communication.acceptRaiderIOData = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept RaiderIO data changed to", value)
+                    end,
+                },
+                automationDesc = {
+                    order = 6,
+                    type = "description",
+                    name = "\n|cFFFFD700Automation Options|r",
+                },
+                respondToRequests = {
+                    order = 7,
+                    type = "toggle",
+                    name = "Respond to Formation Requests",
+                    desc = "Automatically respond to group formation requests from other addon users",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.communication.enabled
+                    end,
+                    get = function()
+                        return addon.settings.communication.respondToRequests
+                    end,
+                    set = function(info, value)
+                        addon.settings.communication.respondToRequests = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Respond to requests changed to", value)
+                    end,
+                },
+                performanceDesc = {
+                    order = 8,
+                    type = "description",
+                    name = "\n|cFFFFD700Performance Options|r",
+                },
+                compression = {
+                    order = 9,
+                    type = "toggle",
+                    name = "Enable Message Compression",
+                    desc = "Compress addon messages to reduce network traffic (requires LibCompress)",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.communication.enabled
+                    end,
+                    get = function()
+                        return addon.settings.communication.compression
+                    end,
+                    set = function(info, value)
+                        addon.settings.communication.compression = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Message compression changed to", value)
+                        
+                        if value then
+                            local LibCompress = LibStub("LibCompress", true)
+                            if not LibCompress then
+                                OptionsPanel.Debug(addon.LOG_LEVEL.WARN, "LibCompress not available - compression will not work")
+                            end
+                        end
+                    end,
+                },
+            },
+        },
+    },
+}
+
+-- Profile options
+local profileOptions = {
+    name = "Profiles",
+    type = "group",
+    args = {},
+}
+
+function OptionsPanel:OnInitialize()
+    if not addon.db then
+        self.Debug(addon.LOG_LEVEL.ERROR, "OptionsPanel: Database not initialized")
+        return
     end
     
-    -- Show in Tooltips Checkbox
-    do
-        local name = "Show RaiderIO Info in Tooltips"
-        local tooltip = "Automatically add RaiderIO information to unit tooltips"
-        local defaultValue = true
-        
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusRaiderIOTooltips", Settings.VarType.Boolean,
-            name, defaultValue,
-            function() 
-                local currentValue = addon.settings.raiderIO.showInTooltips
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting RaiderIO tooltips:", currentValue)
-                return currentValue
-            end,
-            function(value)
-                local oldValue = addon.settings.raiderIO.showInTooltips
-                addon.settings.raiderIO.showInTooltips = value
-                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: RaiderIO tooltips changed from", oldValue, "to", value)
-            end
-        )
-        
-        Settings.CreateCheckbox(category, setting, tooltip)
+    -- Check if AceConfig libraries are available
+    local AceConfig = LibStub("AceConfig-3.0", true)
+    local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
+    local AceDBOptions = LibStub("AceDBOptions-3.0", true)
+    
+    if not AceConfig or not AceConfigDialog then
+        -- Fallback to basic Settings API
+        self.Debug(addon.LOG_LEVEL.WARN, "OptionsPanel: AceConfig not available, using fallback")
+        self:CreateFallbackPanel()
+        return
     end
     
-    -- Enable Communication Checkbox
-    do
-        local name = "Enable Addon Communication"
-        local tooltip = "Enable communication with other GrouperPlus users in your guild"
-        local defaultValue = true
-        
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusCommunicationEnabled", Settings.VarType.Boolean,
-            name, defaultValue,
-            function() 
-                local currentValue = addon.settings.communication.enabled
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting communication enabled:", currentValue)
-                return currentValue
-            end,
-            function(value)
-                local oldValue = addon.settings.communication.enabled
-                addon.settings.communication.enabled = value
-                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Addon communication changed from", oldValue, "to", value)
-            end
-        )
-        
-        Settings.CreateCheckbox(category, setting, tooltip)
+    -- Register the options table
+    AceConfig:RegisterOptionsTable("GrouperPlus", options)
+    
+    -- Add to Blizzard options
+    self.optionsFrame = AceConfigDialog:AddToBlizOptions("GrouperPlus", "GrouperPlus")
+    
+    -- Add profile options if AceDBOptions is available
+    if AceDBOptions and addon.db then
+        profileOptions.args = AceDBOptions:GetOptionsTable(addon.db)
+        AceConfig:RegisterOptionsTable("GrouperPlus_Profiles", profileOptions)
+        AceConfigDialog:AddToBlizOptions("GrouperPlus_Profiles", "Profiles", "GrouperPlus")
     end
     
-    -- Accept Group Sync Checkbox
-    do
-        local name = "Accept Group Synchronization"
-        local tooltip = "Allow other addon users to sync their group formations to your interface"
-        local defaultValue = true
-        
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusAcceptGroupSync", Settings.VarType.Boolean,
-            name, defaultValue,
-            function() 
-                local currentValue = addon.settings.communication.acceptGroupSync
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept group sync:", currentValue)
-                return currentValue
-            end,
-            function(value)
-                local oldValue = addon.settings.communication.acceptGroupSync
-                addon.settings.communication.acceptGroupSync = value
-                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept group sync changed from", oldValue, "to", value)
-            end
-        )
-        
-        Settings.CreateCheckbox(category, setting, tooltip)
-    end
-    
-    -- Accept Player Data Checkbox
-    do
-        local name = "Accept Player Data Sharing"
-        local tooltip = "Allow receiving player information (roles, ratings) from other addon users"
-        local defaultValue = true
-        
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusAcceptPlayerData", Settings.VarType.Boolean,
-            name, defaultValue,
-            function() 
-                local currentValue = addon.settings.communication.acceptPlayerData
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept player data:", currentValue)
-                return currentValue
-            end,
-            function(value)
-                local oldValue = addon.settings.communication.acceptPlayerData
-                addon.settings.communication.acceptPlayerData = value
-                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept player data changed from", oldValue, "to", value)
-            end
-        )
-        
-        Settings.CreateCheckbox(category, setting, tooltip)
-    end
-    
-    -- Accept RaiderIO Data Checkbox
-    do
-        local name = "Accept RaiderIO Data Sharing"
-        local tooltip = "Allow receiving RaiderIO scores from other addon users (useful when you don't have RaiderIO installed)"
-        local defaultValue = true
-        
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusAcceptRaiderIOData", Settings.VarType.Boolean,
-            name, defaultValue,
-            function() 
-                local currentValue = addon.settings.communication.acceptRaiderIOData
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting accept RaiderIO data:", currentValue)
-                return currentValue
-            end,
-            function(value)
-                local oldValue = addon.settings.communication.acceptRaiderIOData
-                addon.settings.communication.acceptRaiderIOData = value
-                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Accept RaiderIO data changed from", oldValue, "to", value)
-            end
-        )
-        
-        Settings.CreateCheckbox(category, setting, tooltip)
-    end
-    
-    -- Respond to Formation Requests Checkbox
-    do
-        local name = "Respond to Formation Requests"
-        local tooltip = "Automatically respond to group formation requests from other addon users"
-        local defaultValue = true
-        
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusRespondToRequests", Settings.VarType.Boolean,
-            name, defaultValue,
-            function() 
-                local currentValue = addon.settings.communication.respondToRequests
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting respond to requests:", currentValue)
-                return currentValue
-            end,
-            function(value)
-                local oldValue = addon.settings.communication.respondToRequests
-                addon.settings.communication.respondToRequests = value
-                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Respond to requests changed from", oldValue, "to", value)
-            end
-        )
-        
-        Settings.CreateCheckbox(category, setting, tooltip)
-    end
-    
-    -- Enable Compression Checkbox
-    do
-        local name = "Enable Message Compression"
-        local tooltip = "Compress addon messages to reduce network traffic (requires LibCompress)"
-        local defaultValue = true
-        
-        local setting = Settings.RegisterProxySetting(category, "GrouperPlusCompressionEnabled", Settings.VarType.Boolean,
-            name, defaultValue,
-            function() 
-                local currentValue = addon.settings.communication.compression
-                OptionsPanel.Debug(addon.LOG_LEVEL.TRACE, "OptionsPanel: Getting compression enabled:", currentValue)
-                return currentValue
-            end,
-            function(value)
-                local oldValue = addon.settings.communication.compression
-                addon.settings.communication.compression = value
-                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Message compression changed from", oldValue, "to", value)
-                
-                -- Test LibCompress availability when enabling
-                if value then
-                    local LibCompress = LibStub("LibCompress", true)
-                    if not LibCompress then
-                        OptionsPanel.Debug(addon.LOG_LEVEL.WARN, "LibCompress not available - compression will not work")
-                    else
-                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "LibCompress available - compression enabled")
-                    end
-                end
-            end
-        )
-        
-        Settings.CreateCheckbox(category, setting, tooltip)
-    end
-    
-    
-    Settings.RegisterAddOnCategory(category)
-    OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Options panel registered successfully")
-    return category:GetID()
+    self.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Initialized with AceConfig")
 end
 
--- Wait for addon to be fully loaded
+-- Fallback function using standard Settings API
+function OptionsPanel:CreateFallbackPanel()
+    local category = Settings.RegisterVerticalLayoutCategory("GrouperPlus")
+    
+    -- Debug Level
+    local debugOptions = function()
+        local container = Settings.CreateControlTextContainer()
+        container:Add("ERROR", "ERROR")
+        container:Add("WARN", "WARN")
+        container:Add("INFO", "INFO")
+        container:Add("DEBUG", "DEBUG")
+        container:Add("TRACE", "TRACE")
+        return container:GetData()
+    end
+    
+    local debugSetting = Settings.RegisterProxySetting(category, "GrouperPlusDebugLevel", 
+        Settings.VarType.String, "Debug Level", "INFO",
+        function() return addon.settings.debugLevel or "INFO" end,
+        function(value) addon.settings.debugLevel = value end
+    )
+    Settings.CreateDropdown(category, debugSetting, debugOptions, "Set the level of debug messages to display")
+    
+    -- Minimap Icon
+    local minimapSetting = Settings.RegisterProxySetting(category, "GrouperPlusShowMinimap",
+        Settings.VarType.Boolean, "Show Minimap Icon", true,
+        function() return not addon.settings.minimap.hide end,
+        function(value) 
+            addon.settings.minimap.hide = not value
+            local LibDBIcon = LibStub("LibDBIcon-1.0")
+            if value then
+                LibDBIcon:Show("GrouperPlus")
+            else
+                LibDBIcon:Hide("GrouperPlus")
+            end
+        end
+    )
+    Settings.CreateCheckbox(category, minimapSetting, "Toggle the visibility of the minimap icon")
+    
+    Settings.RegisterAddOnCategory(category)
+    addon.optionsCategoryID = category:GetID()
+    
+    self.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Created fallback panel")
+end
+
+-- Initialize when addon loads
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:SetScript("OnEvent", function(self, event, loadedAddon)
     if loadedAddon == addonName then
-        OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Addon loaded, scheduling panel creation")
         C_Timer.After(0.1, function()
-            addon.optionsCategoryID = CreateOptionsPanel()
+            OptionsPanel:OnInitialize()
         end)
         self:UnregisterEvent("ADDON_LOADED")
     end
 end)
 
--- Add slash command to open options
+-- Slash commands
 SLASH_GROUPEROPTIONS1 = "/grouperopt"
 SLASH_GROUPEROPTIONS2 = "/grouperptions"
 SlashCmdList["GROUPEROPTIONS"] = function()
-    if addon.optionsCategoryID then
-        OptionsPanel.Debug(addon.LOG_LEVEL.DEBUG, "OptionsPanel: Opening options panel via slash command")
+    local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
+    
+    if AceConfigDialog then
+        -- Use AceConfig dialog
+        AceConfigDialog:Open("GrouperPlus")
+    elseif addon.optionsCategoryID then
+        -- Use fallback Settings API
         Settings.OpenToCategory(addon.optionsCategoryID)
     else
         OptionsPanel.Debug(addon.LOG_LEVEL.WARN, "OptionsPanel: Options panel not yet initialized")
