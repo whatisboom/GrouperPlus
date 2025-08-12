@@ -2,6 +2,26 @@
 
 ## Ideas and Future Tasks
 
+### Session Participation Notifications
+- [ ] Add unobtrusive notification system when grouping sessions start
+  - [ ] Small popup notification with auto-dismiss after 15-20 seconds
+  - [ ] Action buttons: "Join Session", "Snooze for Session", "Snooze Until Tomorrow", "Disable Notifications"
+  - [ ] Minimap icon visual indicator (pulsing/glowing) when session is available
+  - [ ] Different minimap icon overlay for snoozed state (Zzz or moon icon)
+- [ ] Implement snooze system
+  - [ ] Snooze for current session only (session ID-based)
+  - [ ] Snooze until tomorrow (resets at midnight server time)
+  - [ ] Permanently disable notifications option
+  - [ ] Un-snooze/re-enable via minimap right-click menu
+  - [ ] Save snooze state and preferences in saved variables
+- [ ] Create NotificationManager module to handle prompt display and snooze logic
+- [ ] Extend SessionManager to trigger notifications on session create
+- [ ] Add snooze management options to minimap dropdown menu
+- [ ] Configuration options in settings panel
+  - [ ] Re-enable notifications if disabled
+  - [ ] Notification style preference (popup, chat only, minimap only)
+  - [ ] Auto-join whitelist for trusted session owners
+
 ### Advanced Filtering
 - [ ] Search and filter members by class
 - [ ] Filter by specialization
