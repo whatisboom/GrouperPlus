@@ -5,6 +5,14 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2025-08-12
+
+### Fixed 🐛
+- **Interface Version**: Updated TOC Interface version to 110200 for WoW 11.2.0
+  - Fixes CurseForge submissions targeting wrong game version (was 11.1.7, now 11.2.0)
+  - Ensures proper deployment script mapping to correct gameVersion (13500)
+  - No functional changes to addon features
+
 ## [0.9.0] - 2025-08-12
 
 ### Added 🆕
