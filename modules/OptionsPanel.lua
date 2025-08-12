@@ -247,6 +247,11 @@ function OptionsPanel:OnInitialize()
         return
     end
     
+    if self.optionsFrame then
+        self.Debug(addon.LOG_LEVEL.WARN, "OptionsPanel: Already initialized, skipping duplicate registration")
+        return
+    end
+    
     -- Check if AceConfig libraries are available
     local AceConfig = LibStub("AceConfig-3.0", true)
     local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
@@ -277,6 +282,11 @@ end
 
 -- Fallback function using standard Settings API
 function OptionsPanel:CreateFallbackPanel()
+    if addon.optionsCategoryID then
+        self.Debug(addon.LOG_LEVEL.WARN, "OptionsPanel: Fallback panel already exists, skipping duplicate registration")
+        return
+    end
+    
     local category = Settings.RegisterVerticalLayoutCategory("GrouperPlus")
     
     -- Debug Level
@@ -319,17 +329,6 @@ function OptionsPanel:CreateFallbackPanel()
     self.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Created fallback panel")
 end
 
--- Initialize when addon loads
-local frame = CreateFrame("Frame")
-frame:RegisterEvent("ADDON_LOADED")
-frame:SetScript("OnEvent", function(self, event, loadedAddon)
-    if loadedAddon == addonName then
-        C_Timer.After(0.1, function()
-            OptionsPanel:OnInitialize()
-        end)
-        self:UnregisterEvent("ADDON_LOADED")
-    end
-end)
 
 -- Slash commands
 SLASH_GROUPEROPTIONS1 = "/grouperopt"
