@@ -5,6 +5,21 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2025-08-12
+
+### Added ✨
+- **Sortable Member List**: Enhanced guild member list with clickable column headers
+  - Click column headers (Role, Name, M+ Score) to sort member list
+  - Toggle between ascending/descending sort by clicking same column
+  - Role sorting follows Tank → Healer → DPS priority order
+  - Clean header design without button backgrounds or arrows
+  - Maintains sort state across list updates
+  - Comprehensive debug logging for sorting operations
+
+### Improved 🔧
+- **Member List UI**: Cleaner column header appearance with better spacing
+- **User Experience**: More intuitive member list navigation for large guilds
+
 ## [0.9.2] - 2025-08-12
 
 ### Fixed 🐛

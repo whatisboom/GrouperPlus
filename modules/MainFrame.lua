@@ -26,6 +26,35 @@ local AddMemberToGroup, RemoveMemberFromGroup, RemoveMemberFromPlayerList, AddMe
 local CreateNewGroup, EnsureEmptyGroupExists, CalculateGroupLayout, RepositionAllGroups, GetMemberBackgroundColor
 local ReorganizeGroupByRole, CheckRoleLimits
 
+-- Utility function to add session permission icons to member names
+local function AddSessionPermissionIcons(memberName)
+    local displayName = memberName
+    
+    -- Add session permission indicators
+    if addon.SessionManager and addon.SessionManager:IsInSession() then
+        local sessionInfo = addon.SessionManager:GetSessionInfo()
+        if sessionInfo then
+            local fullName = memberName
+            if not string.find(fullName, "-") then
+                fullName = fullName .. "-" .. GetRealmName()
+            end
+            
+            if sessionInfo.owner == fullName then
+                -- Session owner gets a crown icon
+                displayName = "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:14:14|t " .. displayName
+            else
+                local whitelist = addon.SessionManager:GetWhitelist()
+                if whitelist[fullName] then
+                    -- Whitelisted players get an assist icon
+                    displayName = "|TInterface\\GroupFrame\\UI-Group-AssistantIcon:14:14|t " .. displayName
+                end
+            end
+        end
+    end
+    
+    return displayName
+end
+
 
 
 
@@ -39,6 +68,20 @@ local function UpdateMemberDisplay()
     
     local members = addon.GuildMemberManager:UpdateMemberList()
     addon.MainFrame.Debug("DEBUG", "UpdateMemberDisplay: Retrieved", #members, "available members from guild list")
+    
+    -- Apply sorting if column headers are available
+    if scrollFrame and scrollFrame:GetParent() then
+        local leftPanel = scrollFrame:GetParent()
+        for i = 1, leftPanel:GetNumChildren() do
+            local child = select(i, leftPanel:GetChildren())
+            if child and child.SortMembers and child.GetSortState then
+                local sortColumn, sortDirection = child.GetSortState()
+                members = child.SortMembers(members, sortColumn, sortDirection)
+                addon.MainFrame.Debug("DEBUG", "UpdateMemberDisplay: Applied sorting by", sortColumn, sortDirection)
+                break
+            end
+        end
+    end
     
     -- Show/hide loading message based on member availability
     -- Only show loading message if we're in a guild but have no guild roster data at all
@@ -157,8 +200,9 @@ ShowDragFrame = function(memberName, memberInfo)
         addon.MainFrame.Debug("DEBUG", "ShowDragFrame: Using existing drag frame")
     end
     
-    addon.MainFrame.Debug("DEBUG", "ShowDragFrame: Setting text to", memberName)
-    dragFrame.text:SetText(memberName)
+    local displayName = AddSessionPermissionIcons(memberName)
+    addon.MainFrame.Debug("DEBUG", "ShowDragFrame: Setting text to", displayName)
+    dragFrame.text:SetText(displayName)
     
     if memberInfo and memberInfo.class then
         local classColor = RAID_CLASS_COLORS[memberInfo.class] or (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[memberInfo.class])
@@ -1118,12 +1162,12 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
         addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Set background color for", memberInfo.name)
         memberFrame.bg:Show()
         
-        -- Include RaiderIO score in display text
-        local displayText = memberInfo.name
+        -- Include session permission icons and RaiderIO score in display text
+        local displayText = AddSessionPermissionIcons(memberInfo.name)
         if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
             local formattedScore = addon.RaiderIOIntegration:GetFormattedScoreWithFallback(memberInfo.name)
             if formattedScore and formattedScore ~= "0" then
-                displayText = memberInfo.name .. " (" .. formattedScore .. ")"
+                displayText = AddSessionPermissionIcons(memberInfo.name) .. " (" .. formattedScore .. ")"
             end
         end
         
@@ -1280,12 +1324,12 @@ ReorganizeGroupByRole = function(groupIndex)
             addon.MainFrame.Debug("DEBUG", "ReorganizeGroupByRole: Set background color for", member.name)
             memberFrame.bg:Show()
             
-            -- Include RaiderIO score in display text
-            local displayText = member.name
+            -- Include session permission icons and RaiderIO score in display text
+            local displayText = AddSessionPermissionIcons(member.name)
             if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
                 local formattedScore = addon.RaiderIOIntegration:GetFormattedScoreWithFallback(member.name)
                 if formattedScore and formattedScore ~= "0" then
-                    displayText = member.name .. " (" .. formattedScore .. ")"
+                    displayText = AddSessionPermissionIcons(member.name) .. " (" .. formattedScore .. ")"
                 end
             end
             
@@ -1618,20 +1662,115 @@ local function CreateMainFrame()
     local columnHeader = CreateFrame("Frame", nil, leftPanel)
     columnHeader:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -105)
     columnHeader:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -30, -105)
-    columnHeader:SetHeight(15)
+    columnHeader:SetHeight(20)
     
-    local nameHeader = columnHeader:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    nameHeader:SetPoint("LEFT", columnHeader, "LEFT", 5, 0)
-    nameHeader:SetText("Name")
-    nameHeader:SetTextColor(0.8, 0.8, 0.8)
+    -- Sort state tracking
+    local sortColumn = "name" -- Default sort column
+    local sortDirection = "asc" -- "asc" or "desc"
     
-    local scoreHeader = columnHeader:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    scoreHeader:SetPoint("RIGHT", columnHeader, "RIGHT", -5, 0)
-    scoreHeader:SetText("M+ Score")
-    scoreHeader:SetTextColor(0.8, 0.8, 0.8)
+    -- Role column header button
+    local roleHeaderBtn = CreateFrame("Button", nil, columnHeader)
+    roleHeaderBtn:SetPoint("LEFT", columnHeader, "LEFT", 5, 0)
+    roleHeaderBtn:SetSize(35, 18)
+    
+    local roleHeaderText = roleHeaderBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    roleHeaderText:SetPoint("CENTER", roleHeaderBtn, "CENTER", 0, 0)
+    roleHeaderText:SetText("Role")
+    roleHeaderText:SetTextColor(0.8, 0.8, 0.8)
+    
+    -- Name column header button
+    local nameHeaderBtn = CreateFrame("Button", nil, columnHeader)
+    nameHeaderBtn:SetPoint("LEFT", roleHeaderBtn, "RIGHT", 5, 0)
+    nameHeaderBtn:SetSize(120, 18)
+    
+    local nameHeaderText = nameHeaderBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    nameHeaderText:SetPoint("CENTER", nameHeaderBtn, "CENTER", 0, 0)
+    nameHeaderText:SetText("Name")
+    nameHeaderText:SetTextColor(0.8, 0.8, 0.8)
+    
+    -- Score column header button
+    local scoreHeaderBtn = CreateFrame("Button", nil, columnHeader)
+    scoreHeaderBtn:SetPoint("RIGHT", columnHeader, "RIGHT", -5, 0)
+    scoreHeaderBtn:SetSize(80, 18)
+    
+    local scoreHeaderText = scoreHeaderBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    scoreHeaderText:SetPoint("CENTER", scoreHeaderBtn, "CENTER", 0, 0)
+    scoreHeaderText:SetText("M+ Score")
+    scoreHeaderText:SetTextColor(0.8, 0.8, 0.8)
+    
+    -- Function to update header text with sort indicators
+    local function UpdateHeaderSortIndicators()
+        -- Just keep the text static without directional arrows
+        roleHeaderText:SetText("Role")
+        nameHeaderText:SetText("Name")
+        scoreHeaderText:SetText("M+ Score")
+    end
+    
+    -- Function to sort members
+    local function SortMembers(members, column, direction)
+        table.sort(members, function(a, b)
+            local aVal, bVal
+            if column == "name" then
+                aVal = a.name or ""
+                bVal = b.name or ""
+            elseif column == "role" then
+                -- Sort order: Tank, Healer, DPS
+                local roleOrder = {TANK = 1, HEALER = 2, DAMAGER = 3}
+                aVal = roleOrder[a.role] or 999
+                bVal = roleOrder[b.role] or 999
+            elseif column == "score" then
+                aVal = 0
+                bVal = 0
+                if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
+                    aVal = addon.RaiderIOIntegration:GetMythicPlusScore(a.name) or 0
+                    bVal = addon.RaiderIOIntegration:GetMythicPlusScore(b.name) or 0
+                end
+            end
+            
+            if direction == "asc" then
+                if aVal == bVal then
+                    return (a.name or "") < (b.name or "")
+                end
+                return aVal < bVal
+            else
+                if aVal == bVal then
+                    return (a.name or "") > (b.name or "")
+                end
+                return aVal > bVal
+            end
+        end)
+        return members
+    end
+    
+    -- Function to handle column header clicks
+    local function OnHeaderClick(column)
+        addon.MainFrame.Debug("INFO", "Column header clicked:", column, "current sort:", sortColumn, sortDirection)
+        if sortColumn == column then
+            sortDirection = sortDirection == "asc" and "desc" or "asc"
+            addon.MainFrame.Debug("DEBUG", "Toggled sort direction for", column, "to", sortDirection)
+        else
+            sortColumn = column
+            sortDirection = "asc"
+            addon.MainFrame.Debug("DEBUG", "Changed sort column to", column, "with direction", sortDirection)
+        end
+        UpdateHeaderSortIndicators()
+        UpdateMemberDisplay()
+    end
+    
+    -- Set up click handlers
+    roleHeaderBtn:SetScript("OnClick", function() OnHeaderClick("role") end)
+    nameHeaderBtn:SetScript("OnClick", function() OnHeaderClick("name") end)
+    scoreHeaderBtn:SetScript("OnClick", function() OnHeaderClick("score") end)
+    
+    -- Store sort function and state for access by UpdateMemberDisplay
+    columnHeader.SortMembers = SortMembers
+    columnHeader.GetSortState = function() return sortColumn, sortDirection end
+    
+    -- Initialize default sort indicator
+    UpdateHeaderSortIndicators()
     
     scrollFrame = CreateFrame("ScrollFrame", nil, leftPanel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -125)
+    scrollFrame:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -130)
     scrollFrame:SetPoint("BOTTOMRIGHT", leftPanel, "BOTTOMRIGHT", -30, 8)
     
     scrollChild = CreateFrame("Frame", nil, scrollFrame)
@@ -2171,11 +2310,11 @@ function addon:OnRaiderIODataReceived(data, sender)
                         memberFrame.bg:SetColorTexture(bgColor.r, bgColor.g, bgColor.b, 0.4)
                         addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "OnRaiderIODataReceived: Updated background color for", member.name)
                         
-                        local displayText = member.name
+                        local displayText = AddSessionPermissionIcons(member.name)
                         if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
                             local formattedScore = addon.RaiderIOIntegration:GetFormattedScoreWithFallback(member.name)
                             if formattedScore and formattedScore ~= "0" then
-                                displayText = member.name .. " (" .. formattedScore .. ")"
+                                displayText = AddSessionPermissionIcons(member.name) .. " (" .. formattedScore .. ")"
                             end
                         end
                         memberFrame.text:SetText(displayText)
