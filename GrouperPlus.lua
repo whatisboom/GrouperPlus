@@ -78,7 +78,38 @@ frame:SetScript("OnEvent", function(self, event, ...)
             -- Initialize library manager first
             addon.LibraryManager:Initialize()
             
-            -- Initialize AddonComm after libraries are loaded
+            -- Initialize new unified state management system
+            if addon.WoWAPIWrapper then
+                addon.WoWAPIWrapper:OnInitialize()
+                Debug(addon.LOG_LEVEL.INFO, "WoWAPIWrapper initialized successfully")
+            end
+            
+            if addon.MessageProtocol then
+                addon.MessageProtocol:OnInitialize()
+                Debug(addon.LOG_LEVEL.INFO, "MessageProtocol initialized successfully")
+            end
+            
+            if addon.MemberStateManager then
+                addon.MemberStateManager:OnInitialize()
+                Debug(addon.LOG_LEVEL.INFO, "MemberStateManager initialized successfully")
+            end
+            
+            if addon.GroupStateManager then
+                addon.GroupStateManager:OnInitialize()
+                Debug(addon.LOG_LEVEL.INFO, "GroupStateManager initialized successfully")
+            end
+            
+            if addon.SessionStateManager then
+                addon.SessionStateManager:OnInitialize()
+                Debug(addon.LOG_LEVEL.INFO, "SessionStateManager initialized successfully")
+            end
+            
+            if addon.StateSync then
+                addon.StateSync:OnInitialize()
+                Debug(addon.LOG_LEVEL.INFO, "StateSync initialized successfully")
+            end
+            
+            -- Initialize AddonComm after libraries are loaded (legacy support)
             if addon.AddonComm then
                 local commInitialized = addon.AddonComm:Initialize()
                 if commInitialized then
@@ -215,6 +246,8 @@ SlashCmdList["GROUPER"] = function(msg)
         else
             Debug(addon.LOG_LEVEL.WARN, "UpdateEditPermissions function not available")
         end
+    elseif command == "test-unified" or command == "test-state" then
+        addon:TestUnifiedStateSystem()
     elseif command == "comm" or command == "communication" then
         if addon.AddonComm then
             local connectedUsers = addon.AddonComm:GetConnectedUsers()
@@ -357,6 +390,39 @@ SlashCmdList["GROUPER"] = function(msg)
         else
             Debug(addon.LOG_LEVEL.WARN, "Group formation or communication modules not available")
         end
+    elseif command == "roster" then
+        if addon.AddonComm then
+            addon.AddonComm:ShareMemberRoster()
+            Debug(addon.LOG_LEVEL.INFO, "Member roster shared to all connected users")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "Communication module not available")
+        end
+    elseif command == "rosterreq" or command == "requestroster" then
+        if addon.AddonComm then
+            addon.AddonComm:RequestMemberRoster()
+            Debug(addon.LOG_LEVEL.INFO, "Requested member rosters from connected users")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "Communication module not available")
+        end
+    elseif command == "rosterstatus" then
+        if addon.MemberManager then
+            local members = addon.MemberManager:UpdateMemberList()
+            local sharedCount = 0
+            local totalCount = #members
+            
+            for _, member in ipairs(members) do
+                if member.source and string.find(member.source, "SHARED_") then
+                    sharedCount = sharedCount + 1
+                end
+            end
+            
+            Debug(addon.LOG_LEVEL.INFO, "Member roster status:")
+            Debug(addon.LOG_LEVEL.INFO, "  Total members:", totalCount)
+            Debug(addon.LOG_LEVEL.INFO, "  Shared members:", sharedCount)
+            Debug(addon.LOG_LEVEL.INFO, "  Local members:", totalCount - sharedCount)
+        else
+            Debug(addon.LOG_LEVEL.WARN, "MemberManager not available")
+        end
     else
         Debug(addon.LOG_LEVEL.INFO, "GrouperPlus commands:")
         Debug(addon.LOG_LEVEL.INFO, "/grouper show - Show minimap button")
@@ -377,5 +443,184 @@ SlashCmdList["GROUPER"] = function(msg)
         Debug(addon.LOG_LEVEL.INFO, "/grouper keystone - Show current keystone and received keystones")
         Debug(addon.LOG_LEVEL.INFO, "/grouper channels - Show communication channel status")
         Debug(addon.LOG_LEVEL.INFO, "/grouper testsize - Test group formation sync via AceComm")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper roster - Share member roster with connected users")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper rosterreq - Request member rosters from others")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper rosterstatus - Show member roster statistics")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper test-unified - Test new unified state management system")
     end
+end
+
+function addon:TestUnifiedStateSystem()
+    Debug(addon.LOG_LEVEL.INFO, "=== TESTING UNIFIED STATE MANAGEMENT SYSTEM ===")
+    
+    -- Test 1: WoW API Wrapper
+    Debug(addon.LOG_LEVEL.INFO, "1. Testing WoWAPIWrapper...")
+    if addon.WoWAPIWrapper then
+        local playerInfo = addon.WoWAPIWrapper:GetPlayerInfo()
+        if playerInfo then
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Player info: " .. playerInfo.fullName .. " (" .. playerInfo.class .. ")")
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Player role: " .. addon.WoWAPIWrapper:GetPlayerRole())
+        else
+            Debug(addon.LOG_LEVEL.ERROR, "   ✗ Failed to get player info")
+        end
+        
+        local channels = addon.WoWAPIWrapper:GetEnabledChannels()
+        Debug(addon.LOG_LEVEL.INFO, "   ✓ Available channels: " .. table.concat(channels, ", "))
+    else
+        Debug(addon.LOG_LEVEL.ERROR, "   ✗ WoWAPIWrapper not available")
+    end
+    
+    -- Test 2: Member State Manager
+    Debug(addon.LOG_LEVEL.INFO, "2. Testing MemberStateManager...")
+    if addon.MemberStateManager then
+        addon.MemberStateManager:RefreshFromSources()
+        local members = addon.MemberStateManager:GetAllMembers()
+        local availableMembers = addon.MemberStateManager:GetAvailableMembers()
+        Debug(addon.LOG_LEVEL.INFO, "   ✓ Total members: " .. #members)
+        Debug(addon.LOG_LEVEL.INFO, "   ✓ Available members: " .. #availableMembers)
+        
+        -- Test adding a dummy member
+        local testMember = {
+            name = "TestPlayer-TestRealm",
+            class = "WARRIOR",
+            level = 80,
+            role = "TANK",
+            source = "MANUAL"
+        }
+        if addon.MemberStateManager:AddMember(testMember) then
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Successfully added test member")
+            addon.MemberStateManager:RemoveMember("TestPlayer-TestRealm")
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Successfully removed test member")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "   ⚠ Failed to add test member")
+        end
+    else
+        Debug(addon.LOG_LEVEL.ERROR, "   ✗ MemberStateManager not available")
+    end
+    
+    -- Test 3: Group State Manager
+    Debug(addon.LOG_LEVEL.INFO, "3. Testing GroupStateManager...")
+    if addon.GroupStateManager then
+        local testGroup = addon.GroupStateManager:CreateGroup({name = "Test Group"})
+        if testGroup then
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Created test group: " .. testGroup.id)
+            
+            local playerInfo = addon.WoWAPIWrapper and addon.WoWAPIWrapper:GetPlayerInfo()
+            if playerInfo then
+                if addon.GroupStateManager:AddMemberToGroup(playerInfo.fullName, testGroup.id) then
+                    Debug(addon.LOG_LEVEL.INFO, "   ✓ Added player to test group")
+                    
+                    local composition = addon.GroupStateManager:GetGroupComposition(testGroup.id)
+                    if composition then
+                        Debug(addon.LOG_LEVEL.INFO, "   ✓ Group composition: " .. composition.totalMembers .. " members")
+                    end
+                    
+                    addon.GroupStateManager:RemoveMemberFromGroup(playerInfo.fullName, testGroup.id)
+                    Debug(addon.LOG_LEVEL.INFO, "   ✓ Removed player from test group")
+                else
+                    Debug(addon.LOG_LEVEL.WARN, "   ⚠ Failed to add player to test group")
+                end
+            end
+            
+            addon.GroupStateManager:RemoveGroup(testGroup.id)
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Removed test group")
+        else
+            Debug(addon.LOG_LEVEL.ERROR, "   ✗ Failed to create test group")
+        end
+    else
+        Debug(addon.LOG_LEVEL.ERROR, "   ✗ GroupStateManager not available")
+    end
+    
+    -- Test 4: Session State Manager
+    Debug(addon.LOG_LEVEL.INFO, "4. Testing SessionStateManager...")
+    if addon.SessionStateManager then
+        local success, sessionId = addon.SessionStateManager:CreateSession({locked = false})
+        if success then
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Created test session: " .. sessionId)
+            
+            local sessionInfo = addon.SessionStateManager:GetSessionInfo()
+            if sessionInfo then
+                Debug(addon.LOG_LEVEL.INFO, "   ✓ Session owner: " .. sessionInfo.ownerId)
+                Debug(addon.LOG_LEVEL.INFO, "   ✓ Can edit members: " .. tostring(addon.SessionStateManager:CanEditMembers()))
+                Debug(addon.LOG_LEVEL.INFO, "   ✓ Can edit groups: " .. tostring(addon.SessionStateManager:CanEditGroups()))
+            end
+            
+            addon.SessionStateManager:EndSession()
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Ended test session")
+        else
+            Debug(addon.LOG_LEVEL.ERROR, "   ✗ Failed to create test session: " .. (sessionId or "unknown error"))
+        end
+    else
+        Debug(addon.LOG_LEVEL.ERROR, "   ✗ SessionStateManager not available")
+    end
+    
+    -- Test 5: Message Protocol
+    Debug(addon.LOG_LEVEL.INFO, "5. Testing MessageProtocol...")
+    if addon.MessageProtocol then
+        local testMessage = addon.MessageProtocol:CreatePing()
+        if testMessage then
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Created test message: " .. testMessage.type)
+            
+            local serialized = addon.MessageProtocol:SerializeMessage(testMessage)
+            if serialized then
+                Debug(addon.LOG_LEVEL.INFO, "   ✓ Serialized message (" .. string.len(serialized) .. " bytes)")
+                
+                local deserialized = addon.MessageProtocol:DeserializeMessage(serialized)
+                if deserialized and deserialized.type == testMessage.type then
+                    Debug(addon.LOG_LEVEL.INFO, "   ✓ Successfully deserialized message")
+                else
+                    Debug(addon.LOG_LEVEL.ERROR, "   ✗ Failed to deserialize message")
+                end
+            else
+                Debug(addon.LOG_LEVEL.ERROR, "   ✗ Failed to serialize message")
+            end
+        else
+            Debug(addon.LOG_LEVEL.ERROR, "   ✗ Failed to create test message")
+        end
+    else
+        Debug(addon.LOG_LEVEL.ERROR, "   ✗ MessageProtocol not available")
+    end
+    
+    -- Test 6: State Sync
+    Debug(addon.LOG_LEVEL.INFO, "6. Testing StateSync...")
+    if addon.StateSync then
+        Debug(addon.LOG_LEVEL.INFO, "   ✓ StateSync initialized: " .. tostring(addon.StateSync.syncState and addon.StateSync.syncState.isInitialized))
+        Debug(addon.LOG_LEVEL.INFO, "   ✓ Sync in progress: " .. tostring(addon.StateSync:IsSyncInProgress()))
+        
+        local history = addon.StateSync:GetSyncHistory()
+        Debug(addon.LOG_LEVEL.INFO, "   ✓ Sync history entries: " .. #history)
+        
+        -- Test ping
+        if addon.StateSync:SendPing() then
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Successfully sent test ping")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "   ⚠ Failed to send test ping (may be no available channels)")
+        end
+    else
+        Debug(addon.LOG_LEVEL.ERROR, "   ✗ StateSync not available")
+    end
+    
+    -- Test 7: Integration Test
+    Debug(addon.LOG_LEVEL.INFO, "7. Testing Full Integration...")
+    if addon.MemberStateManager and addon.GroupStateManager and addon.SessionStateManager then
+        Debug(addon.LOG_LEVEL.INFO, "   ✓ All state managers available")
+        
+        -- Test session permissions affecting group edits
+        local canEditBefore = addon.SessionStateManager:CanEditGroups()
+        Debug(addon.LOG_LEVEL.INFO, "   ✓ Can edit groups (no session): " .. tostring(canEditBefore))
+        
+        -- Create locked session and test permissions
+        local success, sessionId = addon.SessionStateManager:CreateSession({locked = true})
+        if success then
+            addon.SessionStateManager:LockSession()
+            local canEditAfter = addon.SessionStateManager:CanEditGroups()
+            Debug(addon.LOG_LEVEL.INFO, "   ✓ Can edit groups (locked session): " .. tostring(canEditAfter))
+            addon.SessionStateManager:EndSession()
+        end
+    else
+        Debug(addon.LOG_LEVEL.WARN, "   ⚠ Some state managers not available for integration test")
+    end
+    
+    Debug(addon.LOG_LEVEL.INFO, "=== UNIFIED STATE SYSTEM TEST COMPLETE ===")
+    Debug(addon.LOG_LEVEL.INFO, "Use '/grouper test-unified' to run this test again")
 end

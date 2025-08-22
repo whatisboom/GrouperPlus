@@ -51,6 +51,8 @@ local MESSAGE_TYPES = {
     FORMATION_REQUEST = "FORMATION_REQUEST",
     FORMATION_RESPONSE = "FORMATION_RESPONSE",
     KEYSTONE_DATA = "KEYSTONE_DATA",
+    MEMBER_ROSTER_REQUEST = "MEMBER_ROSTER_REQUEST",
+    MEMBER_ROSTER_DATA = "MEMBER_ROSTER_DATA",
     SESSION_CREATE = "SESSION_CREATE",
     SESSION_JOIN = "SESSION_JOIN",
     SESSION_LEAVE = "SESSION_LEAVE",
@@ -65,6 +67,7 @@ local messageQueue = {}
 local lastSyncTime = {}
 local lastSyncedGroupState = nil
 local lastSyncAppliedTime = nil
+local lastRosterShareTime = nil
 local playerRole = nil
 local lastKnownSpec = nil
 
@@ -89,12 +92,23 @@ local function HandleIncomingMessage(prefix, serializedMessage, distribution, se
     if message.type == MESSAGE_TYPES.VERSION_CHECK then
         AddonComm.Debug(addon.LOG_LEVEL.INFO, "Received version check from", sender, "- version:", message.data.addonVersion)
         AddonComm:SendVersionResponse(sender)
+        
+        -- Check if this is a new user
+        local isNewUser = not connectedUsers[sender]
+        
         connectedUsers[sender] = {
             version = message.version,
             addonVersion = message.data.addonVersion,
             lastSeen = GetServerTime()
         }
         AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Added/updated user in connected list:", sender)
+        
+        -- Request roster from new users after a brief delay
+        if isNewUser then
+            C_Timer.After(5, function()
+                AddonComm:RequestMemberRoster()
+            end)
+        end
         
         -- Trigger version check when we receive version info
         if addon.VersionWarning then
@@ -182,6 +196,15 @@ local function HandleIncomingMessage(prefix, serializedMessage, distribution, se
             AddonComm.SessionManager:OnSessionEnd(message.data, sender)
         end
         
+    -- Member roster sharing
+    elseif message.type == MESSAGE_TYPES.MEMBER_ROSTER_REQUEST then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received MEMBER_ROSTER_REQUEST from", sender)
+        AddonComm:HandleMemberRosterRequest(message.data, sender)
+        
+    elseif message.type == MESSAGE_TYPES.MEMBER_ROSTER_DATA then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received MEMBER_ROSTER_DATA from", sender)
+        AddonComm:HandleMemberRosterData(message.data, sender)
+        
     else
         AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Unhandled message type:", message.type, "from", sender)
     end
@@ -218,12 +241,14 @@ function AddonComm:Initialize()
             AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "AceComm-3.0 found via LibraryManager")
         end
         
-        -- Embed AceComm-3.0 into our AddonComm object so we can call methods directly
-        AceCommLib:Embed(AddonComm)
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "AceComm-3.0 embedded into AddonComm")
+        -- Store the AceComm library reference
+        AceComm = AceCommLib
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "AceComm-3.0 library stored, methods available:")
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "  SendCommMessage:", type(AceComm.SendCommMessage))
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "  RegisterComm:", type(AceComm.RegisterComm))
         
         -- Register communication prefix and callback
-        AddonComm:RegisterComm(COMM_PREFIX, HandleIncomingMessage)
+        AceComm:RegisterComm(COMM_PREFIX, HandleIncomingMessage)
         AddonComm.Debug(addon.LOG_LEVEL.INFO, "AddonComm initialized with AceComm-3.0, prefix:", COMM_PREFIX)
         
         self.initialized = true
@@ -271,8 +296,19 @@ function AddonComm:SendMessage(messageType, data, target, priority, distribution
     
     -- AceComm API: SendCommMessage(prefix, text, distribution, target, prio, callbackFn, callbackArg)
     -- Valid prio values: "BULK", "NORMAL", "ALERT"
-    -- Since AceComm is embedded, we call it as self:SendCommMessage
-    local success = self:SendCommMessage(COMM_PREFIX, serialized, distribution, target, priority)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "About to call AceComm:SendCommMessage, AceComm available:", AceComm ~= nil)
+    
+    if not AceComm then
+        AddonComm.Debug(addon.LOG_LEVEL.ERROR, "AceComm library not available for SendCommMessage")
+        return false
+    end
+    
+    local result = AceComm:SendCommMessage(COMM_PREFIX, serialized, distribution, target, priority)
+    
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "AceComm:SendCommMessage returned:", result, type(result))
+    
+    -- AceComm:SendCommMessage returns nil on success, false on failure
+    local success = (result ~= false)
     
     if success then
         AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Sent", messageType, "message via AceComm to", distribution, target and ("(target: " .. target .. ")") or "")
@@ -583,6 +619,97 @@ function AddonComm:BroadcastMessage(messageType, data, priority)
     
     AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted", messageType, "to", sentCount, "channels")
     return sentCount > 0
+end
+
+-- Member Roster Sharing Functions
+function AddonComm:ShareMemberRoster()
+    if not self.initialized then
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized for roster sharing")
+        return false
+    end
+    
+    -- Throttle roster sharing (max once per 30 seconds)
+    local now = GetServerTime()
+    if lastRosterShareTime and (now - lastRosterShareTime) < 30 then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Member roster sharing throttled - too recent")
+        return false
+    end
+    
+    -- Get current member roster from MemberManager
+    if not addon.MemberManager then
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "MemberManager not available for roster sharing")
+        return false
+    end
+    
+    local shareableMembers = addon.MemberManager:GetShareableMemberRoster()
+    if not shareableMembers or #shareableMembers == 0 then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "No members to share in roster")
+        return false
+    end
+    
+    local rosterData = {
+        members = shareableMembers,
+        sender = UnitName("player") .. "-" .. GetRealmName(),
+        timestamp = now,
+        memberCount = #shareableMembers
+    }
+    
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Sharing member roster with", #shareableMembers, "members")
+    local success = self:BroadcastMessage(MESSAGE_TYPES.MEMBER_ROSTER_DATA, rosterData)
+    
+    if success then
+        lastRosterShareTime = now
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Member roster shared successfully")
+    else
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Failed to share member roster")
+    end
+    
+    return success
+end
+
+function AddonComm:RequestMemberRoster()
+    if not self.initialized then
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized for roster request")
+        return false
+    end
+    
+    local requestData = {
+        requester = UnitName("player") .. "-" .. GetRealmName(),
+        timestamp = GetServerTime()
+    }
+    
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Requesting member rosters from connected users")
+    return self:BroadcastMessage(MESSAGE_TYPES.MEMBER_ROSTER_REQUEST, requestData)
+end
+
+function AddonComm:HandleMemberRosterRequest(data, sender)
+    if not data or not data.requester then
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Invalid roster request from", sender)
+        return
+    end
+    
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Received roster request from", data.requester, "- sharing our roster")
+    
+    -- Share our roster in response to the request
+    C_Timer.After(math.random(1, 3), function()
+        self:ShareMemberRoster()
+    end)
+end
+
+function AddonComm:HandleMemberRosterData(data, sender)
+    if not data or not data.members or not data.sender then
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Invalid roster data from", sender)
+        return
+    end
+    
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Received member roster from", data.sender, "with", data.memberCount or 0, "members")
+    
+    -- Pass to MemberManager for integration
+    if addon.MemberManager then
+        addon.MemberManager:ReceiveMemberRoster(data, sender)
+    else
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "MemberManager not available to process received roster")
+    end
 end
 
 return AddonComm

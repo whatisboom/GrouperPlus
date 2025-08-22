@@ -7,9 +7,14 @@
 ## SavedVariables: GrouperDB
 
 libs\LibStub\LibStub.lua
-libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
-libs\AceDB-3.0\AceDB-3.0.lua
-libs\AceComm-3.0\AceComm-3.0.xml
+libs\Ace3\LibStub\LibStub.lua
+libs\Ace3\CallbackHandler-1.0\CallbackHandler-1.0.xml
+libs\Ace3\AceAddon-3.0\AceAddon-3.0.xml
+libs\Ace3\AceEvent-3.0\AceEvent-3.0.xml
+libs\Ace3\AceTimer-3.0\AceTimer-3.0.xml
+libs\Ace3\AceComm-3.0\AceComm-3.0.xml
+libs\Ace3\AceSerializer-3.0\AceSerializer-3.0.xml
+libs\Ace3\AceDB-3.0\AceDB-3.0.xml
 libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 libs\LibCompress\LibCompress.lua
 
@@ -18,6 +23,12 @@ modules\DebugMixin.lua
 modules\ModuleBase.lua
 modules\LibraryManager.lua
 modules\ModuleManager.lua
+modules\WoWAPIWrapper.lua
+modules\MessageProtocol.lua
+modules\MemberStateManager.lua
+modules\GroupStateManager.lua
+modules\SessionStateManager.lua
+modules\StateSync.lua
 GrouperPlus.lua
 modules\Utilities.lua
 modules\AddonComm.lua

@@ -2220,6 +2220,11 @@ local applySyncInProgress = false
 -- Flag to prevent individual syncs during bulk operations like auto-formation
 local bulkOperationInProgress = false
 
+-- Function to check if sync is in progress (for other modules)
+function addon.MainFrame:IsSyncInProgress()
+    return applySyncInProgress
+end
+
 -- Addon Communication Callbacks
 function addon:OnGroupSyncReceived(data, sender)
     addon.MainFrame.Debug(addon.LOG_LEVEL.INFO, "Received group sync from", sender, "- applying to UI if enabled")
@@ -2312,31 +2317,42 @@ function addon:OnGroupSyncReceived(data, sender)
                 -- Add members to the group
                 for j, memberData in ipairs(groupData.members) do
                     if memberData.name and j <= MAX_GROUP_SIZE then
-                        -- Check if member exists in guild
-                        local guildMember = nil
+                        -- Check if member exists in member list (including shared members)
+                        local foundMember = nil
                         local memberList = addon.MemberManager:GetMemberList()
                         for _, member in ipairs(memberList) do
                             if member.name == memberData.name then
-                                guildMember = member
+                                foundMember = member
                                 break
                             end
                         end
                         
-                        if guildMember then
-                            AddMemberToGroup(guildMember.name, i, j)
-                            addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Sync: Added", guildMember.name, "to group", i, "slot", j)
-                        else
-                            addon.MainFrame.Debug(addon.LOG_LEVEL.WARN, "Synced member", memberData.name, "not found in guild roster")
+                        -- If not found in current member list, check if it's a known member from roster sharing
+                        if not foundMember then
+                            -- Create a temporary member entry for synced members
+                            foundMember = {
+                                name = memberData.name,
+                                class = memberData.class or "UNKNOWN",
+                                level = memberData.level or 80,
+                                role = memberData.role or "DPS",
+                                source = "SYNCED"
+                            }
+                            addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Sync: Creating temporary member entry for", memberData.name)
                         end
+                        
+                        AddMemberToGroup(foundMember.name, i, j)
+                        addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Sync: Added", foundMember.name, "to group", i, "slot", j)
                     end
                 end
             end
         end
     end
     
-    -- Update the member display to reflect changes
-    UpdateMemberDisplay()
-    RepositionAllGroups()
+    -- Update the member display to reflect changes (with a slight delay to ensure shared members are included)
+    C_Timer.After(0.1, function()
+        UpdateMemberDisplay()
+        RepositionAllGroups()
+    end)
     
     -- Re-enable sync after applying received sync
     applySyncInProgress = false
@@ -2664,6 +2680,11 @@ function addon.MainFrame:UpdateSessionUI()
     addon:UpdateEditPermissions()
     
     -- Refresh member display to show updated permission icons (crown, assist)
+    UpdateMemberDisplay()
+end
+
+-- Expose UpdateMemberDisplay as a public method for other modules
+function addon.MainFrame:RefreshMemberDisplay()
     UpdateMemberDisplay()
 end
 

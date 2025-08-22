@@ -5,28 +5,51 @@ GrouperPlus is a World of Warcraft addon that provides group management function
 
 ## Current Architecture
 
-### Core Files
-- `GrouperPlus.lua` - Main addon file with initialization, debug system, and minimap integration
+### Unified State Management System (v0.10+)
+GrouperPlus now uses a completely redesigned unified state management architecture for perfect synchronization across all connected clients.
+
+#### Core State Modules
+- `modules/WoWAPIWrapper.lua` - Abstracts all WoW APIs for future unit testing
+- `modules/MemberStateManager.lua` - Single source of truth for all member data and status
+- `modules/GroupStateManager.lua` - Manages group compositions and member assignments
+- `modules/SessionStateManager.lua` - Handles session permissions, lifecycle, and admin controls
+- `modules/MessageProtocol.lua` - Defines message formats, validation, and serialization
+- `modules/StateSync.lua` - Unified synchronization system using AceComm-3.0
+
+#### Legacy Modules (Backward Compatibility)
+- `modules/AddonComm.lua` - Legacy communication system (maintained for compatibility)
+- `modules/SessionManager.lua` - Legacy session management (superseded by SessionStateManager)
+- `modules/MemberManager.lua` - Legacy member management (superseded by MemberStateManager)
+
+#### Core Files
+- `GrouperPlus.lua` - Main addon file with initialization and unified state system bootstrap
 - `GrouperPlus.toc` - Table of contents file listing all addon components
 - `modules/MinimapMenu.lua` - Dropdown menu functionality for the minimap icon
 - `modules/OptionsPanel.lua` - Integration with WoW's interface options panel using the new Settings API
 
 ### Libraries Used
-- **AceDB-3.0** - Database/saved variables management
+- **Full Ace3 Library Suite** - Complete Ace framework for robust addon development
+  - **AceAddon-3.0** - Addon lifecycle and dependency management
+  - **AceEvent-3.0** - Event-driven architecture and messaging
+  - **AceTimer-3.0** - Reliable timer system for debouncing and throttling
+  - **AceComm-3.0** - Automatic message chunking and reliable delivery (with ChatThrottleLib)
+  - **AceSerializer-3.0** - Robust serialization for complex data structures
+  - **AceDB-3.0** - Database/saved variables management
 - **LibDBIcon-1.0** - Minimap button functionality
 - **LibStub** - Library versioning
 - **CallbackHandler-1.0** - Event handling
 
 ### Key Features
-1. **Debug System** - Multi-level logging (ERROR, WARN, INFO, DEBUG, TRACE)
-2. **Minimap Icon** - Draggable icon with left/right-click functionality
-3. **Options Panel** - Integrated into WoW's interface options (ESC → Options → AddOns → GrouperPlus)
-4. **Auto-Formation with Utility Distribution** - Intelligent group creation that balances roles, skill levels, and utility coverage
-5. **Slash Commands**:
-   - `/grouper` - Main command
-   - `/grouper show` or `/grouper minimap` - Show minimap icon
-   - `/grouper hide` - Hide minimap icon
-   - `/grouperopt` or `/grouperptions` - Open options panel
+1. **Unified State Management** - Single source of truth for all member data, group assignments, and session state
+2. **Perfect Visual Synchronization** - All connected clients stay perfectly synced in real-time
+3. **Session-Based Administration** - Session owners can control permissions and lock/unlock editing
+4. **Cross-Realm Support** - Full support for players from different realms with proper name normalization
+5. **Event-Driven Architecture** - Uses Ace3 event system for clean, responsive communication
+6. **Debug System** - Multi-level logging (ERROR, WARN, INFO, DEBUG, TRACE)
+7. **Minimap Icon** - Draggable icon with left/right-click functionality
+8. **Options Panel** - Integrated into WoW's interface options (ESC → Options → AddOns → GrouperPlus)
+9. **Auto-Formation with Utility Distribution** - Intelligent group creation that balances roles, skill levels, and utility coverage
+10. **Comprehensive Testing** - Built-in test command to verify all systems
 
 ## Development Guidelines
 
@@ -58,15 +81,27 @@ When adding new options to the settings panel:
 - Use local variables and functions where possible
 - Follow existing naming conventions (camelCase for functions, UPPER_CASE for constants)
 - Avoid adding comments unless specifically requested
-- Prefer editing existing files over creating new ones
+- **Create small, atomic modules** - Keep modules focused on single responsibilities
+- **Abstract WoW APIs** - Use WoWAPIWrapper for all WoW API calls to enable future unit testing
+- **Keep methods small** - Break complex functions into smaller, focused methods
 
-## Recent Changes
-- Migrated from deprecated `InterfaceOptions_AddCategory` to new Settings API
-- Added comprehensive debug logging to all options panel functionality
-- Simplified button implementation due to API limitations
-- Integrated settings with AceDB saved variables using proxy settings
-- Implemented intelligent utility distribution in auto-formation algorithm
-- Added utility tracking and optimization for combat resurrection, bloodlust, and raid buffs
+### Unified State Management Guidelines
+- **Always use the new state managers** for member, group, and session operations
+- **Never bypass the unified state system** - All state changes must go through the appropriate manager
+- **Use proper event messaging** - State changes trigger events that other modules can listen to
+- **Cross-realm name normalization** - Always use WoWAPIWrapper:NormalizePlayerName() for player names
+- **Session permissions** - Check SessionStateManager:CanEditMembers() and CanEditGroups() before modifications
+
+## Recent Changes (v0.10+ Major Refactor)
+- **BREAKING**: Complete architectural overhaul to unified state management system
+- **NEW**: Six new core state modules (WoWAPIWrapper, MemberStateManager, GroupStateManager, SessionStateManager, MessageProtocol, StateSync)
+- **NEW**: Full Ace3 library suite integration for robust event-driven architecture
+- **NEW**: Perfect visual synchronization across all connected clients
+- **NEW**: Session-based administration with permission controls
+- **NEW**: Comprehensive test command `/grouper test-unified` to verify all systems
+- **IMPROVED**: Cross-realm support with proper name normalization throughout
+- **IMPROVED**: Event-driven communication using AceEvent-3.0 messaging
+- **LEGACY**: Previous modules maintained for backward compatibility during transition
 
 ## Known Issues/Limitations
 - Button controls in the Settings API have strict requirements and may need workarounds
@@ -111,6 +146,8 @@ Defined in `constants.lua` with `CLASS_UTILITIES` and `UTILITY_INFO` tables:
 - System integrates seamlessly with existing role balancing
 
 ## Testing Commands
+
+### Core Addon Commands
 ```
 /reload - Reload the UI
 /grouperopt - Open options panel
@@ -118,6 +155,30 @@ Defined in `constants.lua` with `CLASS_UTILITIES` and `UTILITY_INFO` tables:
 /grouper hide - Hide minimap icon
 /grouper auto - Test auto-formation with utility distribution
 ```
+
+### New Unified State System Commands
+```
+/grouper test-unified - Comprehensive test of all new state management systems
+/grouper test-state - Alias for test-unified
+```
+
+### State Management Test Coverage
+The `/grouper test-unified` command verifies:
+1. **WoWAPIWrapper** - API abstraction and player info retrieval
+2. **MemberStateManager** - Member addition, removal, and state management
+3. **GroupStateManager** - Group creation, member assignment, and composition tracking
+4. **SessionStateManager** - Session creation, permissions, and lifecycle
+5. **MessageProtocol** - Message creation, serialization, and validation
+6. **StateSync** - Sync initialization, history tracking, and communication
+7. **Integration Test** - How all systems work together (session permissions affecting group edits)
+
+### Cross-Realm Testing
+To properly test cross-realm functionality:
+1. Form parties/raids with players from different realms
+2. Run `/grouper test-unified` on all clients
+3. Test member list synchronization across realms
+4. Verify group assignment synchronization
+5. Test session creation and permission propagation
 
 ## Documentation Guidelines
 - **Focus on user value, not implementation details** - Users care about what the addon does for them, not how it's built
@@ -163,40 +224,43 @@ Defined in `constants.lua` with `CLASS_UTILITIES` and `UTILITY_INFO` tables:
 ## Release Process Memory
 - When asked to do a release, you will update the version, prompting for major/minor/patch increments if you are not sure based on the changes, update the changelog, commit the change to git, create a git tag, push to origin, and then publish a release on github, and then using ./deploy-full.sh you will publish a release to curseforge
 
-## Cross-Realm Development Guidelines
+## Unified State Management Architecture
 
-### Player Name Normalization (CRITICAL)
-- **ALWAYS use full name-realm format for player identification**: `"PlayerName-RealmName"`
-- **All UnitName("player") calls should include realm**: `UnitName("player") .. "-" .. GetRealmName()`
-- **For party/raid members, UnitName(unit) returns both values**: `local name, realm = UnitName(unit); local fullName = realm and (name .. "-" .. realm) or name`
-- **Guild members need realm added**: Guild API doesn't include realm, so append current realm
+### State Manager Responsibilities
+- **MemberStateManager** - Single source of truth for all member data (roles, ratings, online status, group assignments)
+- **GroupStateManager** - Manages group compositions, member assignments, and group metadata
+- **SessionStateManager** - Handles session lifecycle, permissions, admin controls, and locked/unlocked states
+- **StateSync** - Coordinates synchronization between all connected clients using AceComm-3.0
+- **MessageProtocol** - Ensures message format consistency, validation, and version compatibility
+- **WoWAPIWrapper** - Abstracts all WoW API calls for consistent behavior and future unit testing
 
-### Communication System Requirements
-- **All addon messages MUST include sender realm**: Use full player name in all message.sender fields
-- **Message filtering MUST use full names**: Check against `UnitName("player") .. "-" .. GetRealmName()`
-- **Keystone/data sharing MUST use full names**: All player data keys should be name-realm format
-- **Cross-realm matching**: When comparing names, handle both normalized and base name formats
+### Event-Driven Communication
+All state changes trigger events using AceEvent-3.0 messaging:
+- `GROUPERPLUS_MEMBER_ADDED` - New member discovered or added
+- `GROUPERPLUS_MEMBER_UPDATED` - Member data changed (role, rating, etc.)
+- `GROUPERPLUS_MEMBER_REMOVED` - Member removed from system
+- `GROUPERPLUS_GROUP_CREATED` - New group created
+- `GROUPERPLUS_MEMBER_ADDED_TO_GROUP` - Member assigned to group
+- `GROUPERPLUS_MEMBER_REMOVED_FROM_GROUP` - Member removed from group
+- `GROUPERPLUS_SESSION_CREATED` - New session started
+- `GROUPERPLUS_SESSION_ENDED` - Session terminated
 
-### Member Management Patterns
-- **Normalize names BEFORE all operations**: Check group membership, store data, compare players
-- **MemberManager normalization**: Always apply realm suffix before checking `membersInGroups[name]`
-- **ProcessMember function**: Normalize at the START of the function, not during processing
-- **Received data storage**: Store all received player data using full name-realm keys
+### Cross-Realm Support (Built-In)
+The unified system handles cross-realm functionality automatically:
+- **Automatic name normalization** via WoWAPIWrapper:NormalizePlayerName()
+- **Cross-realm message routing** through proper AceComm distribution channels
+- **Consistent player identification** using full PlayerName-RealmName format throughout
+- **Cross-realm group assignments** with proper synchronization across different realms
 
-### Debugging Cross-Realm Issues
-- **Add name normalization debug logs**: Show both input name and normalized name in TRACE logs
-- **Track membersInGroups state**: Log current members in groups when updating member lists
-- **Debug received vs stored data**: Log when checking received player data vs member lists
-- **Verify communication sender/receiver**: Log sender fields in all addon communication
+### Session-Based Administration
+- **Session owners** have full administrative control over member lists and group assignments
+- **Locked sessions** prevent non-admin modifications to maintain group stability
+- **Permission system** allows granular control over who can edit members vs groups
+- **Admin delegation** enables multiple administrators per session for large groups
 
-### Common Cross-Realm Pitfalls
-- **Don't assume players are on same realm**: Party/raid members can be from different realms
-- **Don't use UnitName("player") alone for comparison**: Always include realm for consistency
-- **Don't skip realm normalization in any player operations**: Even "simple" operations need proper names
-- **Don't rely on inspect API for current player**: Use GetSpecializationInfo(GetSpecialization()) instead
-
-### Testing Cross-Realm Functionality
-- **Test with players from different realms**: Form parties/raids across realms to verify
-- **Check member list filtering**: Ensure members disappear from lists when added to groups
-- **Verify role synchronization**: Test spec changes propagate correctly across realms
-- **Test all communication features**: Keystones, roles, groups, sessions across realms
+### Perfect Synchronization Guarantee
+The unified state system ensures:
+- **Single source of truth** - All clients reference the same authoritative state
+- **Real-time updates** - State changes immediately propagate to all connected clients
+- **Conflict resolution** - Admin permissions and session locks prevent conflicting edits
+- **Visual consistency** - All clients display identical member lists and group assignments

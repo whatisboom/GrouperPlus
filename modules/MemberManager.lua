@@ -13,6 +13,8 @@ MemberManager:InitDebug("MemberMgr")
 
 -- Private state
 local memberList = {}
+local fullMemberList = {} -- Track all discovered members (for sharing)
+local sharedMemberList = {} -- Track shared members from other clients (persistent)
 local membersInGroups = {} -- Track which members are assigned to groups
 local MAX_LEVEL = GetMaxPlayerLevel()
 
@@ -20,9 +22,12 @@ local MAX_LEVEL = GetMaxPlayerLevel()
 function MemberManager:Initialize(clearGroups)
     self.Debug("DEBUG", "MemberManager: Initializing", clearGroups and "(clearing group tracking)" or "(preserving group tracking)")
     table.wipe(memberList)
+    table.wipe(fullMemberList)
+    -- Don't wipe sharedMemberList - it should persist across updates
     -- Only wipe membersInGroups if explicitly requested (e.g., when clearing all groups)
     if clearGroups then
         table.wipe(membersInGroups)
+        table.wipe(sharedMemberList) -- Only clear shared members when explicitly clearing all
     end
 end
 
@@ -39,6 +44,7 @@ function MemberManager:UpdateMemberList()
     self.Debug("DEBUG", "MemberManager: Current membersInGroups count:", groupMemberCount)
     
     table.wipe(memberList)
+    table.wipe(fullMemberList)
     local seenMembers = {} -- Track duplicates across channels
     
     -- Get enabled channels from communication settings
@@ -63,7 +69,40 @@ function MemberManager:UpdateMemberList()
         end
     end
     
-    self.Debug("INFO", "MemberManager: Found", #memberList, "total available members from", #enabledChannels, "channels (after filtering)")
+    -- Add shared members from other clients to both lists
+    local sharedCount = 0
+    for _, sharedMember in ipairs(sharedMemberList) do
+        if sharedMember.name and not seenMembers[sharedMember.name] then
+            -- Add to full member list
+            table.insert(fullMemberList, sharedMember)
+            seenMembers[sharedMember.name] = sharedMember.source
+            
+            -- Only add to display list if not in a group
+            if not membersInGroups[sharedMember.name] then
+                table.insert(memberList, sharedMember)
+            end
+            
+            sharedCount = sharedCount + 1
+            self.Debug("TRACE", "MemberManager: Added shared member to lists:", sharedMember.name, "from", sharedMember.source)
+        end
+    end
+    
+    if sharedCount > 0 then
+        self.Debug("DEBUG", "MemberManager: Added", sharedCount, "shared members to member lists")
+    end
+    
+    self.Debug("INFO", "MemberManager: Found", #memberList, "available members and", #fullMemberList, "total members from", #enabledChannels, "channels +", sharedCount, "shared")
+    
+    -- Check if we should auto-share roster due to significant changes (but not during sync operations)
+    if self:CheckAutoRosterShare() and not self:IsSyncInProgress() then
+        if addon.AddonComm and addon.AddonComm.ShareMemberRoster then
+            C_Timer.After(2, function()
+                addon.AddonComm:ShareMemberRoster()
+            end)
+        end
+    elseif self:IsSyncInProgress() then
+        self.Debug("DEBUG", "MemberManager: Skipping auto-roster share - sync operation in progress")
+    end
     
     return memberList
 end
@@ -166,12 +205,12 @@ function MemberManager:ProcessMember(name, level, class, classLocalized, source,
     end
     -- For party/raid members, the name should already include the correct realm
     
-    -- Skip if already in a group (check using normalized name)
-    if membersInGroups[normalizedName] then
-        self.Debug("DEBUG", "MemberManager: Skipped", normalizedName, "from", source, "- already in group")
-        return
+    -- Check if member is in a group (but don't skip - we still want them in fullMemberList)
+    local isInGroup = membersInGroups[normalizedName]
+    if isInGroup then
+        self.Debug("DEBUG", "MemberManager: Member", normalizedName, "is already in group - will add to full list only")
     else
-        self.Debug("TRACE", "MemberManager: Member", normalizedName, "not found in membersInGroups - will be included")
+        self.Debug("TRACE", "MemberManager: Member", normalizedName, "not in group - will be included in display list")
     end
     
     if seenMembers[normalizedName] then
@@ -212,12 +251,18 @@ function MemberManager:ProcessMember(name, level, class, classLocalized, source,
         end
     end
     
-    -- Add to lists
-    table.insert(memberList, memberData)
+    -- Always add to full member list (for sharing purposes)
+    table.insert(fullMemberList, memberData)
     seenMembers[normalizedName] = source
     
-    local levelNote = level == MAX_LEVEL and "" or " (DEBUG: ignoring level req)"
-    self.Debug("TRACE", "MemberManager: Added", normalizedName, "from", source, "level", level, levelNote, "class:", class, "role:", memberData.role or "unknown")
+    -- Only add to filtered member list if not in a group (for UI display)
+    if not membersInGroups[normalizedName] then
+        table.insert(memberList, memberData)
+        local levelNote = level == MAX_LEVEL and "" or " (DEBUG: ignoring level req)"
+        self.Debug("TRACE", "MemberManager: Added to display list", normalizedName, "from", source, "level", level, levelNote, "class:", class, "role:", memberData.role or "unknown")
+    else
+        self.Debug("DEBUG", "MemberManager: Added to full list only (already in group)", normalizedName, "from", source)
+    end
 end
 
 -- Get the current member list
@@ -277,4 +322,139 @@ function MemberManager:FindMemberByName(memberName)
         end
     end
     return nil
+end
+
+-- Get shareable member roster for communication
+function MemberManager:GetShareableMemberRoster()
+    self.Debug("DEBUG", "MemberManager: Preparing shareable member roster")
+    
+    local shareableMembers = {}
+    local now = GetServerTime()
+    
+    for _, member in ipairs(fullMemberList) do
+        if member.name and member.class then
+            table.insert(shareableMembers, {
+                name = member.name,
+                class = member.class,
+                classLocalized = member.classLocalized,
+                level = member.level or 80,
+                role = member.role or "DPS",
+                source = member.source or "UNKNOWN",
+                rating = member.rating or 0,
+                timestamp = now
+            })
+        end
+    end
+    
+    self.Debug("INFO", "MemberManager: Prepared", #shareableMembers, "members for sharing")
+    return shareableMembers
+end
+
+-- Receive and integrate member roster from other clients
+function MemberManager:ReceiveMemberRoster(data, sender)
+    if not data or not data.members then
+        self.Debug("WARN", "MemberManager: Invalid roster data received from", sender)
+        return
+    end
+    
+    self.Debug("INFO", "MemberManager: Processing roster from", data.sender, "with", #data.members, "members")
+    
+    local receivedMembers = data.members
+    local mergedCount = 0
+    local now = GetServerTime()
+    
+    -- Create a lookup table for existing members
+    local existingMembers = {}
+    for _, member in ipairs(memberList) do
+        existingMembers[member.name] = member
+    end
+    
+    -- Process each received member
+    for _, receivedMember in ipairs(receivedMembers) do
+        if receivedMember.name and receivedMember.class then
+            local existing = existingMembers[receivedMember.name]
+            
+            if existing then
+                -- Update existing member if received data is newer or has better info
+                if not existing.role and receivedMember.role then
+                    existing.role = receivedMember.role
+                    self.Debug("TRACE", "MemberManager: Updated role for", receivedMember.name, "to", receivedMember.role)
+                end
+                
+                if not existing.rating and receivedMember.rating and receivedMember.rating > 0 then
+                    existing.rating = receivedMember.rating
+                    self.Debug("TRACE", "MemberManager: Updated rating for", receivedMember.name, "to", receivedMember.rating)
+                end
+                
+                if not existing.level and receivedMember.level then
+                    existing.level = receivedMember.level
+                end
+            else
+                -- Add new member to shared member list (regardless of group status)
+                local newMember = {
+                    name = receivedMember.name,
+                    class = receivedMember.class,
+                    classLocalized = receivedMember.classLocalized or receivedMember.class,
+                    level = receivedMember.level or 80,
+                    role = receivedMember.role or "DPS",
+                    source = "SHARED_" .. (receivedMember.source or "UNKNOWN"),
+                    rating = receivedMember.rating or 0,
+                    timestamp = receivedMember.timestamp or now
+                }
+                
+                table.insert(sharedMemberList, newMember)
+                mergedCount = mergedCount + 1
+                
+                self.Debug("TRACE", "MemberManager: Added shared member", receivedMember.name, "from", receivedMember.source)
+            end
+        end
+    end
+    
+    if mergedCount > 0 then
+        self.Debug("INFO", "MemberManager: Merged", mergedCount, "new members from", data.sender)
+        
+        -- Update UI if we have significant new members
+        if addon.MainFrame and addon.MainFrame.RefreshMemberDisplay then
+            C_Timer.After(1, function()
+                addon.MainFrame:RefreshMemberDisplay()
+            end)
+        else
+            -- Fallback: trigger via UpdateMemberList call which should refresh UI
+            C_Timer.After(1, function()
+                self:UpdateMemberList()
+            end)
+        end
+    else
+        self.Debug("DEBUG", "MemberManager: No new members to merge from", data.sender)
+    end
+end
+
+-- Check if sync is currently in progress
+function MemberManager:IsSyncInProgress()
+    -- Check if group sync is being applied in MainFrame
+    if addon.MainFrame and addon.MainFrame.IsSyncInProgress then
+        return addon.MainFrame:IsSyncInProgress()
+    end
+    return false
+end
+
+-- Check if we should auto-share roster (significant changes)
+function MemberManager:CheckAutoRosterShare()
+    local currentCount = #memberList
+    
+    if not self.lastMemberCount then
+        self.lastMemberCount = currentCount
+        return false
+    end
+    
+    local changePercentage = math.abs(currentCount - self.lastMemberCount) / math.max(self.lastMemberCount, 1)
+    
+    if changePercentage > 0.1 then -- 10% change threshold
+        self.Debug("DEBUG", "MemberManager: Significant member list change detected:", self.lastMemberCount, "->", currentCount)
+        self.lastMemberCount = currentCount
+        return true
+    end
+    
+    self.lastMemberCount = currentCount
+    return false
 end
