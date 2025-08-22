@@ -29,7 +29,14 @@ end
 -- Update member list from all enabled communication channels with filtering and role detection
 function MemberManager:UpdateMemberList()
     self.Debug("DEBUG", "MemberManager: Starting member list update from enabled channels")
-    self.Debug("DEBUG", "MemberManager: Current membersInGroups count:", next(membersInGroups) and "has members" or "empty")
+    
+    -- Debug output for current members in groups
+    local groupMemberCount = 0
+    for name, _ in pairs(membersInGroups) do
+        groupMemberCount = groupMemberCount + 1
+        self.Debug("TRACE", "MemberManager: Member in group:", name)
+    end
+    self.Debug("DEBUG", "MemberManager: Current membersInGroups count:", groupMemberCount)
     
     table.wipe(memberList)
     local seenMembers = {} -- Track duplicates across channels
@@ -101,9 +108,10 @@ function MemberManager:CollectPartyMembers(seenMembers)
     
     -- Include the player
     local playerName = UnitName("player")
+    local playerFullName = playerName .. "-" .. GetRealmName()
     local playerLevel = UnitLevel("player")
     local playerClassLocalized, playerClass = UnitClass("player")
-    self:ProcessMember(playerName, playerLevel, playerClass, playerClassLocalized, "PARTY", seenMembers, true)
+    self:ProcessMember(playerFullName, playerLevel, playerClass, playerClassLocalized, "PARTY", seenMembers, true)
 end
 
 -- Collect raid members  
@@ -149,13 +157,7 @@ function MemberManager:ProcessMember(name, level, class, classLocalized, source,
         return
     end
     
-    -- Skip if already in a group
-    if membersInGroups[name] then
-        self.Debug("DEBUG", "MemberManager: Skipped", name, "from", source, "- already in group")
-        return
-    end
-    
-    -- Skip duplicates (member found in multiple channels)
+    -- Normalize name first to ensure consistent format for all checks
     -- Always ensure names have consistent realm format for proper deduplication
     local normalizedName = name
     if not string.find(name, "%-") then
@@ -163,6 +165,14 @@ function MemberManager:ProcessMember(name, level, class, classLocalized, source,
         normalizedName = name .. "-" .. GetRealmName()
     end
     -- For party/raid members, the name should already include the correct realm
+    
+    -- Skip if already in a group (check using normalized name)
+    if membersInGroups[normalizedName] then
+        self.Debug("DEBUG", "MemberManager: Skipped", normalizedName, "from", source, "- already in group")
+        return
+    else
+        self.Debug("TRACE", "MemberManager: Member", normalizedName, "not found in membersInGroups - will be included")
+    end
     
     if seenMembers[normalizedName] then
         self.Debug("DEBUG", "MemberManager: Skipped duplicate", name, "from", source, "(normalized as", normalizedName, "already seen from", seenMembers[normalizedName], ")")

@@ -5,6 +5,33 @@ All notable changes to GrouperPlus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed 🐛
+- **Cross-Realm Member Identification**: Fixed incorrect realm assignment for party/raid members
+  - Party members from different realms were incorrectly assigned the current player's realm
+  - Now properly uses both name and realm values from UnitName() API
+  - Ensures accurate member identification in cross-realm groups
+
+- **Real-Time Role Synchronization**: Fixed role updates not reflecting immediately in UI
+  - Player spec/role changes now immediately transmit to other party members
+  - UI automatically refreshes when role data is received
+  - Fixed spec detection for current player using GetSpecializationInfo()
+  - Added persistent storage for received player data to avoid stale inspect API data
+
+### Enhanced 🚀
+- **Member Management System**: Complete rewrite for multi-channel support
+  - Unified member collection from Guild, Party, and Raid channels
+  - Proper deduplication when members appear in multiple channels
+  - Configurable channel selection via communication settings
+  - Improved debug logging for member processing
+
+### Technical Improvements 🔧
+- **Cross-Realm Support**: Full cross-realm compatibility for all features
+  - Consistent name-realm format throughout the addon
+  - Cross-realm name matching for player data updates
+  - Proper realm handling in addon communication
+
 ## [0.9.4] - 2025-08-12
 
 ### Added 📝

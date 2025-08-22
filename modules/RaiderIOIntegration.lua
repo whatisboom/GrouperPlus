@@ -207,19 +207,21 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         for i = 1, numMembers do
             local unit = "party" .. i
             if UnitExists(unit) then
-                local name = UnitName(unit)
+                local name, realm = UnitName(unit)
+                local fullName = realm and (name .. "-" .. realm) or (name .. "-" .. GetRealmName())
                 local score = self:GetMythicPlusScore(unit)
                 if score then
-                    scores[name] = score
-                    Debug(LOG_LEVEL.INFO, "Group member score -", name, ":", score)
+                    scores[fullName] = score
+                    Debug(LOG_LEVEL.INFO, "Group member score -", fullName, ":", score)
                 end
             end
         end
         
         local playerScore = self:GetMythicPlusScore("player")
         if playerScore then
-            scores[UnitName("player")] = playerScore
-            Debug(LOG_LEVEL.INFO, "Player score:", UnitName("player"), ":", playerScore)
+            local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+            scores[playerFullName] = playerScore
+            Debug(LOG_LEVEL.INFO, "Player score:", playerFullName, ":", playerScore)
         end
         
         Debug(LOG_LEVEL.INFO, "Total group members with scores:", #scores)

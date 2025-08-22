@@ -60,8 +60,9 @@ function VersionWarning:CheckForNewerVersions()
     local newerVersions = {}
     
     -- Check all connected users for newer versions
+    local playerFullName = UnitName("player") .. "-" .. GetRealmName()
     for user, info in pairs(connectedUsers) do
-        if info.addonVersion and user ~= UnitName("player") then
+        if info.addonVersion and user ~= playerFullName then
             if addon.Utils.IsVersionNewer(info.addonVersion, currentVersion) then
                 -- Check if we should show this update
                 local shouldShow = WARNING_SETTINGS.showPatchUpdates or 

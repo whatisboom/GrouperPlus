@@ -110,7 +110,9 @@ function AutoFormation:GetPlayerRole(unitOrNameOrMember)
     if not UnitExists(unit) then
         -- Try to find the player by name
         playerName = unit
-        if playerName == UnitName("player") then
+        local currentPlayerName = UnitName("player")
+        local currentPlayerFullName = currentPlayerName .. "-" .. GetRealmName()
+        if playerName == currentPlayerName or playerName == currentPlayerFullName then
             unit = "player"
         else
             -- For guild members not in group, we can't get their spec directly

@@ -210,7 +210,7 @@ function Keystone:TransmitKeystoneData()
     end
     
     local keystoneData = {
-        player = UnitName("player"),
+        player = UnitName("player") .. "-" .. GetRealmName(),
         mapID = keystoneInfo.mapID,
         level = keystoneInfo.level,
         dungeonName = keystoneInfo.dungeonName,
@@ -240,7 +240,7 @@ function Keystone:RebroadcastKeystoneData()
     end
     
     local keystoneData = {
-        player = UnitName("player"),
+        player = UnitName("player") .. "-" .. GetRealmName(),
         mapID = keystoneInfo.mapID,
         level = keystoneInfo.level,
         dungeonName = keystoneInfo.dungeonName,

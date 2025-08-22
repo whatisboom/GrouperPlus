@@ -73,7 +73,7 @@ local function EncodeMessage(messageType, data)
         version = COMM_VERSION,
         type = messageType,
         timestamp = GetServerTime(),
-        sender = UnitName("player"),
+        sender = UnitName("player") .. "-" .. GetRealmName(),
         data = data or {}
     }
     
@@ -134,7 +134,8 @@ local function IsVersionCompatible(theirVersion)
 end
 
 local function HandleIncomingMessage(message, distribution, sender)
-    if not message or message.sender == UnitName("player") then
+    local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+    if not message or message.sender == playerFullName then
         return
     end
     
@@ -400,7 +401,7 @@ function AddonComm:SyncGroupFormation(groups)
     local syncData = {
         groups = {},
         timestamp = now,
-        leader = UnitName("player")
+        leader = UnitName("player") .. "-" .. GetRealmName()
     }
     
     for i, group in ipairs(groups) do
@@ -515,7 +516,7 @@ end
 function AddonComm:RequestFormation(criteria)
     local requestData = {
         criteria = criteria,
-        requester = UnitName("player"),
+        requester = UnitName("player") .. "-" .. GetRealmName(),
         timestamp = GetServerTime()
     }
     
@@ -539,7 +540,7 @@ function AddonComm:RespondToFormation(requester, response)
     local responseData = {
         requester = requester,
         response = response,
-        responder = UnitName("player"),
+        responder = UnitName("player") .. "-" .. GetRealmName(),
         timestamp = GetServerTime()
     }
     
