@@ -2,7 +2,7 @@
 ## Title: GrouperPlus
 ## Notes: A basic World of Warcraft addon
 ## Author: YourName
-## Version: 0.9.4
+## Version: 0.10.0
 ## IconTexture: Interface\AddOns\GrouperPlus\textures\icon
 ## SavedVariables: GrouperDB
 
