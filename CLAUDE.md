@@ -162,3 +162,41 @@ Defined in `constants.lua` with `CLASS_UTILITIES` and `UTILITY_INFO` tables:
 
 ## Release Process Memory
 - When asked to do a release, you will update the version, prompting for major/minor/patch increments if you are not sure based on the changes, update the changelog, commit the change to git, create a git tag, push to origin, and then publish a release on github, and then using ./deploy-full.sh you will publish a release to curseforge
+
+## Cross-Realm Development Guidelines
+
+### Player Name Normalization (CRITICAL)
+- **ALWAYS use full name-realm format for player identification**: `"PlayerName-RealmName"`
+- **All UnitName("player") calls should include realm**: `UnitName("player") .. "-" .. GetRealmName()`
+- **For party/raid members, UnitName(unit) returns both values**: `local name, realm = UnitName(unit); local fullName = realm and (name .. "-" .. realm) or name`
+- **Guild members need realm added**: Guild API doesn't include realm, so append current realm
+
+### Communication System Requirements
+- **All addon messages MUST include sender realm**: Use full player name in all message.sender fields
+- **Message filtering MUST use full names**: Check against `UnitName("player") .. "-" .. GetRealmName()`
+- **Keystone/data sharing MUST use full names**: All player data keys should be name-realm format
+- **Cross-realm matching**: When comparing names, handle both normalized and base name formats
+
+### Member Management Patterns
+- **Normalize names BEFORE all operations**: Check group membership, store data, compare players
+- **MemberManager normalization**: Always apply realm suffix before checking `membersInGroups[name]`
+- **ProcessMember function**: Normalize at the START of the function, not during processing
+- **Received data storage**: Store all received player data using full name-realm keys
+
+### Debugging Cross-Realm Issues
+- **Add name normalization debug logs**: Show both input name and normalized name in TRACE logs
+- **Track membersInGroups state**: Log current members in groups when updating member lists
+- **Debug received vs stored data**: Log when checking received player data vs member lists
+- **Verify communication sender/receiver**: Log sender fields in all addon communication
+
+### Common Cross-Realm Pitfalls
+- **Don't assume players are on same realm**: Party/raid members can be from different realms
+- **Don't use UnitName("player") alone for comparison**: Always include realm for consistency
+- **Don't skip realm normalization in any player operations**: Even "simple" operations need proper names
+- **Don't rely on inspect API for current player**: Use GetSpecializationInfo(GetSpecialization()) instead
+
+### Testing Cross-Realm Functionality
+- **Test with players from different realms**: Form parties/raids across realms to verify
+- **Check member list filtering**: Ensure members disappear from lists when added to groups
+- **Verify role synchronization**: Test spec changes propagate correctly across realms
+- **Test all communication features**: Keystones, roles, groups, sessions across realms
