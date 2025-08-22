@@ -31,15 +31,12 @@ end
 function SessionManager:RegisterCommHandlers()
     self.Debug("TRACE", "SessionManager:RegisterCommHandlers - Registering session comm handlers")
     
-    local AddonComm = addon.AddonComm
-    if AddonComm and AddonComm.RegisterHandler then
-        AddonComm:RegisterHandler("SESSION_CREATE", function(data, sender) self:OnSessionCreate(data, sender) end)
-        AddonComm:RegisterHandler("SESSION_JOIN", function(data, sender) self:OnSessionJoin(data, sender) end)
-        AddonComm:RegisterHandler("SESSION_LEAVE", function(data, sender) self:OnSessionLeave(data, sender) end)
-        AddonComm:RegisterHandler("SESSION_WHITELIST", function(data, sender) self:OnWhitelistUpdate(data, sender) end)
-        AddonComm:RegisterHandler("SESSION_FINALIZE", function(data, sender) self:OnSessionFinalize(data, sender) end)
-        AddonComm:RegisterHandler("SESSION_STATE", function(data, sender) self:OnSessionStateUpdate(data, sender) end)
-        AddonComm:RegisterHandler("SESSION_END", function(data, sender) self:OnSessionEnd(data, sender) end)
+    -- Register SessionManager with AddonComm for session-related message handling
+    if addon.AddonComm then
+        addon.AddonComm.SessionManager = self
+        self.Debug("DEBUG", "SessionManager registered with AddonComm for session message handling")
+    else
+        self.Debug("WARN", "AddonComm not available for SessionManager registration")
     end
 end
 

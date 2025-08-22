@@ -6,6 +6,7 @@ addon.LibraryManager = LibraryManager
 local libraryCache = {}
 local requiredLibraries = {
     "AceDB-3.0",
+    "AceComm-3.0",
     "LibDBIcon-1.0",
     "CallbackHandler-1.0"
 }
@@ -97,6 +98,10 @@ end
 
 function LibraryManager:GetCallbackHandler()
     return self:GetLibrary("CallbackHandler-1.0")
+end
+
+function LibraryManager:GetAceComm()
+    return self:GetLibrary("AceComm-3.0")
 end
 
 return LibraryManager

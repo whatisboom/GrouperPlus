@@ -78,6 +78,18 @@ frame:SetScript("OnEvent", function(self, event, ...)
             -- Initialize library manager first
             addon.LibraryManager:Initialize()
             
+            -- Initialize AddonComm after libraries are loaded
+            if addon.AddonComm then
+                local commInitialized = addon.AddonComm:Initialize()
+                if commInitialized then
+                    Debug(addon.LOG_LEVEL.INFO, "AddonComm initialized successfully")
+                else
+                    Debug(addon.LOG_LEVEL.ERROR, "Failed to initialize AddonComm")
+                end
+            else
+                Debug(addon.LOG_LEVEL.ERROR, "AddonComm module not loaded")
+            end
+            
             local AceDB = addon.LibraryManager:GetLibrary("AceDB-3.0")
             if not AceDB then
                 Debug(addon.LOG_LEVEL.ERROR, "AceDB-3.0 not available")
@@ -241,12 +253,7 @@ SlashCmdList["GROUPER"] = function(msg)
             Debug(addon.LOG_LEVEL.WARN, "Communication module not loaded")
         end
     elseif command == "checkrole" then
-        if addon.AddonComm then
-            addon.AddonComm:CheckForRoleChange()
-            Debug(addon.LOG_LEVEL.INFO, "Checked for role changes")
-        else
-            Debug(addon.LOG_LEVEL.WARN, "Communication module not loaded")
-        end
+        Debug(addon.LOG_LEVEL.INFO, "Role monitoring is automatic in new AceComm implementation")
     elseif command == "debugspec" or command == "spec" then
         local playerName = UnitName("player")
         local currentSpec = GetSpecialization()
@@ -317,6 +324,39 @@ SlashCmdList["GROUPER"] = function(msg)
         else
             Debug(addon.LOG_LEVEL.WARN, "Keystone module not loaded")
         end
+    elseif command == "clear" or command == "cleargroups" then
+        if addon.ClearAllGroups then
+            Debug(addon.LOG_LEVEL.INFO, "Clearing all groups via slash command")
+            addon:ClearAllGroups()
+        else
+            Debug(addon.LOG_LEVEL.WARN, "ClearAllGroups function not available")
+        end
+    elseif command == "channels" or command == "commstatus" then
+        if addon.AddonComm then
+            local enabled = addon.AddonComm:GetEnabledChannels()
+            Debug(addon.LOG_LEVEL.INFO, "Enabled channels:", table.concat(enabled, ", "))
+            
+            for _, channel in ipairs(enabled) do
+                local available = addon.AddonComm:IsChannelAvailable(channel)
+                Debug(addon.LOG_LEVEL.INFO, "Channel", channel .. ":", available and "AVAILABLE" or "NOT AVAILABLE")
+            end
+            
+            Debug(addon.LOG_LEVEL.INFO, "Communication enabled:", addon.settings.communication.enabled and "YES" or "NO")
+        else
+            Debug(addon.LOG_LEVEL.WARN, "Communication module not loaded")
+        end
+    elseif command == "testsize" or command == "size" then
+        if addon.GetCurrentGroupFormation and addon.AddonComm then
+            local currentGroups = addon:GetCurrentGroupFormation()
+            if currentGroups and #currentGroups > 0 then
+                Debug(addon.LOG_LEVEL.INFO, "Testing AceComm sync for current group formation with", #currentGroups, "groups")
+                addon.AddonComm:SyncGroupFormation(currentGroups)
+            else
+                Debug(addon.LOG_LEVEL.INFO, "No groups found to test sync")
+            end
+        else
+            Debug(addon.LOG_LEVEL.WARN, "Group formation or communication modules not available")
+        end
     else
         Debug(addon.LOG_LEVEL.INFO, "GrouperPlus commands:")
         Debug(addon.LOG_LEVEL.INFO, "/grouper show - Show minimap button")
@@ -335,5 +375,7 @@ SlashCmdList["GROUPER"] = function(msg)
         Debug(addon.LOG_LEVEL.INFO, "/grouper versiontest - Test version warning display")
         Debug(addon.LOG_LEVEL.INFO, "/grouper versiondismiss - Dismiss current version warning")
         Debug(addon.LOG_LEVEL.INFO, "/grouper keystone - Show current keystone and received keystones")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper channels - Show communication channel status")
+        Debug(addon.LOG_LEVEL.INFO, "/grouper testsize - Test group formation sync via AceComm")
     end
 end

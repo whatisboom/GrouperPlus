@@ -144,6 +144,7 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
         local draggedMember = GetDraggedMember()
         GroupFrameUI.Debug("INFO", "=== OnReceiveDrag ENTRY ===")
         GroupFrameUI.Debug("INFO", "Group slot OnReceiveDrag: group", groupIndex, "slot", slotIndex, "draggedMember:", draggedMember and draggedMember.name or "nil")
+        GroupFrameUI.Debug("DEBUG", "OnReceiveDrag: AddMemberToGroup function available:", AddMemberToGroup ~= nil)
         
         if not draggedMember then
             GroupFrameUI.Debug("WARN", "OnReceiveDrag: No draggedMember")

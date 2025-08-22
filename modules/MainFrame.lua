@@ -1067,6 +1067,58 @@ CreateNewGroup = function()
     addon.MainFrame.Debug("INFO", "CreateNewGroup: Created group", groupIndex, "with horizontal layout")
 end
 
+-- Function to get current group formation for syncing
+function addon:GetCurrentGroupFormation()
+    local groups = {}
+    
+    addon.MainFrame.Debug("DEBUG", "GetCurrentGroupFormation: Checking", #dynamicGroups, "dynamic groups")
+    
+    for i, group in ipairs(dynamicGroups) do
+        if group and group.members then
+            addon.MainFrame.Debug("DEBUG", "GetCurrentGroupFormation: Processing group", i, "members table exists")
+            
+            local groupData = {
+                members = {},
+                avgRating = 0
+            }
+            
+            local totalRating = 0
+            local memberCount = 0
+            
+            -- Convert group.members (sparse array) to dense array for sync
+            for slotIndex, member in pairs(group.members) do
+                if member and member.name then
+                    addon.MainFrame.Debug("DEBUG", "GetCurrentGroupFormation: Adding member", member.name, "from slot", slotIndex)
+                    table.insert(groupData.members, {
+                        name = member.name,
+                        role = member.role,
+                        rating = member.score or member.rating or 0,
+                        class = member.class
+                    })
+                    totalRating = totalRating + (member.score or member.rating or 0)
+                    memberCount = memberCount + 1
+                end
+            end
+            
+            -- Calculate average rating
+            if memberCount > 0 then
+                groupData.avgRating = totalRating / memberCount
+            end
+            
+            -- Only include groups that have members
+            if #groupData.members > 0 then
+                addon.MainFrame.Debug("DEBUG", "GetCurrentGroupFormation: Including group", i, "with", #groupData.members, "members")
+                table.insert(groups, groupData)
+            else
+                addon.MainFrame.Debug("DEBUG", "GetCurrentGroupFormation: Skipping empty group", i)
+            end
+        end
+    end
+    
+    addon.MainFrame.Debug("DEBUG", "GetCurrentGroupFormation: Extracted", #groups, "groups for sync")
+    return groups
+end
+
 AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     addon.MainFrame.Debug("INFO", "AddMemberToGroup: ENTRY - Adding", memberName, "to group", groupIndex, "slot", slotIndex)
     addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: dynamicGroups count:", #dynamicGroups)
@@ -1229,6 +1281,20 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     if isGroupToGroupMove then
         addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Running deferred group cleanup after successful group-to-group move")
         RemoveExcessEmptyGroups()
+    end
+    
+    -- Sync group changes with other addon users (only if not applying received sync and not in bulk operation)
+    addon.MainFrame.Debug("TRACE", "AddMemberToGroup: Sync check - applySyncInProgress:", applySyncInProgress, "bulkOperationInProgress:", bulkOperationInProgress)
+    if not applySyncInProgress and not bulkOperationInProgress and addon.AddonComm and addon.AddonComm.SyncGroupFormation then
+        local currentGroups = addon:GetCurrentGroupFormation()
+        if currentGroups then
+            addon.AddonComm:SyncGroupFormation(currentGroups)
+            addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Synced group changes with other users")
+        end
+    elseif applySyncInProgress then
+        addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Skipping sync - applying received sync")
+    elseif bulkOperationInProgress then
+        addon.MainFrame.Debug("INFO", "AddMemberToGroup: Skipping sync - bulk operation in progress")
     end
     
     addon.MainFrame.Debug("INFO", "AddMemberToGroup: Successfully added", memberName, "to group", groupIndex, "with role-based positioning - RETURNING TRUE")
@@ -1415,6 +1481,17 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate, sk
         RemoveExcessEmptyGroups()
     else
         addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Skipping group cleanup for group-to-group move")
+    end
+    
+    -- Sync group changes with other addon users (only if not applying received sync and not skipping cleanup)
+    if not applySyncInProgress and not skipGroupCleanup and addon.AddonComm and addon.AddonComm.SyncGroupFormation then
+        local currentGroups = addon:GetCurrentGroupFormation()
+        if currentGroups then
+            addon.AddonComm:SyncGroupFormation(currentGroups)
+            addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Synced group changes with other users")
+        end
+    elseif applySyncInProgress then
+        addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Skipping sync - applying received sync")
     end
     
     addon.MainFrame.Debug("INFO", "RemoveMemberFromGroup: Successfully removed", memberName, "from group", groupIndex, "and reorganized by role")
@@ -1965,6 +2042,10 @@ function addon:AutoFormGroups()
         return
     end
     
+    -- Set bulk operation flag to prevent individual syncs
+    bulkOperationInProgress = true
+    addon.MainFrame.Debug("INFO", "AutoFormGroups: Set bulk operation flag to prevent individual syncs - flag is now:", bulkOperationInProgress)
+    
     -- Clear existing groups before auto-formation
     addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Clearing existing groups")
     self:ClearAllGroups()
@@ -1974,6 +2055,8 @@ function addon:AutoFormGroups()
     if not memberList or #memberList == 0 then
         addon.MainFrame.Debug("WARN", "AutoFormGroups: No members available for auto-formation")
         addon.MainFrame.Debug(addon.LOG_LEVEL.WARN, "No guild members available. Please wait for the guild roster to load, then try again.")
+        -- Clear bulk operation flag before returning
+        bulkOperationInProgress = false
         -- Try to refresh the guild roster
         C_GuildInfo.GuildRoster()
         return
@@ -1987,6 +2070,8 @@ function addon:AutoFormGroups()
     if not groups or #groups == 0 then
         addon.MainFrame.Debug("WARN", "AutoFormGroups: No valid groups could be formed")
         addon.MainFrame.Debug(addon.LOG_LEVEL.WARN, "Unable to form balanced groups with current members")
+        -- Clear bulk operation flag before returning
+        bulkOperationInProgress = false
         return
     end
     
@@ -2024,6 +2109,37 @@ function addon:AutoFormGroups()
     
     addon.MainFrame.Debug(addon.LOG_LEVEL.INFO, "Auto-formed", #groups, "balanced groups")
     addon.MainFrame.Debug("INFO", "AutoFormGroups: Auto-formation completed successfully")
+    
+    -- Clear bulk operation flag and sync the complete group formation
+    bulkOperationInProgress = false
+    addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Cleared bulk operation flag")
+    
+    addon.MainFrame.Debug("INFO", "AutoFormGroups: About to attempt sync - AddonComm available:", addon.AddonComm ~= nil, "SyncGroupFormation available:", addon.AddonComm and addon.AddonComm.SyncGroupFormation ~= nil)
+    
+    if addon.AddonComm and addon.AddonComm.SyncGroupFormation then
+        local status, result = pcall(function()
+            local currentGroups = addon:GetCurrentGroupFormation()
+            if currentGroups and #currentGroups > 0 then
+                -- Debug the actual groups data being sent
+                addon.MainFrame.Debug("INFO", "AutoFormGroups: About to sync", #currentGroups, "groups:")
+                for i, group in ipairs(currentGroups) do
+                    addon.MainFrame.Debug("INFO", "  Group", i, "has", #group.members, "members:")
+                    for j, member in ipairs(group.members) do
+                        addon.MainFrame.Debug("INFO", "    Member", j, ":", member.name, "role:", member.role)
+                    end
+                end
+                
+                addon.AddonComm:SyncGroupFormation(currentGroups, true)  -- Bypass throttle for auto-formation final sync
+                addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Synced complete group formation with other users -", #currentGroups, "groups")
+            else
+                addon.MainFrame.Debug("WARN", "AutoFormGroups: No groups to sync - currentGroups:", currentGroups, "count:", currentGroups and #currentGroups or "nil")
+            end
+        end)
+        
+        if not status then
+            addon.MainFrame.Debug("ERROR", "AutoFormGroups: Error during sync:", result or "unknown error")
+        end
+    end
 end
 
 function addon:ClearAllGroups()
@@ -2084,8 +2200,25 @@ function addon:ClearAllGroups()
     UpdateMemberDisplay()
     RepositionAllGroups()
     
+    -- Sync group clear with other addon users (only if not applying received sync and not in bulk operation)
+    if not applySyncInProgress and not bulkOperationInProgress and addon.AddonComm and addon.AddonComm.SyncGroupFormation then
+        -- Send empty groups array to sync the cleared state
+        addon.AddonComm:SyncGroupFormation({})
+        addon.MainFrame.Debug("DEBUG", "ClearAllGroups: Synced group clear with other users")
+    elseif applySyncInProgress then
+        addon.MainFrame.Debug("DEBUG", "ClearAllGroups: Skipping sync - applying received sync")
+    elseif bulkOperationInProgress then
+        addon.MainFrame.Debug("DEBUG", "ClearAllGroups: Skipping sync - bulk operation in progress")
+    end
+    
     addon.MainFrame.Debug("DEBUG", "ClearAllGroups: All groups cleared and pruned successfully - remaining groups:", #dynamicGroups)
 end
+
+-- Flag to prevent sync loops during sync application
+local applySyncInProgress = false
+
+-- Flag to prevent individual syncs during bulk operations like auto-formation
+local bulkOperationInProgress = false
 
 -- Addon Communication Callbacks
 function addon:OnGroupSyncReceived(data, sender)
@@ -2101,7 +2234,69 @@ function addon:OnGroupSyncReceived(data, sender)
         return
     end
     
-    -- Clear existing groups before applying sync
+    -- Prevent sync loops
+    applySyncInProgress = true
+    addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Starting sync application - disabling outgoing sync")
+    
+    -- Check if this is an empty sync (group clear)
+    if not data.groups or #data.groups == 0 then
+        addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Received empty group sync - clearing groups without triggering new sync")
+        -- Clear existing groups manually without calling ClearAllGroups to avoid sync loop
+        addon.MemberManager:ClearAllGroupMemberships()
+        
+        -- Clear all group member frames
+        for _, groupFrame in ipairs(dynamicGroups) do
+            if groupFrame.members then
+                table.wipe(groupFrame.members)
+            end
+            -- Clear all member frame displays
+            if groupFrame.memberFrames then
+                for i = 1, MAX_GROUP_SIZE do
+                    local memberFrame = groupFrame.memberFrames[i]
+                    if memberFrame then
+                        memberFrame.bg:Hide()
+                        memberFrame.text:SetText("Empty")
+                        memberFrame.text:SetTextColor(0.5, 0.5, 0.5)
+                        memberFrame.roleText:SetText("")
+                        if memberFrame.removeBtn then
+                            memberFrame.removeBtn:Hide()
+                        end
+                    end
+                end
+            end
+            -- Update group title to show no buffs
+            addon.GroupFrameUI:UpdateGroupTitle(groupFrame)
+        end
+        
+        -- Reset group member counts
+        for _, groupFrame in ipairs(dynamicGroups) do
+            if groupFrame.memberCount then
+                groupFrame.memberCount:SetText("0/5")
+            end
+        end
+        
+        -- Prune empty groups, keeping only one empty group
+        while #dynamicGroups > 1 do
+            local groupFrame = table.remove(dynamicGroups)
+            if groupFrame then
+                groupFrame:Hide()
+                groupFrame:SetParent(nil)
+            end
+        end
+        
+        -- Ensure we have at least one empty group available
+        EnsureEmptyGroupExists()
+        
+        -- Update UI and re-enable sync
+        UpdateMemberDisplay()
+        RepositionAllGroups()
+        applySyncInProgress = false
+        addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Empty sync application complete - re-enabling outgoing sync")
+        addon.MainFrame.Debug(addon.LOG_LEVEL.INFO, "Empty group sync from", sender, "applied successfully")
+        return
+    end
+    
+    -- Clear existing groups before applying sync (without triggering sync)
     addon:ClearAllGroups()
     
     -- Apply the synced groups
@@ -2128,7 +2323,8 @@ function addon:OnGroupSyncReceived(data, sender)
                         end
                         
                         if guildMember then
-                            AddMemberToGroup(i, j, guildMember)
+                            AddMemberToGroup(guildMember.name, i, j)
+                            addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Sync: Added", guildMember.name, "to group", i, "slot", j)
                         else
                             addon.MainFrame.Debug(addon.LOG_LEVEL.WARN, "Synced member", memberData.name, "not found in guild roster")
                         end
@@ -2138,7 +2334,13 @@ function addon:OnGroupSyncReceived(data, sender)
         end
     end
     
+    -- Update the member display to reflect changes
+    UpdateMemberDisplay()
     RepositionAllGroups()
+    
+    -- Re-enable sync after applying received sync
+    applySyncInProgress = false
+    addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Sync application complete - re-enabling outgoing sync")
     addon.MainFrame.Debug(addon.LOG_LEVEL.INFO, "Group sync from", sender, "applied successfully")
 end
 

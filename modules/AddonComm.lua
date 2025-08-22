@@ -42,7 +42,6 @@ function addon:Deserialize(str)
 end
 
 local COMM_PREFIX = "GrouperPlus"
-local COMM_VERSION = "1.0"
 local MESSAGE_TYPES = {
     VERSION_CHECK = "VERSION_CHECK",
     VERSION_RESPONSE = "VERSION_RESPONSE",
@@ -64,87 +63,28 @@ local MESSAGE_TYPES = {
 local connectedUsers = {}
 local messageQueue = {}
 local lastSyncTime = {}
+local lastSyncedGroupState = nil
+local lastSyncAppliedTime = nil
 local playerRole = nil
 local lastKnownSpec = nil
-local messageHandlers = {}
 
-local function EncodeMessage(messageType, data)
-    local message = {
-        version = COMM_VERSION,
-        type = messageType,
-        timestamp = GetServerTime(),
-        sender = UnitName("player") .. "-" .. GetRealmName(),
-        data = data or {}
-    }
-    
-    local serialized = addon:Serialize(message)
-    
-    -- Use compression if enabled and LibCompress is available
-    if addon.settings and addon.settings.communication and addon.settings.communication.compression then
-        local LibCompress = LibStub("LibCompress", true)
-        if LibCompress then
-            local compressed, method = LibCompress:Compress(serialized)
-            if compressed and method ~= "none" then
-                return "C" .. compressed -- Prefix with 'C' to indicate compression
-            end
-        end
-    end
-    
-    return serialized
-end
+-- AceComm integration
+local AceComm = nil
 
-local function DecodeMessage(encodedMessage)
-    local messageData = encodedMessage
-    
-    -- Check if message is compressed
-    if encodedMessage and #encodedMessage > 0 and encodedMessage:sub(1, 1) == "C" then
-        local LibCompress = LibStub("LibCompress", true)
-        if LibCompress then
-            local decompressed = LibCompress:Decompress(encodedMessage:sub(2))
-            if decompressed then
-                messageData = decompressed
-            else
-                AddonComm.Debug(addon.LOG_LEVEL.WARN, "Failed to decompress message")
-                return nil
-            end
-        else
-            AddonComm.Debug(addon.LOG_LEVEL.WARN, "Received compressed message but LibCompress not available")
-            return nil
-        end
-    end
-    
-    local success, message = addon:Deserialize(messageData)
-    
-    if not success or not message or not message.version or not message.type then
-        return nil
-    end
-    
-    return message
-end
-
-local function IsVersionCompatible(theirVersion)
-    local ourMajor, ourMinor = string.match(COMM_VERSION, "(%d+)%.(%d+)")
-    local theirMajor, theirMinor = string.match(theirVersion or "", "(%d+)%.(%d+)")
-    
-    if not ourMajor or not theirMajor then
-        return false
-    end
-    
-    return tonumber(ourMajor) == tonumber(theirMajor)
-end
-
-local function HandleIncomingMessage(message, distribution, sender)
+local function HandleIncomingMessage(prefix, serializedMessage, distribution, sender)
     local playerFullName = UnitName("player") .. "-" .. GetRealmName()
-    if not message or message.sender == playerFullName then
+    if not serializedMessage or sender == playerFullName then
+        return
+    end
+    
+    -- Deserialize the message
+    local success, message = addon:Deserialize(serializedMessage)
+    if not success or not message then
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Failed to deserialize message from", sender)
         return
     end
     
     AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received message from", sender, "type:", message.type)
-    
-    if not IsVersionCompatible(message.version) then
-        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Version incompatible with", sender, "- their version:", message.version, "our version:", COMM_VERSION)
-        return
-    end
     
     if message.type == MESSAGE_TYPES.VERSION_CHECK then
         AddonComm.Debug(addon.LOG_LEVEL.INFO, "Received version check from", sender, "- version:", message.data.addonVersion)
@@ -170,9 +110,7 @@ local function HandleIncomingMessage(message, distribution, sender)
             addonVersion = message.data.addonVersion,
             lastSeen = GetServerTime()
         }
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Added/updated user in connected list:", sender)
         
-        -- Trigger version check when we receive version response
         if addon.VersionWarning then
             C_Timer.After(1, function()
                 addon.VersionWarning:CheckForNewerVersions()
@@ -180,111 +118,117 @@ local function HandleIncomingMessage(message, distribution, sender)
         end
         
     elseif message.type == MESSAGE_TYPES.GROUP_SYNC then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Processing GROUP_SYNC message from", sender)
         AddonComm:HandleGroupSync(message.data, sender)
         
     elseif message.type == MESSAGE_TYPES.PLAYER_DATA then
-        AddonComm:HandlePlayerData(message.data, sender)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received player data from", sender)
+        if addon.OnPlayerDataReceived then
+            addon:OnPlayerDataReceived(message.data, sender)
+        end
         
     elseif message.type == MESSAGE_TYPES.RAIDERIO_DATA then
-        AddonComm:HandleRaiderIOData(message.data, sender)
-        
-    elseif message.type == MESSAGE_TYPES.FORMATION_REQUEST then
-        AddonComm:HandleFormationRequest(message.data, sender)
-        
-    elseif message.type == MESSAGE_TYPES.FORMATION_RESPONSE then
-        AddonComm:HandleFormationResponse(message.data, sender)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received RaiderIO data from", sender)
+        if addon.RaiderIOIntegration then
+            addon.RaiderIOIntegration:ProcessReceivedData(message.data, sender)
+        end
         
     elseif message.type == MESSAGE_TYPES.KEYSTONE_DATA then
-        AddonComm:HandleKeystoneData(message.data, sender)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received keystone data from", sender)
+        if addon.Keystone then
+            addon.Keystone:HandleKeystoneData(message.data, sender)
+        end
         
     -- Session message handling
-    elseif message.type == MESSAGE_TYPES.SESSION_CREATE or
-           message.type == MESSAGE_TYPES.SESSION_JOIN or
-           message.type == MESSAGE_TYPES.SESSION_LEAVE or
-           message.type == MESSAGE_TYPES.SESSION_WHITELIST or
-           message.type == MESSAGE_TYPES.SESSION_FINALIZE or
-           message.type == MESSAGE_TYPES.SESSION_STATE or
-           message.type == MESSAGE_TYPES.SESSION_END then
+    elseif message.type == MESSAGE_TYPES.SESSION_CREATE then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received SESSION_CREATE from", sender)
+        if AddonComm.SessionManager then
+            AddonComm.SessionManager:OnSessionCreate(message.data, sender)
+        end
         
-        -- Call registered handlers for session messages
-        local handler = messageHandlers[message.type]
-        if handler then
-            handler(message.data, sender)
-        else
-            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "No handler registered for message type:", message.type)
+    elseif message.type == MESSAGE_TYPES.SESSION_JOIN then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received SESSION_JOIN from", sender)
+        if AddonComm.SessionManager then
+            AddonComm.SessionManager:OnSessionJoin(message.data, sender)
         end
-    end
-end
-
-function AddonComm:RegisterHandler(messageType, handler)
-    if not messageType or not handler then
-        AddonComm.Debug(addon.LOG_LEVEL.WARN, "RegisterHandler: Invalid messageType or handler")
-        return
-    end
-    
-    messageHandlers[messageType] = handler
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Registered handler for message type:", messageType)
-end
-
-function AddonComm:BroadcastMessage(messageType, data)
-    if not self.initialized then
-        AddonComm.Debug(addon.LOG_LEVEL.WARN, "BroadcastMessage: AddonComm not initialized")
-        return
-    end
-    
-    if not addon.settings or not addon.settings.communication or not addon.settings.communication.enabled then
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "BroadcastMessage: Communication disabled")
-        return
-    end
-    
-    local channels = self:GetEnabledChannels()
-    if #channels == 0 then
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "BroadcastMessage: No channels enabled")
-        return
-    end
-    
-    local encoded = EncodeMessage(messageType, data)
-    if not encoded then
-        AddonComm.Debug(addon.LOG_LEVEL.WARN, "BroadcastMessage: Failed to encode message")
-        return
-    end
-    
-    local sentCount = 0
-    for _, channel in ipairs(channels) do
-        if self:IsChannelAvailable(channel) then
-            C_ChatInfo.SendAddonMessage(COMM_PREFIX, encoded, channel)
-            sentCount = sentCount + 1
-            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted message type:", messageType, "to channel:", channel)
-        else
-            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Channel", channel, "not available, skipping")
+        
+    elseif message.type == MESSAGE_TYPES.SESSION_LEAVE then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received SESSION_LEAVE from", sender)
+        if AddonComm.SessionManager then
+            AddonComm.SessionManager:OnSessionLeave(message.data, sender)
         end
-    end
-    
-    if sentCount > 0 then
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted message type:", messageType, "to", sentCount, "channels")
+        
+    elseif message.type == MESSAGE_TYPES.SESSION_WHITELIST then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received SESSION_WHITELIST from", sender)
+        if AddonComm.SessionManager then
+            AddonComm.SessionManager:OnWhitelistUpdate(message.data, sender)
+        end
+        
+    elseif message.type == MESSAGE_TYPES.SESSION_FINALIZE then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received SESSION_FINALIZE from", sender)
+        if AddonComm.SessionManager then
+            AddonComm.SessionManager:OnSessionFinalize(message.data, sender)
+        end
+        
+    elseif message.type == MESSAGE_TYPES.SESSION_STATE then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received SESSION_STATE from", sender)
+        if AddonComm.SessionManager then
+            AddonComm.SessionManager:OnSessionStateUpdate(message.data, sender)
+        end
+        
+    elseif message.type == MESSAGE_TYPES.SESSION_END then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received SESSION_END from", sender)
+        if AddonComm.SessionManager then
+            AddonComm.SessionManager:OnSessionEnd(message.data, sender)
+        end
+        
     else
-        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Failed to broadcast message - no available channels")
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Unhandled message type:", message.type, "from", sender)
     end
 end
 
 function AddonComm:Initialize()
     if not self.initialized then
-        C_ChatInfo.RegisterAddonMessagePrefix(COMM_PREFIX)
+        -- Debug LibStub and library availability
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "AddonComm:Initialize - LibStub available:", LibStub ~= nil)
+        if LibStub then
+            local aceComm = LibStub("AceComm-3.0", true)
+            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Direct LibStub AceComm-3.0 check:", aceComm ~= nil)
+        end
         
-        local frame = CreateFrame("Frame")
-        frame:RegisterEvent("CHAT_MSG_ADDON")
-        frame:SetScript("OnEvent", function(self, event, prefix, message, distribution, sender)
-            if prefix == COMM_PREFIX then
-                local decodedMessage = DecodeMessage(message)
-                if decodedMessage then
-                    HandleIncomingMessage(decodedMessage, distribution, sender)
+        -- Get AceComm library and embed it into AddonComm
+        local AceCommLib = addon.LibraryManager:GetAceComm()
+        if not AceCommLib then
+            AddonComm.Debug(addon.LOG_LEVEL.ERROR, "AceComm-3.0 library not available via LibraryManager")
+            
+            -- Try direct LibStub access as fallback
+            if LibStub then
+                AceCommLib = LibStub("AceComm-3.0", true)
+                if AceCommLib then
+                    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Found AceComm-3.0 via direct LibStub access")
+                else
+                    AddonComm.Debug(addon.LOG_LEVEL.ERROR, "AceComm-3.0 not found via direct LibStub either")
+                    return false
                 end
+            else
+                AddonComm.Debug(addon.LOG_LEVEL.ERROR, "LibStub not available")
+                return false
             end
-        end)
+        else
+            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "AceComm-3.0 found via LibraryManager")
+        end
+        
+        -- Embed AceComm-3.0 into our AddonComm object so we can call methods directly
+        AceCommLib:Embed(AddonComm)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "AceComm-3.0 embedded into AddonComm")
+        
+        -- Register communication prefix and callback
+        AddonComm:RegisterComm(COMM_PREFIX, HandleIncomingMessage)
+        AddonComm.Debug(addon.LOG_LEVEL.INFO, "AddonComm initialized with AceComm-3.0, prefix:", COMM_PREFIX)
         
         self.initialized = true
-        AddonComm.Debug(addon.LOG_LEVEL.INFO, "AddonComm initialized with prefix:", COMM_PREFIX)
         
+        -- Start version check after initialization
         C_Timer.After(2, function()
             self:BroadcastVersionCheck()
         end)
@@ -294,58 +238,79 @@ function AddonComm:Initialize()
             self:StartRoleMonitoring()
         end)
     end
+    
+    return true
 end
 
-function AddonComm:GetEnabledChannels()
-    local enabledChannels = {}
-    
-    if addon.settings.communication.channels then
-        for channel, enabled in pairs(addon.settings.communication.channels) do
-            if enabled then
-                table.insert(enabledChannels, channel)
-            end
-        end
-    end
-    
-    -- Fallback to GUILD if no channels are enabled
-    if #enabledChannels == 0 then
-        table.insert(enabledChannels, "GUILD")
-    end
-    
-    return enabledChannels
-end
-
-function AddonComm:SendMessage(messageType, data, target, distribution)
+function AddonComm:SendMessage(messageType, data, target, priority, distribution)
     if not self.initialized then
-        AddonComm.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized, cannot send message")
+        AddonComm.Debug(addon.LOG_LEVEL.ERROR, "AddonComm not initialized")
         return false
     end
     
-    -- For direct messages, use whisper
-    if target then
-        distribution = "WHISPER"
-    elseif not distribution then
-        -- For broadcast messages, use the first enabled channel as default
-        local enabledChannels = self:GetEnabledChannels()
-        distribution = enabledChannels[1] or "GUILD"
-    end
+    local message = {
+        version = "1.0",
+        type = messageType,
+        timestamp = GetServerTime(),
+        sender = UnitName("player") .. "-" .. GetRealmName(),
+        data = data or {}
+    }
     
-    local encodedMessage = EncodeMessage(messageType, data)
-    
-    if string.len(encodedMessage) > 255 then
-        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Message too large, breaking into chunks")
+    local serialized = addon:Serialize(message)
+    if not serialized then
+        AddonComm.Debug(addon.LOG_LEVEL.ERROR, "Failed to serialize message of type:", messageType)
         return false
     end
     
-    local success = C_ChatInfo.SendAddonMessage(COMM_PREFIX, encodedMessage, distribution, target)
+    -- Default values
+    priority = priority or "NORMAL"
+    distribution = distribution or "GUILD"
+    
+    -- Send via AceComm - it handles chunking automatically!
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Attempting to send via AceComm:", "prefix=" .. COMM_PREFIX, "distribution=" .. distribution, "target=" .. (target or "nil"), "priority=" .. priority, "message_size=" .. string.len(serialized))
+    
+    -- AceComm API: SendCommMessage(prefix, text, distribution, target, prio, callbackFn, callbackArg)
+    -- Valid prio values: "BULK", "NORMAL", "ALERT"
+    -- Since AceComm is embedded, we call it as self:SendCommMessage
+    local success = self:SendCommMessage(COMM_PREFIX, serialized, distribution, target, priority)
     
     if success then
-        AddonComm.Debug(addon.LOG_LEVEL.TRACE, "Sent message type", messageType, "to", target or distribution)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Sent", messageType, "message via AceComm to", distribution, target and ("(target: " .. target .. ")") or "")
     else
-        AddonComm.Debug(addon.LOG_LEVEL.ERROR, "Failed to send message type", messageType)
+        AddonComm.Debug(addon.LOG_LEVEL.ERROR, "Failed to send", messageType, "message via AceComm - prefix:", COMM_PREFIX, "dist:", distribution, "target:", tostring(target), "priority:", priority)
     end
     
     return success
+end
+
+function AddonComm:GetEnabledChannels()
+    if not addon.settings or not addon.settings.communication then
+        return {"GUILD"}
+    end
+    
+    local channels = {}
+    if addon.settings.communication.channels.GUILD then
+        table.insert(channels, "GUILD")
+    end
+    if addon.settings.communication.channels.PARTY then
+        table.insert(channels, "PARTY")
+    end
+    if addon.settings.communication.channels.RAID then
+        table.insert(channels, "RAID")
+    end
+    
+    return #channels > 0 and channels or {"GUILD"}
+end
+
+function AddonComm:IsChannelAvailable(channel)
+    if channel == "GUILD" then
+        return IsInGuild()
+    elseif channel == "PARTY" then
+        return IsInGroup() and not IsInRaid()
+    elseif channel == "RAID" then
+        return IsInRaid()
+    end
+    return false
 end
 
 function AddonComm:BroadcastVersionCheck()
@@ -367,16 +332,17 @@ function AddonComm:BroadcastVersionCheck()
     end
     
     if #availableChannels == 0 then
-        AddonComm.Debug(addon.LOG_LEVEL.WARN, "No channels available for version check broadcast")
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "No available channels for version check broadcast")
         return
     end
     
-    local addonVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "Unknown"
-    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Broadcasting version check to channels:", table.concat(availableChannels, ", "), "- addon version:", addonVersion)
+    local versionData = {
+        addonVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "Unknown"
+    }
     
-    self:BroadcastMessage(MESSAGE_TYPES.VERSION_CHECK, {
-        addonVersion = addonVersion
-    })
+    for _, channel in ipairs(availableChannels) do
+        self:SendMessage(MESSAGE_TYPES.VERSION_CHECK, versionData, nil, "NORMAL", channel)
+    end
     
     AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Version check broadcast sent successfully")
 end
@@ -387,15 +353,45 @@ function AddonComm:SendVersionResponse(target)
     }, target)
 end
 
-function AddonComm:SyncGroupFormation(groups)
-    if not groups or #groups == 0 then
-        return
+function AddonComm:SyncGroupFormation(groups, bypassThrottle)
+    if not groups then
+        -- Allow empty groups array to sync "clear all groups" state
+        groups = {}
     end
     
     local now = GetServerTime()
-    if lastSyncTime.groups and (now - lastSyncTime.groups) < 5 then
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Group sync throttled - too recent")
+    
+    -- Create a simple hash of the group state for comparison
+    local currentStateHash = ""
+    for i, group in ipairs(groups) do
+        if group and group.members then
+            for j, member in ipairs(group.members) do
+                currentStateHash = currentStateHash .. (member.name or "") .. ":"
+            end
+        end
+        currentStateHash = currentStateHash .. "|"
+    end
+    
+    -- Check if we're trying to sync the exact same state
+    if not bypassThrottle and lastSyncedGroupState == currentStateHash then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Group sync skipped - identical to last synced state")
         return
+    end
+    
+    -- Apply throttling to both empty and non-empty groups to prevent sync loops
+    if not bypassThrottle and lastSyncTime.groups and (now - lastSyncTime.groups) < 3 then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Group sync throttled - too recent (", now - lastSyncTime.groups, "seconds ago)")
+        return
+    end
+    
+    -- Prevent outgoing sync immediately after applying an incoming sync (cooldown period)
+    if not bypassThrottle and lastSyncAppliedTime and (now - lastSyncAppliedTime) < 5 then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Group sync throttled - too soon after applying incoming sync (", now - lastSyncAppliedTime, "seconds ago)")
+        return
+    end
+    
+    if bypassThrottle then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Group sync throttle bypassed")
     end
     
     local syncData = {
@@ -403,6 +399,8 @@ function AddonComm:SyncGroupFormation(groups)
         timestamp = now,
         leader = UnitName("player") .. "-" .. GetRealmName()
     }
+    
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "SyncGroupFormation: Input groups count:", #groups)
     
     for i, group in ipairs(groups) do
         if group and group.members then
@@ -416,7 +414,7 @@ function AddonComm:SyncGroupFormation(groups)
                     syncData.groups[i].members[j] = {
                         name = member.name,
                         role = member.role,
-                        rating = member.rating,
+                        rating = member.score or member.rating or 0,
                         class = member.class
                     }
                 end
@@ -424,349 +422,167 @@ function AddonComm:SyncGroupFormation(groups)
         end
     end
     
-    self:BroadcastMessage(MESSAGE_TYPES.GROUP_SYNC, syncData)
-    lastSyncTime.groups = now
-    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Synced group formation with", #syncData.groups, "groups")
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "SyncGroupFormation: Prepared syncData with", #syncData.groups, "groups")
+    
+    -- Count total members for size estimation
+    local totalMembers = 0
+    for _, group in pairs(syncData.groups) do
+        if group and group.members then
+            totalMembers = totalMembers + #group.members
+        end
+    end
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "SyncGroupFormation: Sync data contains", totalMembers, "total members across", #syncData.groups, "groups")
+    
+    -- Send to ALL available channels to ensure cross-realm/cross-guild sync
+    local allChannels = {"GUILD", "PARTY", "RAID"}
+    local sentCount = 0
+    
+    for _, channel in ipairs(allChannels) do
+        if self:IsChannelAvailable(channel) then
+            -- AceComm automatically handles large messages with chunking!
+            local success = self:SendMessage(MESSAGE_TYPES.GROUP_SYNC, syncData, nil, "NORMAL", channel)
+            if success then
+                sentCount = sentCount + 1
+                AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Sent GROUP_SYNC to channel:", channel)
+            else
+                AddonComm.Debug(addon.LOG_LEVEL.ERROR, "Failed to send GROUP_SYNC to channel:", channel)
+            end
+        else
+            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Channel", channel, "not available for GROUP_SYNC")
+        end
+    end
+    
+    if sentCount > 0 then
+        lastSyncTime.groups = now
+        lastSyncedGroupState = currentStateHash
+        AddonComm.Debug(addon.LOG_LEVEL.INFO, "Synced group formation with", #syncData.groups, "groups to", sentCount, "channels")
+    else
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Failed to sync groups - no channels available")
+    end
 end
 
 function AddonComm:HandleGroupSync(data, sender)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "HandleGroupSync called from", sender)
+    
     if not addon.settings.communication or not addon.settings.communication.acceptGroupSync then
         AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Group sync disabled, ignoring message from", sender)
         return
     end
     
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Group sync enabled, checking data validity")
+    
     if not data or not data.groups or not data.timestamp then
         AddonComm.Debug(addon.LOG_LEVEL.WARN, "Invalid group sync data from", sender)
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Data structure: data=", data ~= nil, "groups=", data and data.groups ~= nil, "timestamp=", data and data.timestamp ~= nil)
         return
     end
     
     AddonComm.Debug(addon.LOG_LEVEL.INFO, "Received group sync from", sender, "with", #data.groups, "groups")
     
     if addon.OnGroupSyncReceived then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Calling OnGroupSyncReceived handler")
         addon:OnGroupSyncReceived(data, sender)
+        
+        -- Mark that we just applied an incoming sync (start cooldown period)
+        lastSyncAppliedTime = GetServerTime()
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Sync applied - starting cooldown period")
+    else
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "OnGroupSyncReceived handler not available")
     end
 end
 
-function AddonComm:SharePlayerData(playerName, playerData)
-    if not playerName or not playerData then
+-- Function for MainFrame to notify that sync application is complete
+function AddonComm:NotifySyncApplied()
+    lastSyncAppliedTime = GetServerTime()
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Sync application complete - cooldown period started")
+end
+
+-- Role monitoring functions (existing functionality)
+function AddonComm:StartRoleMonitoring()
+    local function CheckRoleChange()
+        local currentSpec = GetSpecialization()
+        if currentSpec ~= lastKnownSpec then
+            lastKnownSpec = currentSpec
+            if currentSpec then
+                local role = GetSpecializationRole(currentSpec)
+                if role ~= playerRole then
+                    playerRole = role
+                    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Player role changed to:", role)
+                    self:SharePlayerRole()
+                end
+            end
+        end
+    end
+    
+    CheckRoleChange()
+    
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+    frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+    frame:SetScript("OnEvent", CheckRoleChange)
+    
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Role monitoring started")
+end
+
+function AddonComm:SharePlayerRole(force)
+    if not self.initialized then
         return
     end
     
-    local shareData = {
+    local playerName = UnitName("player") .. "-" .. GetRealmName()
+    local currentSpec = GetSpecialization()
+    
+    if not currentSpec then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "No specialization available for role sharing")
+        return
+    end
+    
+    local role = GetSpecializationRole(currentSpec)
+    local level = UnitLevel("player")
+    local class = select(2, UnitClass("player"))
+    
+    local playerData = {
         player = playerName,
-        rating = playerData.rating,
-        role = playerData.role,
-        class = playerData.class,
+        role = role,
+        level = level,
+        class = class,
         timestamp = GetServerTime()
     }
     
-    self:BroadcastMessage(MESSAGE_TYPES.PLAYER_DATA, shareData)
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted player data for", playerName)
-end
-
-function AddonComm:HandlePlayerData(data, sender)
-    if not addon.settings.communication or not addon.settings.communication.acceptPlayerData then
-        return
-    end
-    
-    if not data or not data.player then
-        return
-    end
-    
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received player data from", sender, "for player", data.player)
-    
-    if addon.OnPlayerDataReceived then
-        addon:OnPlayerDataReceived(data, sender)
-    end
-end
-
-function AddonComm:ShareRaiderIOData(playerName, raiderIOData)
-    if not playerName or not raiderIOData then
-        return
-    end
-    
-    local shareData = {
-        player = playerName,
-        mythicPlusScore = raiderIOData.mythicPlusScore,
-        mainRole = raiderIOData.mainRole,
-        bestRuns = raiderIOData.bestRuns,
-        timestamp = GetServerTime()
-    }
-    
-    self:BroadcastMessage(MESSAGE_TYPES.RAIDERIO_DATA, shareData)
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted RaiderIO data for", playerName)
-end
-
-function AddonComm:HandleRaiderIOData(data, sender)
-    if not addon.settings.communication or not addon.settings.communication.acceptRaiderIOData then
-        return
-    end
-    
-    if not data or not data.player then
-        return
-    end
-    
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Received RaiderIO data from", sender, "for player", data.player)
-    
-    if addon.OnRaiderIODataReceived then
-        addon:OnRaiderIODataReceived(data, sender)
-    end
-end
-
-function AddonComm:RequestFormation(criteria)
-    local requestData = {
-        criteria = criteria,
-        requester = UnitName("player") .. "-" .. GetRealmName(),
-        timestamp = GetServerTime()
-    }
-    
-    self:BroadcastMessage(MESSAGE_TYPES.FORMATION_REQUEST, requestData)
-    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Broadcasted group formation request to enabled channels")
-end
-
-function AddonComm:HandleFormationRequest(data, sender)
-    if not addon.settings.communication or not addon.settings.communication.respondToRequests then
-        return
-    end
-    
-    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Formation request received from", sender)
-    
-    if addon.OnFormationRequestReceived then
-        addon:OnFormationRequestReceived(data, sender)
-    end
-end
-
-function AddonComm:RespondToFormation(requester, response)
-    local responseData = {
-        requester = requester,
-        response = response,
-        responder = UnitName("player") .. "-" .. GetRealmName(),
-        timestamp = GetServerTime()
-    }
-    
-    self:SendMessage(MESSAGE_TYPES.FORMATION_RESPONSE, responseData, requester)
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Sent formation response to", requester)
-end
-
-function AddonComm:HandleFormationResponse(data, sender)
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Formation response received from", sender)
-    
-    if addon.OnFormationResponseReceived then
-        addon:OnFormationResponseReceived(data, sender)
-    end
-end
-
-function AddonComm:HandleKeystoneData(data, sender)
-    if not addon.settings.communication or not addon.settings.communication.acceptKeystoneData then
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Keystone data sharing disabled, ignoring message from", sender)
-        return
-    end
-    
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Keystone data received from", sender)
-    
-    if addon.Keystone and addon.Keystone.HandleKeystoneData then
-        addon.Keystone:HandleKeystoneData(data, sender)
+    local channels = self:GetEnabledChannels()
+    for _, channel in ipairs(channels) do
+        if self:IsChannelAvailable(channel) then
+            self:SendMessage(MESSAGE_TYPES.PLAYER_DATA, playerData, nil, "NORMAL", channel)
+            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Shared role", role, "to", channel)
+        end
     end
 end
 
 function AddonComm:GetConnectedUsers()
-    local now = GetServerTime()
-    local activeUsers = {}
-    local totalUsers = 0
-    local activeCount = 0
-    
-    for user, info in pairs(connectedUsers) do
-        totalUsers = totalUsers + 1
-        local timeSinceLastSeen = info.lastSeen and (now - info.lastSeen) or nil
-        
-        if info.lastSeen and timeSinceLastSeen < 300 then
-            activeUsers[user] = info
-            activeCount = activeCount + 1
-            AddonComm.Debug(addon.LOG_LEVEL.TRACE, "Active user:", user, "last seen", timeSinceLastSeen, "seconds ago")
-        else
-            AddonComm.Debug(addon.LOG_LEVEL.TRACE, "Inactive user:", user, "last seen", timeSinceLastSeen and (timeSinceLastSeen .. " seconds ago") or "never")
-        end
-    end
-    
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "GetConnectedUsers: Found", activeCount, "active users out of", totalUsers, "total users")
-    return activeUsers
+    return connectedUsers
 end
 
-function AddonComm:CleanupStaleConnections()
-    local now = GetServerTime()
-    local cleaned = 0
-    
-    for user, info in pairs(connectedUsers) do
-        if info.lastSeen and (now - info.lastSeen) > 600 then
-            connectedUsers[user] = nil
-            cleaned = cleaned + 1
-        end
-    end
-    
-    if cleaned > 0 then
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Cleaned up", cleaned, "stale connections")
-    end
-end
-
-local function GetPlayerCurrentRole()
-    local specIndex = GetSpecialization()
-    if not specIndex then
-        return nil
-    end
-    
-    -- Use the AutoFormation module's role detection if available
-    if addon.AutoFormation and addon.AutoFormation.GetPlayerRole then
-        return addon.AutoFormation:GetPlayerRole("player")
-    end
-    
-    -- Fallback to basic role detection using the spec index
-    local role = GetSpecializationRole(specIndex)
-    if role == "TANK" then
-        return "TANK"
-    elseif role == "HEALER" then
-        return "HEALER"
-    else
-        return "DPS"
-    end
-end
-
-function AddonComm:SharePlayerRole(forceUpdate)
-    if not self.initialized or not addon.settings.communication or not addon.settings.communication.enabled then
-        return
-    end
-    
-    local currentRole = GetPlayerCurrentRole()
-    local currentSpec = GetSpecialization()
-    
-    -- Only share if role changed or forced update
-    if not forceUpdate and playerRole == currentRole and lastKnownSpec == currentSpec then
-        return
-    end
-    
-    if not currentRole then
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Could not determine player role, skipping share")
-        return
-    end
-    
-    local playerName = UnitName("player")
-    local playerFullName = playerName .. "-" .. GetRealmName()
-    local _, playerClass = UnitClass("player")
-    
-    local roleData = {
-        player = playerFullName,
-        role = currentRole,
-        class = playerClass,
-        specID = currentSpec,
-        level = UnitLevel("player")
-    }
-    
-    -- Include RaiderIO score if available
-    if addon.RaiderIOIntegration and addon.RaiderIOIntegration:IsAvailable() then
-        local score = addon.RaiderIOIntegration:GetMythicPlusScore("player")
-        if score then
-            roleData.rating = score
-        end
-    end
-    
-    self:BroadcastMessage(MESSAGE_TYPES.PLAYER_DATA, roleData)
-    
-    -- Update tracking variables
-    playerRole = currentRole
-    lastKnownSpec = currentSpec
-    
-    -- Update UI if available
-    if addon.UpdatePlayerRoleInUI then
-        addon:UpdatePlayerRoleInUI()
-    end
-    
-    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Shared player role:", currentRole, "for", playerFullName)
-end
-
-function AddonComm:CheckForRoleChange()
+-- Broadcast message to all available channels
+function AddonComm:BroadcastMessage(messageType, data, priority)
     if not self.initialized then
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: Not initialized, skipping")
-        return
+        AddonComm.Debug(addon.LOG_LEVEL.ERROR, "AddonComm not initialized for broadcast")
+        return false
     end
     
-    local currentSpec = GetSpecialization()
-    local currentRole = GetPlayerCurrentRole()
-    
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: Current spec:", currentSpec, "role:", currentRole)
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: Last known spec:", lastKnownSpec, "role:", playerRole)
-    
-    -- Check if spec or role changed
-    if currentSpec ~= lastKnownSpec or currentRole ~= playerRole then
-        AddonComm.Debug(addon.LOG_LEVEL.INFO, "Player role/spec changed - was spec:", lastKnownSpec, "role:", playerRole, "now spec:", currentSpec, "role:", currentRole)
-        self:SharePlayerRole(true)
-    else
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "CheckForRoleChange: No role/spec change detected")
-    end
-end
-
-function AddonComm:StartRoleMonitoring()
-    if not self.initialized then
-        return
-    end
-    
-    -- Register events for spec changes
-    local frame = CreateFrame("Frame")
-    frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-    frame:RegisterEvent("PLAYER_TALENT_UPDATE")
-    frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
-    
-    frame:SetScript("OnEvent", function(self, event, ...)
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Role monitoring event:", event)
-        -- Small delay to ensure spec info is updated
-        C_Timer.After(0.5, function()
-            AddonComm:CheckForRoleChange()
-        end)
-    end)
-    
-    -- Initial role sharing after login
-    C_Timer.After(3, function()
-        AddonComm:SharePlayerRole(true)
-    end)
-    
-    -- Periodic role updates (every 5 minutes) to ensure sync
-    C_Timer.NewTicker(300, function()
-        AddonComm:SharePlayerRole(false)
-    end)
-    
-    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Role monitoring and sharing started")
-end
-
-function AddonComm:IsChannelAvailable(channel)
-    if channel == "GUILD" then
-        return IsInGuild()
-    elseif channel == "PARTY" then
-        return IsInGroup()
-    elseif channel == "RAID" then
-        return IsInRaid()
-    end
-    return false
-end
-
-function AddonComm:GetChannelStatus()
     local channels = self:GetEnabledChannels()
-    local status = {}
+    local sentCount = 0
     
     for _, channel in ipairs(channels) do
-        status[channel] = self:IsChannelAvailable(channel)
+        if self:IsChannelAvailable(channel) then
+            local success = self:SendMessage(messageType, data, nil, priority, channel)
+            if success then
+                sentCount = sentCount + 1
+            end
+        end
     end
     
-    return status
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted", messageType, "to", sentCount, "channels")
+    return sentCount > 0
 end
 
-local cleanupTimer = C_Timer.NewTicker(60, function()
-    AddonComm:CleanupStaleConnections()
-end)
-
-local frame = CreateFrame("Frame")
-frame:RegisterEvent("ADDON_LOADED")
-frame:SetScript("OnEvent", function(self, event, loadedAddonName)
-    if loadedAddonName == addonName then
-        C_Timer.After(1, function()
-            AddonComm:Initialize()
-        end)
-    end
-end)
+return AddonComm

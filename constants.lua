@@ -88,8 +88,8 @@ local defaults = {
             enabled = true,
             channels = {
                 GUILD = true,
-                PARTY = false,
-                RAID = false
+                PARTY = true,
+                RAID = true
             },
             acceptGroupSync = true,
             acceptPlayerData = true,

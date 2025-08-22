@@ -383,7 +383,11 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         end
         
         if shareData.mythicPlusScore > 0 then
-            addon.AddonComm:ShareRaiderIOData(playerName, shareData)
+            addon.AddonComm:BroadcastMessage("RAIDERIO_DATA", {
+                player = playerName,
+                data = shareData,
+                timestamp = GetServerTime()
+            })
             Debug(LOG_LEVEL.INFO, "Shared RaiderIO data for", playerName, "score:", shareData.mythicPlusScore)
         else
             Debug(LOG_LEVEL.DEBUG, "No meaningful RaiderIO data to share for", playerName)
