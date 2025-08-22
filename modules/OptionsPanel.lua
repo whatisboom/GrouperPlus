@@ -26,7 +26,11 @@ local options = {
                 TRACE = "TRACE"
             },
             get = function()
-                return addon.settings.debugLevel or "INFO"
+                if addon.settings.debug.enabled then
+                    return "TRACE"
+                else
+                    return addon.settings.debugLevel or "INFO"
+                end
             end,
             set = function(info, value)
                 local oldValue = addon.settings.debugLevel
@@ -52,6 +56,56 @@ local options = {
                 end
                 OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Minimap icon visibility changed to", value)
             end,
+        },
+        debugHeader = {
+            order = 5,
+            type = "header",
+            name = "Debug Settings",
+        },
+        debugModeGroup = {
+            order = 6,
+            type = "group",
+            name = "Debug Mode",
+            inline = true,
+            args = {
+                enabled = {
+                    order = 1,
+                    type = "toggle",
+                    name = "Enable Debug Mode",
+                    desc = "Enable debug mode to automatically set debug level to TRACE and enable additional debugging options",
+                    width = "full",
+                    get = function()
+                        return addon.settings.debug.enabled
+                    end,
+                    set = function(info, value)
+                        local oldValue = addon.settings.debug.enabled
+                        addon.settings.debug.enabled = value
+                        if value then
+                            OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Debug mode enabled, effective debug level is now TRACE")
+                        else
+                            OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Debug mode disabled, debug level restored to user selection")
+                        end
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Debug mode changed from", oldValue, "to", value)
+                    end,
+                },
+                ignoreMaxLevel = {
+                    order = 2,
+                    type = "toggle",
+                    name = "Ignore Max Level Requirements",
+                    desc = "Ignore maximum level requirements when populating screens and communicating",
+                    disabled = function()
+                        return not addon.settings.debug.enabled
+                    end,
+                    get = function()
+                        return addon.settings.debug.ignoreMaxLevel
+                    end,
+                    set = function(info, value)
+                        local oldValue = addon.settings.debug.ignoreMaxLevel
+                        addon.settings.debug.ignoreMaxLevel = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Ignore max level requirements changed from", oldValue, "to", value)
+                    end,
+                },
+            },
         },
         integrationHeader = {
             order = 10,
@@ -112,7 +166,7 @@ local options = {
                     order = 1,
                     type = "toggle",
                     name = "Enable Addon Communication",
-                    desc = "Enable communication with other GrouperPlus users in your guild",
+                    desc = "Enable communication with other GrouperPlus users",
                     width = "full",
                     get = function()
                         return addon.settings.communication.enabled
@@ -122,13 +176,72 @@ local options = {
                         OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Addon communication changed to", value)
                     end,
                 },
-                dataSharingDesc = {
+                channelsDesc = {
                     order = 2,
+                    type = "description",
+                    name = "\n|cFFFFD700Communication Channels|r\nSelect which channels to use for addon communication:",
+                },
+                channelGuild = {
+                    order = 3,
+                    type = "toggle",
+                    name = "Guild Channel",
+                    desc = "Send addon messages to guild members",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.communication.enabled
+                    end,
+                    get = function()
+                        return addon.settings.communication.channels and addon.settings.communication.channels.GUILD or false
+                    end,
+                    set = function(info, value)
+                        local oldValue = addon.settings.communication.channels.GUILD
+                        addon.settings.communication.channels.GUILD = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Guild channel changed from", oldValue, "to", value)
+                    end,
+                },
+                channelParty = {
+                    order = 4,
+                    type = "toggle",
+                    name = "Party Channel",
+                    desc = "Send addon messages to party members",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.communication.enabled
+                    end,
+                    get = function()
+                        return addon.settings.communication.channels and addon.settings.communication.channels.PARTY or false
+                    end,
+                    set = function(info, value)
+                        local oldValue = addon.settings.communication.channels.PARTY
+                        addon.settings.communication.channels.PARTY = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Party channel changed from", oldValue, "to", value)
+                    end,
+                },
+                channelRaid = {
+                    order = 5,
+                    type = "toggle",
+                    name = "Raid Channel",
+                    desc = "Send addon messages to raid members",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.communication.enabled
+                    end,
+                    get = function()
+                        return addon.settings.communication.channels and addon.settings.communication.channels.RAID or false
+                    end,
+                    set = function(info, value)
+                        local oldValue = addon.settings.communication.channels.RAID
+                        addon.settings.communication.channels.RAID = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Raid channel changed from", oldValue, "to", value)
+                    end,
+                },
+                dataSharingDesc = {
+                    order = 6,
                     type = "description",
                     name = "\n|cFFFFD700Data Sharing Options|r",
                 },
                 acceptGroupSync = {
-                    order = 3,
+                    order = 7,
                     type = "toggle",
                     name = "Accept Group Synchronization",
                     desc = "Allow other addon users to sync their group formations to your interface",
@@ -145,7 +258,7 @@ local options = {
                     end,
                 },
                 acceptPlayerData = {
-                    order = 4,
+                    order = 8,
                     type = "toggle",
                     name = "Accept Player Data Sharing",
                     desc = "Allow receiving player information (roles, ratings) from other addon users",
@@ -162,7 +275,7 @@ local options = {
                     end,
                 },
                 acceptRaiderIOData = {
-                    order = 5,
+                    order = 9,
                     type = "toggle",
                     name = "Accept RaiderIO Data Sharing",
                     desc = "Allow receiving RaiderIO scores from other addon users (useful when you don't have RaiderIO installed)",
@@ -179,12 +292,12 @@ local options = {
                     end,
                 },
                 automationDesc = {
-                    order = 6,
+                    order = 10,
                     type = "description",
                     name = "\n|cFFFFD700Automation Options|r",
                 },
                 respondToRequests = {
-                    order = 7,
+                    order = 11,
                     type = "toggle",
                     name = "Respond to Formation Requests",
                     desc = "Automatically respond to group formation requests from other addon users",
@@ -201,12 +314,12 @@ local options = {
                     end,
                 },
                 performanceDesc = {
-                    order = 8,
+                    order = 12,
                     type = "description",
                     name = "\n|cFFFFD700Performance Options|r",
                 },
                 compression = {
-                    order = 9,
+                    order = 13,
                     type = "toggle",
                     name = "Enable Message Compression",
                     desc = "Compress addon messages to reduce network traffic (requires LibCompress)",
@@ -302,7 +415,13 @@ function OptionsPanel:CreateFallbackPanel()
     
     local debugSetting = Settings.RegisterProxySetting(category, "GrouperPlusDebugLevel", 
         Settings.VarType.String, "Debug Level", "INFO",
-        function() return addon.settings.debugLevel or "INFO" end,
+        function() 
+            if addon.settings.debug.enabled then
+                return "TRACE"
+            else
+                return addon.settings.debugLevel or "INFO"
+            end
+        end,
         function(value) addon.settings.debugLevel = value end
     )
     Settings.CreateDropdown(category, debugSetting, debugOptions, "Set the level of debug messages to display")

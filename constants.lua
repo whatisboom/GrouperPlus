@@ -86,6 +86,11 @@ local defaults = {
         },
         communication = {
             enabled = true,
+            channels = {
+                GUILD = true,
+                PARTY = false,
+                RAID = false
+            },
             acceptGroupSync = true,
             acceptPlayerData = true,
             acceptRaiderIOData = true,
@@ -107,6 +112,10 @@ local defaults = {
                 requireApproval = false,
                 autoSync = true
             }
+        },
+        debug = {
+            enabled = false,
+            ignoreMaxLevel = false
         }
     }
 }

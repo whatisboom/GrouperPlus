@@ -1,5 +1,36 @@
 local addonName, addon = ...
 
+-- Helper function for comprehensive cross-realm player name matching
+local function FindPlayerDataByName(targetName, dataTable)
+    if not targetName or not dataTable then
+        return nil
+    end
+    
+    -- Extract base name (without realm) from target
+    local targetBaseName = string.match(targetName, "^(.+)%-") or targetName
+    
+    -- Search through all entries in the data table
+    for storedName, data in pairs(dataTable) do
+        -- Try exact match first
+        if storedName == targetName then
+            return data
+        end
+        
+        -- Try with target name + various realm combinations
+        local storedBaseName = string.match(storedName, "^(.+)%-") or storedName
+        if storedBaseName == targetBaseName then
+            return data
+        end
+        
+        -- Handle case where target has realm but stored doesn't
+        if storedName == targetBaseName then
+            return data
+        end
+    end
+    
+    return nil
+end
+
 -- Member Row UI Module
 -- Handles creation, display, and interaction of member rows in the guild member list
 
@@ -51,6 +82,11 @@ local function CreateMemberTooltip(row)
             local receivedKeystones = addon.Keystone:GetReceivedKeystones()
             local keystoneData = receivedKeystones[row.memberName]
             
+            -- If not found, try comprehensive cross-realm name matching
+            if not keystoneData then
+                keystoneData = FindPlayerDataByName(row.memberName, receivedKeystones)
+            end
+            
             if keystoneData and keystoneData.mapID and keystoneData.level then
                 GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
                 GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
@@ -76,6 +112,12 @@ local function CreateMemberTooltip(row)
         else
             -- Check if this member has GrouperPlus installed
             local memberAddonInfo = connectedUsers[row.memberName]
+            
+            -- If not found, try comprehensive cross-realm name matching
+            if not memberAddonInfo then
+                memberAddonInfo = FindPlayerDataByName(row.memberName, connectedUsers)
+            end
+            
             if memberAddonInfo then
                 GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
                 GameTooltip:AddLine("GrouperPlus:", 0.8, 0.8, 0.8)
@@ -188,7 +230,7 @@ local function SetupRowDragHandlers(row, index)
             MemberRowUI.Debug("INFO", "Started dragging member:", self.memberName)
             
             -- Find the member info for class colors
-            local memberInfo = addon.GuildMemberManager:FindMemberByName(self.memberName)
+            local memberInfo = addon.MemberManager:FindMemberByName(self.memberName)
             if memberInfo then
                 MemberRowUI.Debug("DEBUG", "Found memberInfo for", self.memberName, "class:", memberInfo.class)
             end

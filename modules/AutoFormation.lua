@@ -119,11 +119,62 @@ function AutoFormation:GetPlayerRole(unitOrNameOrMember)
             return self:GetRoleFromClass(memberData or playerName)
         end
     else
-        playerName = UnitName(unit)
+        local name, realm = UnitName(unit)
+        playerName = realm and (name .. "-" .. realm) or name
+    end
+    
+    -- Check for received player data first (more recent than inspect API)
+    -- But skip this for the current player - we always want fresh data for ourselves
+    if addon.receivedPlayerData and playerName and unit ~= "player" then
+        AutoFormation.Debug("DEBUG", "Checking received player data for:", playerName)
+        if addon.receivedPlayerData then
+            local keys = {}
+            for k, _ in pairs(addon.receivedPlayerData) do
+                table.insert(keys, k)
+            end
+            AutoFormation.Debug("DEBUG", "Available received data keys:", table.concat(keys, ", "))
+        else
+            AutoFormation.Debug("DEBUG", "No receivedPlayerData table found")
+        end
+        
+        -- Try direct match first
+        local receivedData = addon.receivedPlayerData[playerName]
+        if not receivedData and playerName then
+            -- Try cross-realm matching
+            local baseName = string.match(playerName, "^(.+)%-") or playerName
+            AutoFormation.Debug("DEBUG", "No direct match, trying cross-realm match for base name:", baseName)
+            for name, data in pairs(addon.receivedPlayerData) do
+                local nameBase = string.match(name, "^(.+)%-") or name
+                if nameBase == baseName then
+                    AutoFormation.Debug("DEBUG", "Found cross-realm match:", name)
+                    receivedData = data
+                    break
+                end
+            end
+        end
+        
+        if receivedData and receivedData.role then
+            AutoFormation.Debug("INFO", "Using received player data for", playerName, "role:", receivedData.role)
+            return receivedData.role
+        else
+            AutoFormation.Debug("DEBUG", "No received data found for", playerName, "or data missing role")
+        end
     end
     
     -- Try to get the player's current specialization
-    local specIndex = GetInspectSpecialization(unit)
+    local specIndex
+    if unit == "player" then
+        -- For the current player, use GetSpecializationInfo to get the spec ID
+        local currentSpec = GetSpecialization()
+        if currentSpec then
+            local specID, specName, description, icon, role, isRecommended, isAllowed = GetSpecializationInfo(currentSpec)
+            specIndex = specID
+        end
+    else
+        -- For other units, use GetInspectSpecialization
+        specIndex = GetInspectSpecialization(unit)
+    end
+    
     if specIndex and specIndex > 0 then
         local role = SPEC_ROLE_MAP[specIndex]
         if role then

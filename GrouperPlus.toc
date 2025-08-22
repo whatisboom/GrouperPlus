@@ -27,7 +27,7 @@ modules\OptionsPanel.lua
 modules\RaiderIOIntegration.lua
 modules\AutoFormation.lua
 modules\VersionWarning.lua
-modules\GuildMemberManager.lua
+modules\MemberManager.lua
 modules\MemberRowUI.lua
 modules\GroupFrameUI.lua
 modules\MainFrame.lua

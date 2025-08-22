@@ -73,6 +73,26 @@ function MinimapMenu:CreateDropdownMenu(LibDBIcon)
             UIDropDownMenu_AddButton(info, level)
             
             info = UIDropDownMenu_CreateInfo()
+            info.text = "Open Options Panel"
+            info.notCheckable = true
+            info.func = function()
+                if addon.optionsCategoryID then
+                    Settings.OpenToCategory(addon.optionsCategoryID)
+                    self.Debug("INFO", "Opened options panel in AddOns tab from minimap menu")
+                else
+                    local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
+                    if AceConfigDialog then
+                        AceConfigDialog:Open("GrouperPlus")
+                        self.Debug("INFO", "Opened options panel via AceConfig from minimap menu")
+                    else
+                        self.Debug("WARN", "Options panel not available")
+                    end
+                end
+                CloseDropDownMenus()
+            end
+            UIDropDownMenu_AddButton(info, level)
+            
+            info = UIDropDownMenu_CreateInfo()
             info.hasArrow = false
             info.disabled = true
             info.notCheckable = true

@@ -66,17 +66,32 @@ function Keystone:Initialize()
     frame:RegisterEvent("MYTHIC_PLUS_CURRENT_AFFIX_UPDATE")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
     frame:RegisterEvent("MYTHIC_PLUS_NEW_WEEKLY_RECORD")
+    frame:RegisterEvent("GROUP_ROSTER_UPDATE")
     
     frame:SetScript("OnEvent", function(self, event, ...)
         addon.Debug(addon.LOG_LEVEL.DEBUG, "Keystone event:", event)
-        C_Timer.After(0.1, function()
-            Keystone:UpdateKeystoneInfo()
-        end)
+        
+        if event == "GROUP_ROSTER_UPDATE" then
+            -- For group changes, rebroadcast existing keystone data immediately
+            C_Timer.After(1, function()
+                Keystone:RebroadcastKeystoneData()
+            end)
+        else
+            -- For other events, do the normal keystone update check
+            C_Timer.After(0.1, function()
+                Keystone:UpdateKeystoneInfo()
+            end)
+        end
     end)
     
     -- Periodic update every 30 seconds to catch any missed keystone changes
     C_Timer.NewTicker(30, function()
         Keystone:UpdateKeystoneInfo()
+    end)
+    
+    -- Periodic rebroadcast every 2 minutes to ensure new party members get keystone data
+    C_Timer.NewTicker(120, function()
+        Keystone:RebroadcastKeystoneData()
     end)
     
     -- Initial keystone check
@@ -202,8 +217,38 @@ function Keystone:TransmitKeystoneData()
         timestamp = keystoneInfo.lastUpdate
     }
     
-    addon.Debug(addon.LOG_LEVEL.INFO, "Transmitting keystone data:", self:GetKeystoneString())
-    addon.AddonComm:SendMessage("KEYSTONE_DATA", keystoneData)
+    addon.Debug(addon.LOG_LEVEL.INFO, "Broadcasting keystone data:", self:GetKeystoneString())
+    addon.AddonComm:BroadcastMessage("KEYSTONE_DATA", keystoneData)
+end
+
+function Keystone:RebroadcastKeystoneData()
+    -- Only rebroadcast if we have a keystone and are in a group
+    if not keystoneInfo.mapID or not keystoneInfo.level then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "No keystone to rebroadcast")
+        return
+    end
+    
+    -- Only rebroadcast if we're in a party or raid (no point broadcasting to guild constantly)
+    if not IsInGroup() and not IsInRaid() then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "Not in group, skipping keystone rebroadcast")
+        return
+    end
+    
+    if not addon.AddonComm or not addon.AddonComm.initialized then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "AddonComm not available for keystone rebroadcast")
+        return
+    end
+    
+    local keystoneData = {
+        player = UnitName("player"),
+        mapID = keystoneInfo.mapID,
+        level = keystoneInfo.level,
+        dungeonName = keystoneInfo.dungeonName,
+        timestamp = keystoneInfo.lastUpdate
+    }
+    
+    addon.Debug(addon.LOG_LEVEL.DEBUG, "Rebroadcasting keystone data:", self:GetKeystoneString())
+    addon.AddonComm:BroadcastMessage("KEYSTONE_DATA", keystoneData)
 end
 
 function Keystone:HandleKeystoneData(data, sender)

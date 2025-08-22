@@ -236,12 +236,33 @@ function AddonComm:BroadcastMessage(messageType, data)
         return
     end
     
+    local channels = self:GetEnabledChannels()
+    if #channels == 0 then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "BroadcastMessage: No channels enabled")
+        return
+    end
+    
     local encoded = EncodeMessage(messageType, data)
-    if encoded then
-        C_ChatInfo.SendAddonMessage(COMM_PREFIX, encoded, "GUILD")
-        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted message type:", messageType)
-    else
+    if not encoded then
         AddonComm.Debug(addon.LOG_LEVEL.WARN, "BroadcastMessage: Failed to encode message")
+        return
+    end
+    
+    local sentCount = 0
+    for _, channel in ipairs(channels) do
+        if self:IsChannelAvailable(channel) then
+            C_ChatInfo.SendAddonMessage(COMM_PREFIX, encoded, channel)
+            sentCount = sentCount + 1
+            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted message type:", messageType, "to channel:", channel)
+        else
+            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Channel", channel, "not available, skipping")
+        end
+    end
+    
+    if sentCount > 0 then
+        AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted message type:", messageType, "to", sentCount, "channels")
+    else
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Failed to broadcast message - no available channels")
     end
 end
 
@@ -274,13 +295,40 @@ function AddonComm:Initialize()
     end
 end
 
+function AddonComm:GetEnabledChannels()
+    local enabledChannels = {}
+    
+    if addon.settings.communication.channels then
+        for channel, enabled in pairs(addon.settings.communication.channels) do
+            if enabled then
+                table.insert(enabledChannels, channel)
+            end
+        end
+    end
+    
+    -- Fallback to GUILD if no channels are enabled
+    if #enabledChannels == 0 then
+        table.insert(enabledChannels, "GUILD")
+    end
+    
+    return enabledChannels
+end
+
 function AddonComm:SendMessage(messageType, data, target, distribution)
     if not self.initialized then
         AddonComm.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized, cannot send message")
         return false
     end
     
-    distribution = distribution or (target and "WHISPER" or "GUILD")
+    -- For direct messages, use whisper
+    if target then
+        distribution = "WHISPER"
+    elseif not distribution then
+        -- For broadcast messages, use the first enabled channel as default
+        local enabledChannels = self:GetEnabledChannels()
+        distribution = enabledChannels[1] or "GUILD"
+    end
+    
     local encodedMessage = EncodeMessage(messageType, data)
     
     if string.len(encodedMessage) > 255 then
@@ -300,20 +348,32 @@ function AddonComm:SendMessage(messageType, data, target, distribution)
 end
 
 function AddonComm:BroadcastVersionCheck()
-    if not IsInGuild() then
-        AddonComm.Debug(addon.LOG_LEVEL.WARN, "Not in guild, skipping version check broadcast")
-        return
-    end
-    
     if not self.initialized then
         AddonComm.Debug(addon.LOG_LEVEL.WARN, "AddonComm not initialized, skipping version check broadcast")
         return
     end
     
-    local addonVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "Unknown"
-    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Broadcasting version check to guild - addon version:", addonVersion)
+    local channels = self:GetEnabledChannels()
+    local availableChannels = {}
     
-    self:SendMessage(MESSAGE_TYPES.VERSION_CHECK, {
+    -- Check which channels are available
+    for _, channel in ipairs(channels) do
+        if self:IsChannelAvailable(channel) then
+            table.insert(availableChannels, channel)
+        else
+            AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Channel", channel, "not available for version check")
+        end
+    end
+    
+    if #availableChannels == 0 then
+        AddonComm.Debug(addon.LOG_LEVEL.WARN, "No channels available for version check broadcast")
+        return
+    end
+    
+    local addonVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "Unknown"
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Broadcasting version check to channels:", table.concat(availableChannels, ", "), "- addon version:", addonVersion)
+    
+    self:BroadcastMessage(MESSAGE_TYPES.VERSION_CHECK, {
         addonVersion = addonVersion
     })
     
@@ -363,7 +423,7 @@ function AddonComm:SyncGroupFormation(groups)
         end
     end
     
-    self:SendMessage(MESSAGE_TYPES.GROUP_SYNC, syncData)
+    self:BroadcastMessage(MESSAGE_TYPES.GROUP_SYNC, syncData)
     lastSyncTime.groups = now
     AddonComm.Debug(addon.LOG_LEVEL.INFO, "Synced group formation with", #syncData.groups, "groups")
 end
@@ -399,8 +459,8 @@ function AddonComm:SharePlayerData(playerName, playerData)
         timestamp = GetServerTime()
     }
     
-    self:SendMessage(MESSAGE_TYPES.PLAYER_DATA, shareData)
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Shared player data for", playerName)
+    self:BroadcastMessage(MESSAGE_TYPES.PLAYER_DATA, shareData)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted player data for", playerName)
 end
 
 function AddonComm:HandlePlayerData(data, sender)
@@ -432,8 +492,8 @@ function AddonComm:ShareRaiderIOData(playerName, raiderIOData)
         timestamp = GetServerTime()
     }
     
-    self:SendMessage(MESSAGE_TYPES.RAIDERIO_DATA, shareData)
-    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Shared RaiderIO data for", playerName)
+    self:BroadcastMessage(MESSAGE_TYPES.RAIDERIO_DATA, shareData)
+    AddonComm.Debug(addon.LOG_LEVEL.DEBUG, "Broadcasted RaiderIO data for", playerName)
 end
 
 function AddonComm:HandleRaiderIOData(data, sender)
@@ -459,8 +519,8 @@ function AddonComm:RequestFormation(criteria)
         timestamp = GetServerTime()
     }
     
-    self:SendMessage(MESSAGE_TYPES.FORMATION_REQUEST, requestData)
-    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Requested group formation from guild")
+    self:BroadcastMessage(MESSAGE_TYPES.FORMATION_REQUEST, requestData)
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Broadcasted group formation request to enabled channels")
 end
 
 function AddonComm:HandleFormationRequest(data, sender)
@@ -588,10 +648,11 @@ function AddonComm:SharePlayerRole(forceUpdate)
     end
     
     local playerName = UnitName("player")
+    local playerFullName = playerName .. "-" .. GetRealmName()
     local _, playerClass = UnitClass("player")
     
     local roleData = {
-        player = playerName,
+        player = playerFullName,
         role = currentRole,
         class = playerClass,
         specID = currentSpec,
@@ -606,7 +667,7 @@ function AddonComm:SharePlayerRole(forceUpdate)
         end
     end
     
-    self:SendMessage(MESSAGE_TYPES.PLAYER_DATA, roleData)
+    self:BroadcastMessage(MESSAGE_TYPES.PLAYER_DATA, roleData)
     
     -- Update tracking variables
     playerRole = currentRole
@@ -617,7 +678,7 @@ function AddonComm:SharePlayerRole(forceUpdate)
         addon:UpdatePlayerRoleInUI()
     end
     
-    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Shared player role:", currentRole, "for", playerName)
+    AddonComm.Debug(addon.LOG_LEVEL.INFO, "Shared player role:", currentRole, "for", playerFullName)
 end
 
 function AddonComm:CheckForRoleChange()
@@ -671,6 +732,28 @@ function AddonComm:StartRoleMonitoring()
     end)
     
     AddonComm.Debug(addon.LOG_LEVEL.INFO, "Role monitoring and sharing started")
+end
+
+function AddonComm:IsChannelAvailable(channel)
+    if channel == "GUILD" then
+        return IsInGuild()
+    elseif channel == "PARTY" then
+        return IsInGroup()
+    elseif channel == "RAID" then
+        return IsInRaid()
+    end
+    return false
+end
+
+function AddonComm:GetChannelStatus()
+    local channels = self:GetEnabledChannels()
+    local status = {}
+    
+    for _, channel in ipairs(channels) do
+        status[channel] = self:IsChannelAvailable(channel)
+    end
+    
+    return status
 end
 
 local cleanupTimer = C_Timer.NewTicker(60, function()
