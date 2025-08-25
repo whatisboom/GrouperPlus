@@ -2,7 +2,7 @@ local addonName, addon = ...
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
-frame:SetScript("OnEvent", function(self, event, loadedAddon)
+frame:SetScript("OnEvent", function(eventFrame, event, loadedAddon)
     if loadedAddon ~= addonName then return end
     
     local Debug = addon.Debug
@@ -276,10 +276,10 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
                 RaiderIOIntegration:AddToTooltip(tooltip, unit)
         end
         
-        GameTooltip:HookScript("OnShow", function(self)
-            local _, unit = self:GetUnit()
+        GameTooltip:HookScript("OnShow", function(tooltip)
+            local _, unit = tooltip:GetUnit()
             if unit and UnitIsPlayer(unit) then
-                AddRaiderIOToTooltip(self, unit)
+                AddRaiderIOToTooltip(tooltip, unit)
             end
         end)
         
@@ -345,7 +345,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
     function RaiderIOIntegration:SharePlayerData(playerName)
         Debug(LOG_LEVEL.DEBUG, "Attempting to share RaiderIO data for", playerName)
         
-        if not addon.AddonComm or not addon.settings.communication or not addon.settings.communication.enabled then
+        if not addon.StateSync or not addon.settings.communication or not addon.settings.communication.enabled then
             Debug(LOG_LEVEL.DEBUG, "Communication disabled, not sharing RaiderIO data")
             return
         end
@@ -383,12 +383,14 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         end
         
         if shareData.mythicPlusScore > 0 then
-            addon.AddonComm:BroadcastMessage("RAIDERIO_DATA", {
-                player = playerName,
-                data = shareData,
-                timestamp = GetServerTime()
-            })
-            Debug(LOG_LEVEL.INFO, "Shared RaiderIO data for", playerName, "score:", shareData.mythicPlusScore)
+            if addon.StateSync then
+                addon.StateSync:BroadcastMessage("RAIDERIO_DATA", {
+                    player = playerName,
+                    data = shareData,
+                    timestamp = addon.WoWAPIWrapper:GetServerTime()
+                })
+                Debug(LOG_LEVEL.INFO, "Shared RaiderIO data for", playerName, "score:", shareData.mythicPlusScore)
+            end
         else
             Debug(LOG_LEVEL.DEBUG, "No meaningful RaiderIO data to share for", playerName)
         end
@@ -427,7 +429,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
     function RaiderIOIntegration:ShareGuildMemberData()
         Debug(LOG_LEVEL.INFO, "Sharing RaiderIO data for available guild members")
         
-        if not addon.AddonComm or not addon.settings.communication or not addon.settings.communication.enabled then
+        if not addon.StateSync or not addon.settings.communication or not addon.settings.communication.enabled then
             Debug(LOG_LEVEL.DEBUG, "Communication disabled, not sharing guild member data")
             return
         end
@@ -468,5 +470,5 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         RaiderIOIntegration:TestPlayer()
     end)
     
-    self:UnregisterEvent("ADDON_LOADED")
+    eventFrame:UnregisterEvent("ADDON_LOADED")
 end)

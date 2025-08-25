@@ -56,8 +56,10 @@ function WoWAPIWrapper:GetGuildMembers()
     for i = 1, numMembers do
         local name, rank, rankIndex, level, class, zone, note, officernote, online, status, classFileName = GetGuildRosterInfo(i)
         if name and online then
+            -- Normalize the name properly - don't double-add realm
+            local normalizedName = self:NormalizePlayerName(name)
             table.insert(members, {
-                name = name .. "-" .. GetRealmName(),
+                name = normalizedName,
                 level = level,
                 class = classFileName or class,
                 classLocalized = class,
@@ -91,13 +93,14 @@ function WoWAPIWrapper:GetGroupMembers()
         local unit = unitPrefix .. i
         if UnitExists(unit) then
             local name, realm = UnitName(unit)
-            local fullName = realm and (name .. "-" .. realm) or (name .. "-" .. GetRealmName())
+            local baseName = realm and (name .. "-" .. realm) or name
+            local normalizedName = self:NormalizePlayerName(baseName)
             local level = UnitLevel(unit)
             local classLocalized, class = UnitClass(unit)
-            local online = UnitIsConnected(unit)
+            local online = UnitIsConnected(unit) -- luacheck: ignore 113
             
             table.insert(members, {
-                name = fullName,
+                name = normalizedName,
                 level = level,
                 class = class,
                 classLocalized = classLocalized,
@@ -142,6 +145,23 @@ function WoWAPIWrapper:NormalizePlayerName(name)
     end
     
     return name
+end
+
+function WoWAPIWrapper:GetClassColor(class)
+    if not class then
+        return nil
+    end
+    
+    local classColor = RAID_CLASS_COLORS[class]
+    if classColor then
+        return {
+            r = classColor.r,
+            g = classColor.g, 
+            b = classColor.b
+        }
+    end
+    
+    return {r = 1, g = 1, b = 1}
 end
 
 function WoWAPIWrapper:GetEnabledChannels()

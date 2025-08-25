@@ -91,7 +91,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
     -- @param score: Numeric score to evaluate
     -- @param minScore: Minimum score (maps to first color)
     -- @param maxScore: Maximum score (maps to last color)
-    -- @param colors: Optional array of colors (defaults to item quality colors)  
+    -- @param colors: Optional array of colors (defaults to item quality colors)
     -- @return: Interpolated color {r, g, b}
     function addon.Utils.GetScoreColor(score, minScore, maxScore, colors)
         if not score or not minScore or not maxScore then
@@ -103,7 +103,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
         colors = colors or {
             addon.ITEM_QUALITY_COLORS.POOR,      -- Gray (lowest)
             addon.ITEM_QUALITY_COLORS.COMMON,    -- White
-            addon.ITEM_QUALITY_COLORS.UNCOMMON,  -- Green  
+            addon.ITEM_QUALITY_COLORS.UNCOMMON,  -- Green
             addon.ITEM_QUALITY_COLORS.RARE,      -- Blue
             addon.ITEM_QUALITY_COLORS.EPIC,      -- Purple
             addon.ITEM_QUALITY_COLORS.LEGENDARY  -- Orange (highest)
@@ -134,7 +134,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
     
     -- Linear interpolation between two numbers
     -- @param a: First number (factor = 0.0)
-    -- @param b: Second number (factor = 1.0)  
+    -- @param b: Second number (factor = 1.0)
     -- @param factor: Interpolation factor between 0.0 and 1.0
     -- @return: Interpolated number
     function addon.Utils.Lerp(a, b, factor)
@@ -166,7 +166,7 @@ frame:SetScript("OnEvent", function(self, event, loadedAddon)
     
     -- Compare two semantic versions
     -- @param version1: First version string
-    -- @param version2: Second version string  
+    -- @param version2: Second version string
     -- @return: -1 if v1 < v2, 0 if equal, 1 if v1 > v2, nil if error
     function addon.Utils.CompareVersions(version1, version2)
         local v1 = addon.Utils.ParseVersion(version1)

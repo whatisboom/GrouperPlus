@@ -49,7 +49,14 @@ function GroupStateManager:CreateGroup(groupData)
         name = groupData and groupData.name or ("Group " .. groupId),
         members = {},
         createdTime = addon.WoWAPIWrapper:GetServerTime(),
-        maxSize = groupData and groupData.maxSize or groupState.maxGroupSize
+        maxSize = groupData and groupData.maxSize or groupState.maxGroupSize,
+        assignedKeystone = {
+            mapID = nil,
+            level = nil,
+            dungeonName = nil,
+            assignedPlayer = nil,
+            timestamp = nil
+        }
     }
     
     groupState.groups[groupId] = group
@@ -384,6 +391,94 @@ end
 
 function GroupStateManager:OnMemberGroupChanged(event, member, oldGroupId, newGroupId)
     self.Debug("TRACE", "Member group changed:", member.name, "from", oldGroupId, "to", newGroupId)
+end
+
+function GroupStateManager:AssignKeystoneToGroup(groupId, keystoneData)
+    local group = groupState.groups[groupId]
+    if not group then
+        self.Debug("WARN", "Cannot assign keystone to non-existent group:", groupId)
+        return false
+    end
+    
+    if not keystoneData or not keystoneData.mapID or not keystoneData.level then
+        self.Debug("WARN", "Invalid keystone data for assignment")
+        return false
+    end
+    
+    group.assignedKeystone = {
+        mapID = keystoneData.mapID,
+        level = keystoneData.level,
+        dungeonName = keystoneData.dungeonName,
+        assignedPlayer = keystoneData.assignedPlayer,
+        timestamp = addon.WoWAPIWrapper:GetServerTime()
+    }
+    
+    self.Debug("INFO", "Assigned keystone to group", groupId, ":", keystoneData.dungeonName, "+", keystoneData.level, "from", keystoneData.assignedPlayer)
+    self:FireEvent("KEYSTONE_ASSIGNED", group, keystoneData)
+    return true
+end
+
+function GroupStateManager:RemoveKeystoneFromGroup(groupId)
+    local group = groupState.groups[groupId]
+    if not group then
+        self.Debug("WARN", "Cannot remove keystone from non-existent group:", groupId)
+        return false
+    end
+    
+    local oldKeystone = group.assignedKeystone
+    group.assignedKeystone = {
+        mapID = nil,
+        level = nil,
+        dungeonName = nil,
+        assignedPlayer = nil,
+        timestamp = nil
+    }
+    
+    self.Debug("INFO", "Removed keystone from group", groupId)
+    self:FireEvent("KEYSTONE_REMOVED", group, oldKeystone)
+    return true
+end
+
+function GroupStateManager:GetGroupKeystone(groupId)
+    local group = groupState.groups[groupId]
+    if not group then
+        return nil
+    end
+    
+    local keystone = group.assignedKeystone
+    if keystone.mapID and keystone.level then
+        return {
+            mapID = keystone.mapID,
+            level = keystone.level,
+            dungeonName = keystone.dungeonName,
+            assignedPlayer = keystone.assignedPlayer,
+            timestamp = keystone.timestamp,
+            hasKeystone = true
+        }
+    end
+    
+    return { hasKeystone = false }
+end
+
+function GroupStateManager:GetAllGroupKeystones()
+    local keystones = {}
+    
+    for groupId, group in pairs(groupState.groups) do
+        local keystone = self:GetGroupKeystone(groupId)
+        keystones[groupId] = keystone
+    end
+    
+    return keystones
+end
+
+function GroupStateManager:IsKeystoneAssigned(mapID, level)
+    for _, group in pairs(groupState.groups) do
+        local keystone = group.assignedKeystone
+        if keystone.mapID == mapID and keystone.level == level then
+            return true, group.id
+        end
+    end
+    return false, nil
 end
 
 function GroupStateManager:FireEvent(eventName, ...)

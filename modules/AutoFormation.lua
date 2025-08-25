@@ -96,7 +96,7 @@ function AutoFormation:GetPlayerRole(unitOrNameOrMember)
     AutoFormation.Debug("DEBUG", "AutoFormation:GetPlayerRole called for:", type(unitOrNameOrMember) == "table" and unitOrNameOrMember.name or unitOrNameOrMember)
     
     local unit = unitOrNameOrMember
-    local playerName = nil
+    local playerName
     local memberData = nil
     
     -- If we got a member table, extract the name
@@ -297,6 +297,61 @@ function AutoFormation:GetMemberUtilities(member)
     return {}
 end
 
+function AutoFormation:GetMemberDamageType(member)
+    AutoFormation.Debug("DEBUG", "AutoFormation:GetMemberDamageType called for:", member.name)
+    
+    local unit = member.name
+    local playerName = member.name
+    
+    -- Try to get the player's current specialization for more accurate damage type
+    local specIndex
+    if unit == "player" then
+        local currentSpec = GetSpecialization()
+        if currentSpec then
+            local specID, specName, description, icon, role, isRecommended, isAllowed = GetSpecializationInfo(currentSpec)
+            specIndex = specID
+        end
+    else
+        if UnitExists(unit) then
+            specIndex = GetInspectSpecialization(unit)
+        end
+    end
+    
+    -- Check spec-based damage type first (most accurate)
+    if specIndex and specIndex > 0 and addon.SPEC_DAMAGE_TYPE[specIndex] then
+        local damageType = addon.SPEC_DAMAGE_TYPE[specIndex]
+        AutoFormation.Debug("INFO", "Found spec damage type for", playerName, "spec", specIndex, "damage type:", damageType)
+        return damageType
+    end
+    
+    -- Fallback to class-based damage type detection
+    local className = member.class
+    if not className then
+        _, className = UnitClass(member.name)
+    end
+    
+    if not className then
+        AutoFormation.Debug("DEBUG", "Could not determine class for", member.name, "checking guild roster")
+        local numMembers = GetNumGuildMembers()
+        for i = 1, numMembers do
+            local name, _, _, _, _, _, _, _, _, _, classFileName = GetGuildRosterInfo(i)
+            if name == member.name then
+                className = classFileName
+                break
+            end
+        end
+    end
+    
+    if className and addon.CLASS_DAMAGE_TYPE[className] then
+        local damageType = addon.CLASS_DAMAGE_TYPE[className]
+        AutoFormation.Debug("DEBUG", "Using class fallback damage type for", playerName, "class:", className, "damage type:", damageType)
+        return damageType
+    end
+    
+    AutoFormation.Debug("WARN", "Could not determine damage type for player:", playerName)
+    return "MIXED" -- Default fallback
+end
+
 function AutoFormation:CalculateGroupUtilityScore(group)
     AutoFormation.Debug("DEBUG", "AutoFormation:CalculateGroupUtilityScore called for group with", #group, "members")
     
@@ -312,13 +367,26 @@ function AutoFormation:CalculateGroupUtilityScore(group)
         CHAOS_BRAND = false
     }
     
-    -- Check what utilities this group provides
+    -- Track damage types in the group for synergy calculation
+    local damageTypes = {
+        PHYSICAL = 0,
+        MAGIC = 0,
+        HYBRID = 0
+    }
+    
+    -- Check what utilities this group provides and count damage types
     for _, member in ipairs(group) do
         local memberUtilities = self:GetMemberUtilities(member)
         for _, utility in ipairs(memberUtilities) do
             if utilities[utility] ~= nil then
                 utilities[utility] = true
             end
+        end
+        
+        -- Only count damage types for DPS members
+        if member.role == "DPS" then
+            local damageType = self:GetMemberDamageType(member)
+            damageTypes[damageType] = (damageTypes[damageType] or 0) + 1
         end
     end
     
@@ -331,14 +399,29 @@ function AutoFormation:CalculateGroupUtilityScore(group)
         local utilityInfo = addon.UTILITY_INFO[utilityName]
         if utilityInfo then
             if hasUtility then
-                -- Bonus for having the utility
+                -- Calculate base bonus for having the utility
+                local baseBonus = 0
                 if utilityInfo.priority == 1 then
-                    score = score + 100 -- Critical utilities
+                    baseBonus = 100 -- Critical utilities
                 elseif utilityInfo.priority == 2 then
-                    score = score + 50  -- Important utilities
+                    baseBonus = 50  -- Important utilities
                 else
-                    score = score + 25  -- Nice-to-have utilities
+                    baseBonus = 25  -- Nice-to-have utilities
                 end
+                
+                -- Add synergy bonus for damage type matching utilities
+                local synergyBonus = 0
+                if utilityName == "MYSTIC_TOUCH" then
+                    -- Mystic Touch benefits physical and hybrid damage dealers
+                    synergyBonus = (damageTypes.PHYSICAL * 15) + (damageTypes.HYBRID * 10)
+                    AutoFormation.Debug("DEBUG", "Mystic Touch synergy bonus:", synergyBonus, "for", damageTypes.PHYSICAL, "physical +", damageTypes.HYBRID, "hybrid DPS")
+                elseif utilityName == "CHAOS_BRAND" then
+                    -- Chaos Brand benefits magic and hybrid damage dealers
+                    synergyBonus = (damageTypes.MAGIC * 15) + (damageTypes.HYBRID * 10)
+                    AutoFormation.Debug("DEBUG", "Chaos Brand synergy bonus:", synergyBonus, "for", damageTypes.MAGIC, "magic +", damageTypes.HYBRID, "hybrid DPS")
+                end
+                
+                score = score + baseBonus + synergyBonus
             else
                 -- Penalty for missing the utility
                 if utilityInfo.priority == 1 then
@@ -347,13 +430,24 @@ function AutoFormation:CalculateGroupUtilityScore(group)
                 elseif utilityInfo.priority == 2 then
                     score = score - 75  -- Moderate penalty for missing important utilities
                     table.insert(importantMissing, utilityName)
+                else
+                    -- Calculate synergy penalty for missing damage type utilities
+                    local synergyPenalty = 0
+                    if utilityName == "MYSTIC_TOUCH" and (damageTypes.PHYSICAL > 0 or damageTypes.HYBRID > 0) then
+                        synergyPenalty = (damageTypes.PHYSICAL * 10) + (damageTypes.HYBRID * 5)
+                        AutoFormation.Debug("DEBUG", "Missing Mystic Touch synergy penalty:", synergyPenalty)
+                    elseif utilityName == "CHAOS_BRAND" and (damageTypes.MAGIC > 0 or damageTypes.HYBRID > 0) then
+                        synergyPenalty = (damageTypes.MAGIC * 10) + (damageTypes.HYBRID * 5)
+                        AutoFormation.Debug("DEBUG", "Missing Chaos Brand synergy penalty:", synergyPenalty)
+                    end
+                    score = score - synergyPenalty
                 end
-                -- No penalty for missing nice-to-have utilities
             end
         end
     end
     
     AutoFormation.Debug("DEBUG", "Group utility score:", score, 
+        "damage types - Physical:", damageTypes.PHYSICAL, "Magic:", damageTypes.MAGIC, "Hybrid:", damageTypes.HYBRID,
         "critical missing:", table.concat(criticalMissing, ", "),
         "important missing:", table.concat(importantMissing, ", "))
     
@@ -569,7 +663,7 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
         groups = self:OptimizeGroupUtilities(groups)
     end
     
-    -- Debug the final groups with utility information
+    -- Debug the final groups with utility and damage type information
     for i, group in ipairs(groups) do
         local utilityScore, utilities = self:CalculateGroupUtilityScore(group)
         local utilityList = {}
@@ -582,13 +676,15 @@ function AutoFormation:CreateBalancedGroups(availableMembers, groupSize)
         AutoFormation.Debug("INFO", "Final group", i, "has", #group, "members, utility score:", utilityScore)
         AutoFormation.Debug("INFO", "  Utilities:", table.concat(utilityList, ", "))
         for j, member in ipairs(group) do
-            AutoFormation.Debug("DEBUG", "  Member", j, ":", member.name, "role:", member.role, "score:", member.score)
+            local damageType = member.role == "DPS" and self:GetMemberDamageType(member) or "N/A"
+            AutoFormation.Debug("DEBUG", "  Member", j, ":", member.name, "role:", member.role, "damage type:", damageType, "score:", member.score)
         end
     end
     
-    -- Sync group formation with other addon users
-    if addon.AddonComm and addon.settings.communication and addon.settings.communication.enabled then
-        addon.AddonComm:SyncGroupFormation(groups)
+    -- Sync group formation with other addon users via StateSync
+    if addon.StateSync and addon.settings.communication and addon.settings.communication.enabled then
+        -- Group formation syncing is handled automatically by the unified state system
+        AutoFormation.Debug("DEBUG", "Group formation synced automatically via StateSync")
     end
     
     return groups
@@ -639,11 +735,15 @@ function AutoFormation:OptimizeGroupUtilities(groups)
                         local currentScore2 = groupUtilities[j].score
                         local currentTotal = currentScore1 + currentScore2
                         
+                        -- Get damage types for potential swap evaluation
+                        local dps1DamageType = self:GetMemberDamageType(dps1.member)
+                        local dps2DamageType = self:GetMemberDamageType(dps2.member)
+                        
                         -- Temporarily swap members
                         group1[dps1.index] = dps2.member
                         group2[dps2.index] = dps1.member
                         
-                        -- Calculate new utility scores
+                        -- Calculate new utility scores (now includes damage type synergy)
                         local newScore1 = self:CalculateGroupUtilityScore(group1)
                         local newScore2 = self:CalculateGroupUtilityScore(group2)
                         local newTotal = newScore1 + newScore2
@@ -651,7 +751,7 @@ function AutoFormation:OptimizeGroupUtilities(groups)
                         -- Check if this swap improves overall utility distribution
                         if newTotal > currentTotal then
                             AutoFormation.Debug("INFO", "Beneficial swap found: exchanging", 
-                                dps1.member.name, "and", dps2.member.name,
+                                dps1.member.name, "(", dps1DamageType, ") and", dps2.member.name, "(", dps2DamageType, ")",
                                 "improved total score from", currentTotal, "to", newTotal)
                             
                             -- Keep the swap and update our tracking
@@ -698,6 +798,121 @@ function AutoFormation:OptimizeGroupUtilities(groups)
     
     AutoFormation.Debug("INFO", "Utility optimization complete after", iteration, "iterations")
     AutoFormation.Debug("INFO", "Final gaps - Critical:", totalCriticalGaps, "Important:", totalImportantGaps)
+    
+    return groups
+end
+
+function AutoFormation:CollectAvailableKeystones(members)
+    AutoFormation.Debug("DEBUG", "AutoFormation:CollectAvailableKeystones called with", #members, "members")
+    
+    local keystones = {}
+    local playerKeystones = {}
+    
+    for _, member in ipairs(members) do
+        local memberName = member.name
+        local normalizedName = addon.WoWAPIWrapper:NormalizePlayerName(memberName)
+        
+        if normalizedName then
+            local keystoneInfo = nil
+            local playerInfo = addon.WoWAPIWrapper:GetPlayerInfo()
+            
+            if playerInfo and normalizedName == playerInfo.name then
+                if addon.Keystone then
+                    keystoneInfo = addon.Keystone:GetKeystoneInfo()
+                    AutoFormation.Debug("DEBUG", "Found own keystone for", normalizedName, ":", keystoneInfo.hasKeystone and keystoneInfo.dungeonName or "none")
+                end
+            else
+                if addon.Keystone then
+                    local receivedKeystones = addon.Keystone:GetReceivedKeystones()
+                    keystoneInfo = receivedKeystones[normalizedName]
+                    if keystoneInfo then
+                        keystoneInfo.hasKeystone = keystoneInfo.mapID ~= nil and keystoneInfo.level ~= nil
+                        AutoFormation.Debug("DEBUG", "Found received keystone for", normalizedName, ":", keystoneInfo.dungeonName or "unknown")
+                    end
+                end
+            end
+            
+            if keystoneInfo and keystoneInfo.hasKeystone then
+                local keystoneData = {
+                    mapID = keystoneInfo.mapID,
+                    level = keystoneInfo.level,
+                    dungeonName = keystoneInfo.dungeonName,
+                    assignedPlayer = normalizedName,
+                    playerScore = member.score or 0
+                }
+                
+                table.insert(keystones, keystoneData)
+                playerKeystones[normalizedName] = keystoneData
+                AutoFormation.Debug("INFO", "Collected keystone:", keystoneData.dungeonName, "+", keystoneData.level, "from", normalizedName)
+            end
+        end
+    end
+    
+    table.sort(keystones, function(a, b)
+        if a.level == b.level then
+            return a.playerScore > b.playerScore
+        end
+        return a.level > b.level
+    end)
+    
+    AutoFormation.Debug("INFO", "Collected", #keystones, "keystones for assignment")
+    return keystones, playerKeystones
+end
+
+function AutoFormation:AssignKeystonesToGroups(groups, keystones)
+    AutoFormation.Debug("INFO", "AutoFormation:AssignKeystonesToGroups called with", #groups, "groups and", #keystones, "keystones")
+    
+    if not addon.GroupStateManager then
+        AutoFormation.Debug("WARN", "GroupStateManager not available for keystone assignment")
+        return
+    end
+    
+    local assignedKeystones = {}
+    local groupsWithKeystones = 0
+    
+    for i, group in ipairs(groups) do
+        if i <= #keystones then
+            local keystoneData = keystones[i]
+            local duplicateFound = false
+            
+            for _, assigned in ipairs(assignedKeystones) do
+                if assigned.mapID == keystoneData.mapID and assigned.level == keystoneData.level then
+                    duplicateFound = true
+                    AutoFormation.Debug("DEBUG", "Skipping duplicate keystone:", keystoneData.dungeonName, "+", keystoneData.level)
+                    break
+                end
+            end
+            
+            if not duplicateFound then
+                if addon.GroupStateManager:AssignKeystoneToGroup(i, keystoneData) then
+                    table.insert(assignedKeystones, keystoneData)
+                    groupsWithKeystones = groupsWithKeystones + 1
+                    AutoFormation.Debug("INFO", "Assigned", keystoneData.dungeonName, "+", keystoneData.level, "to group", i)
+                end
+            end
+        else
+            AutoFormation.Debug("DEBUG", "Group", i, "has no available keystone to assign")
+        end
+    end
+    
+    AutoFormation.Debug("INFO", "Keystone assignment complete -", groupsWithKeystones, "groups have keystones,", #groups - groupsWithKeystones, "groups without keystones")
+    return groupsWithKeystones
+end
+
+function AutoFormation:CreateBalancedGroupsWithKeystones(availableMembers, groupSize)
+    AutoFormation.Debug("INFO", "AutoFormation:CreateBalancedGroupsWithKeystones called with", #availableMembers, "members")
+    
+    local groups = self:CreateBalancedGroups(availableMembers, groupSize)
+    
+    if groups and #groups > 0 then
+        local keystones, playerKeystones = self:CollectAvailableKeystones(availableMembers)
+        
+        if #keystones > 0 then
+            self:AssignKeystonesToGroups(groups, keystones)
+        else
+            AutoFormation.Debug("INFO", "No keystones available for assignment")
+        end
+    end
     
     return groups
 end

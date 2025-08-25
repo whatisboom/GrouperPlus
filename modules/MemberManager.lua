@@ -1,5 +1,6 @@
 local addonName, addon = ...
 
+
 -- Member Management Module
 -- Handles member list retrieval from multiple channels (guild, party, raid), filtering, and group membership tracking
 
@@ -48,7 +49,7 @@ function MemberManager:UpdateMemberList()
     local seenMembers = {} -- Track duplicates across channels
     
     -- Get enabled channels from communication settings
-    local enabledChannels = {}
+    local enabledChannels
     if addon.AddonComm and addon.AddonComm.GetEnabledChannels then
         enabledChannels = addon.AddonComm:GetEnabledChannels()
     else
@@ -140,7 +141,7 @@ function MemberManager:CollectPartyMembers(seenMembers)
             local fullName = realm and (name .. "-" .. realm) or name
             local level = UnitLevel(unit)
             local classLocalized, class = UnitClass(unit)
-            local online = UnitIsConnected(unit)
+            local online = UnitIsConnected(unit) -- luacheck: ignore 113
             self:ProcessMember(fullName, level, class, classLocalized, "PARTY", seenMembers, online)
         end
     end
@@ -153,7 +154,7 @@ function MemberManager:CollectPartyMembers(seenMembers)
     self:ProcessMember(playerFullName, playerLevel, playerClass, playerClassLocalized, "PARTY", seenMembers, true)
 end
 
--- Collect raid members  
+-- Collect raid members
 function MemberManager:CollectRaidMembers(seenMembers)
     if not IsInRaid() then
         self.Debug("DEBUG", "MemberManager: Not in raid, skipping raid members")
@@ -170,7 +171,7 @@ function MemberManager:CollectRaidMembers(seenMembers)
             local fullName = realm and (name .. "-" .. realm) or name
             local level = UnitLevel(unit)
             local classLocalized, class = UnitClass(unit)
-            local online = UnitIsConnected(unit)
+            local online = UnitIsConnected(unit) -- luacheck: ignore 113
             self:ProcessMember(fullName, level, class, classLocalized, "RAID", seenMembers, online)
         end
     end

@@ -55,18 +55,18 @@ function MemberRowUI:OnInitialize()
     end
 end
 
--- Create tooltip content for member row
-local function CreateMemberTooltip(row)
-    if not row.memberName then return end
+-- Create tooltip content for any member (shared function)
+function MemberRowUI:CreateMemberTooltip(frame, memberName)
+    if not memberName then return end
     
-    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
-    GameTooltip:SetText(row.memberName, 1, 1, 1)
+    GameTooltip:SetOwner(frame, "ANCHOR_RIGHT")
+    GameTooltip:SetText(memberName, 1, 1, 1)
     
     -- Add keystone information if available
     if addon.Keystone then
         local playerName = UnitName("player")
         local playerFullName = UnitName("player") .. "-" .. GetRealmName()
-        local isCurrentPlayer = (row.memberName == playerName or row.memberName == playerFullName)
+        local isCurrentPlayer = (memberName == playerName or memberName == playerFullName)
         
         -- Always show the current player's keystone from their own data
         if isCurrentPlayer then
@@ -80,11 +80,11 @@ local function CreateMemberTooltip(row)
         else
             -- For other players, check received keystone data
             local receivedKeystones = addon.Keystone:GetReceivedKeystones()
-            local keystoneData = receivedKeystones[row.memberName]
+            local keystoneData = receivedKeystones[memberName]
             
             -- If not found, try comprehensive cross-realm name matching
             if not keystoneData then
-                keystoneData = FindPlayerDataByName(row.memberName, receivedKeystones)
+                keystoneData = FindPlayerDataByName(memberName, receivedKeystones)
             end
             
             if keystoneData and keystoneData.mapID and keystoneData.level then
@@ -96,48 +96,13 @@ local function CreateMemberTooltip(row)
         end
     end
     
-    -- Add addon version information if available
-    if addon.AddonComm then
-        local connectedUsers = addon.AddonComm:GetConnectedUsers()
-        local playerName = UnitName("player")
-        local playerFullName = UnitName("player") .. "-" .. GetRealmName()
-        local isCurrentPlayer = (row.memberName == playerName or row.memberName == playerFullName)
-        
-        if isCurrentPlayer then
-            -- Show current player's addon version
-            local currentVersion = C_AddOns.GetAddOnMetadata(addonName, "Version") or "Unknown"
-            GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-            GameTooltip:AddLine("GrouperPlus:", 0.8, 0.8, 0.8)
-            GameTooltip:AddLine("v" .. currentVersion .. " (You)", 0.0, 1.0, 0.0) -- Green for current player
-        else
-            -- Check if this member has GrouperPlus installed
-            local memberAddonInfo = connectedUsers[row.memberName]
-            
-            -- If not found, try comprehensive cross-realm name matching
-            if not memberAddonInfo then
-                memberAddonInfo = FindPlayerDataByName(row.memberName, connectedUsers)
-            end
-            
-            if memberAddonInfo then
-                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                GameTooltip:AddLine("GrouperPlus:", 0.8, 0.8, 0.8)
-                local versionColor = {1.0, 1.0, 0.0} -- Yellow for other users
-                local timeSinceLastSeen = memberAddonInfo.lastSeen and (GetServerTime() - memberAddonInfo.lastSeen) or nil
-                
-                local statusText = "v" .. (memberAddonInfo.addonVersion or memberAddonInfo.version or "Unknown")
-                if timeSinceLastSeen and timeSinceLastSeen < 60 then
-                    statusText = statusText .. " (Online)"
-                    versionColor = {0.0, 1.0, 0.0} -- Green for recently active
-                elseif timeSinceLastSeen and timeSinceLastSeen < 300 then
-                    statusText = statusText .. " (Recent)"
-                end
-                
-                GameTooltip:AddLine(statusText, versionColor[1], versionColor[2], versionColor[3])
-            end
-        end
-    end
     
     GameTooltip:Show()
+end
+
+-- Create tooltip content for member row (legacy function for backward compatibility)
+local function CreateMemberTooltip(row)
+    return MemberRowUI:CreateMemberTooltip(row, row.memberName)
 end
 
 -- Set up drag and drop handlers for member row
@@ -152,13 +117,13 @@ local function SetupRowDragHandlers(row, index)
         MemberRowUI.Debug("DEBUG", "Row OnMouseUp:", button, "memberName:", self.memberName or "nil")
         
         -- Right-click for session whitelist management
-        if button == "RightButton" and self.memberName and addon.SessionManager then
-            local sessionInfo = addon.SessionManager:GetSessionInfo()
-            if sessionInfo and sessionInfo.isOwner then
+        if button == "RightButton" and self.memberName and addon.SessionStateManager then
+            local sessionInfo = addon.SessionStateManager:GetSessionInfo()
+            if sessionInfo and addon.SessionStateManager:IsSessionOwner() then
                 local memberName = self.memberName
-                local whitelist = addon.SessionManager:GetWhitelist()
-                local isWhitelisted = whitelist[memberName] == true
-                local isSessionOwner = (memberName == sessionInfo.owner)
+                local participants = addon.SessionStateManager:GetParticipants()
+                local isWhitelisted = participants[memberName] ~= nil
+                local isSessionOwner = (memberName == sessionInfo.ownerId)
                 
                 -- Create a simple tooltip-style menu instead of dropdown
                 local menuFrame = CreateFrame("Frame", "GrouperPlusWhitelistTooltip", UIParent, "BackdropTemplate")
@@ -195,14 +160,14 @@ local function SetupRowDragHandlers(row, index)
                     if isWhitelisted then
                         actionBtn:SetText("Remove Edit Permission")
                         actionBtn:SetScript("OnClick", function()
-                            addon.SessionManager:RemoveFromWhitelist(memberName)
+                            addon.SessionStateManager:RemoveParticipant(memberName)
                             addon:Print("Removed edit permission from " .. memberName)
                             menuFrame:Hide()
                         end)
                     else
                         actionBtn:SetText("Grant Edit Permission") 
                         actionBtn:SetScript("OnClick", function()
-                            addon.SessionManager:AddToWhitelist(memberName)
+                            addon.SessionStateManager:AddParticipant(memberName, {"EDIT_MEMBERS", "EDIT_GROUPS"})
                             addon:Print("Granted edit permission to " .. memberName)
                             menuFrame:Hide()
                         end)
@@ -230,7 +195,7 @@ local function SetupRowDragHandlers(row, index)
             MemberRowUI.Debug("INFO", "Started dragging member:", self.memberName)
             
             -- Find the member info for class colors
-            local memberInfo = addon.MemberManager:FindMemberByName(self.memberName)
+            local memberInfo = addon.MemberStateManager:GetMember(self.memberName)
             if memberInfo then
                 MemberRowUI.Debug("DEBUG", "Found memberInfo for", self.memberName, "class:", memberInfo.class)
             end
@@ -309,11 +274,11 @@ function MemberRowUI:CreateMemberRow(parent, index)
     row:RegisterForDrag("LeftButton")
     
     -- Set up tooltip handlers
-    row:SetScript("OnEnter", function(self)
-        CreateMemberTooltip(self)
+    row:SetScript("OnEnter", function(frame)
+        CreateMemberTooltip(frame)
     end)
     
-    row:SetScript("OnLeave", function(self)
+    row:SetScript("OnLeave", function(frame)
         GameTooltip:Hide()
     end)
     
@@ -335,11 +300,11 @@ function MemberRowUI:UpdateMemberRow(row, member, index)
     
     -- Ensure row interaction respects session permissions
     local canEdit = true
-    if addon.SessionManager then
-        local sessionInfo = addon.SessionManager:GetSessionInfo()
+    if addon.SessionStateManager then
+        local sessionInfo = addon.SessionStateManager:GetSessionInfo()
         if sessionInfo then
             -- Only apply restrictions if we're actually in a session
-            canEdit = addon.SessionManager:CanEdit()
+            canEdit = addon.SessionStateManager:CanEditMembers()
         end
         -- If no session info, leave canEdit = true (allow free dragging)
     end
@@ -379,21 +344,21 @@ function MemberRowUI:UpdateMemberRow(row, member, index)
     local displayName = member.name
     
     -- Add session permission indicators
-    if addon.SessionManager and addon.SessionManager:IsInSession() then
-        local sessionInfo = addon.SessionManager:GetSessionInfo()
+    if addon.SessionStateManager and addon.SessionStateManager:IsInSession() then
+        local sessionInfo = addon.SessionStateManager:GetSessionInfo()
         if sessionInfo then
             local fullName = member.name
             if not string.find(fullName, "-") then
                 fullName = fullName .. "-" .. GetRealmName()
             end
             
-            if sessionInfo.owner == fullName then
+            if sessionInfo.ownerId == fullName then
                 -- Session owner gets a crown icon
                 displayName = "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:14:14|t " .. displayName
             else
-                local whitelist = addon.SessionManager:GetWhitelist()
-                if whitelist[fullName] then
-                    -- Whitelisted players get an assist icon
+                local participants = addon.SessionStateManager:GetParticipants()
+                if participants[fullName] then
+                    -- Participants with permissions get an assist icon
                     displayName = "|TInterface\\GroupFrame\\UI-Group-AssistantIcon:14:14|t " .. displayName
                 end
             end

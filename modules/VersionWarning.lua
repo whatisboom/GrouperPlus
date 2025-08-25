@@ -111,7 +111,7 @@ function VersionWarning:ShowVersionWarning(newVersion, users)
     
     -- Build user list text
     local userCount = #users
-    local userText = ""
+    local userText
     if userCount == 1 then
         userText = string.format("(used by %s)", users[1])
     elseif userCount <= 3 then

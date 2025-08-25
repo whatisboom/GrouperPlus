@@ -71,7 +71,7 @@ end
 
 -- Update group title with utility indicators
 function GroupFrameUI:UpdateGroupTitle(groupFrame)
-    if not groupFrame.header then return end
+    if not groupFrame.keystoneText or not groupFrame.utilityText then return end
     
     local utilities = self:CheckGroupUtilities(groupFrame)
     
@@ -87,11 +87,35 @@ function GroupFrameUI:UpdateGroupTitle(groupFrame)
     local skyText = utilities.SKYFURY and "|cFF00FF00sky|r" or "|cFFFFFF00sky|r"
     
     -- Priority 3 buffs (gray when missing)
-    local mtText = utilities.MYSTIC_TOUCH and "|cFF00FF00Mystic Touch|r" or "|cFFAAAAAAMystic Touch|r"
-    local cbText = utilities.CHAOS_BRAND and "|cFF00FF00Chaos Brand|r" or "|cFFAAAAAAChaos Brand|r"
+    local mtText = utilities.MYSTIC_TOUCH and "|cFF00FF00MT|r" or "|cFFAAAAAAMT|r"
+    local cbText = utilities.CHAOS_BRAND and "|cFF00FF00CB|r" or "|cFFAAAAAAChB|r"
     
-    groupFrame.header:SetText(brezText .. " " .. lustText .. "\n" .. intText .. " " .. stamText .. " " .. apText .. " " .. versText .. " " .. skyText .. "\n" .. mtText .. " " .. cbText)
-    GroupFrameUI.Debug("DEBUG", "GroupFrameUI: Updated group", groupFrame.groupIndex, "title with all utilities")
+    -- Keystone information (left side)
+    local keystoneDisplayText = "Group " .. groupFrame.groupIndex
+    if addon.GroupStateManager and groupFrame.groupIndex then
+        local keystoneInfo = addon.GroupStateManager:GetGroupKeystone(groupFrame.groupIndex)
+        if keystoneInfo and keystoneInfo.hasKeystone then
+            keystoneDisplayText = keystoneDisplayText .. "\n|cFFFF7D0AKeystone:|r |cFFFFFFFF" .. keystoneInfo.dungeonName .. " +" .. keystoneInfo.level .. "|r"
+            if keystoneInfo.assignedPlayer then
+                keystoneDisplayText = keystoneDisplayText .. "\n|cFFAAAAAAby " .. keystoneInfo.assignedPlayer .. "|r"
+            end
+        else
+            keystoneDisplayText = keystoneDisplayText .. "\n|cFFFF0000No Keystone|r"
+        end
+    end
+    
+    -- Utility information (right side)
+    local utilityDisplayText = brezText .. " " .. lustText .. "\n" .. intText .. " " .. stamText .. " " .. apText .. " " .. versText .. " " .. skyText .. "\n" .. mtText .. " " .. cbText
+    
+    groupFrame.keystoneText:SetText(keystoneDisplayText)
+    groupFrame.utilityText:SetText(utilityDisplayText)
+    
+    -- Update legacy header reference for backward compatibility
+    if groupFrame.header then
+        groupFrame.header:SetText(keystoneDisplayText)
+    end
+    
+    GroupFrameUI.Debug("DEBUG", "GroupFrameUI: Updated group", groupFrame.groupIndex, "title with separated layout")
 end
 
 -- Create drag and drop handlers for member slot
@@ -195,6 +219,21 @@ local function CreateMemberSlotDragHandlers(memberFrame, groupFrame, groupIndex,
         -- Additional drag/drop logic would go here for member swapping, etc.
         GroupFrameUI.Debug("DEBUG", "OnReceiveDrag: Complex drop scenarios not yet implemented in GroupFrameUI")
     end)
+    
+    -- Add tooltip handlers for group member frames
+    memberFrame:SetScript("OnEnter", function(self)
+        local member = groupFrame.members[slotIndex]
+        if member and member.name then
+            -- Use the shared tooltip function from MemberRowUI
+            if addon.MemberRowUI and addon.MemberRowUI.CreateMemberTooltip then
+                addon.MemberRowUI:CreateMemberTooltip(self, member.name)
+            end
+        end
+    end)
+    
+    memberFrame:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
 end
 
 -- Create drag and drop handlers for group-level operations
@@ -248,12 +287,31 @@ function GroupFrameUI:CreateGroupFrame(parent, groupIndex, groupWidth)
     groupFrame:SetBackdropColor(0.1, 0.1, 0.2, 0.8)
     groupFrame:SetBackdropBorderColor(0.4, 0.4, 0.6, 1)
     
-    local header = groupFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    header:SetPoint("TOP", groupFrame, "TOP", 0, -8)
-    header:SetText("Group " .. groupIndex)
-    header:SetTextColor(0.8, 0.8, 1)
+    -- Create header container frame for layout control
+    local headerContainer = CreateFrame("Frame", nil, groupFrame)
+    headerContainer:SetSize(groupWidth - 20, 45)
+    headerContainer:SetPoint("TOP", groupFrame, "TOP", 0, -8)
     
-    groupFrame.header = header
+    -- Create keystone text (upper left)
+    local keystoneText = headerContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    keystoneText:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", 0, 0)
+    keystoneText:SetText("Group " .. groupIndex)
+    keystoneText:SetTextColor(0.8, 0.8, 1)
+    keystoneText:SetJustifyH("LEFT")
+    keystoneText:SetWidth(groupWidth - 120)
+    
+    -- Create utility text (right aligned)
+    local utilityText = headerContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    utilityText:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", 0, 0)
+    utilityText:SetText("")
+    utilityText:SetTextColor(0.8, 0.8, 1)
+    utilityText:SetJustifyH("RIGHT")
+    utilityText:SetWidth(110)
+    
+    groupFrame.header = keystoneText  -- Keep for backward compatibility
+    groupFrame.keystoneText = keystoneText
+    groupFrame.utilityText = utilityText
+    groupFrame.headerContainer = headerContainer
     groupFrame.members = {}
     groupFrame.memberFrames = {}
     groupFrame.groupIndex = groupIndex
@@ -321,6 +379,13 @@ function GroupFrameUI:CreateGroupFrame(parent, groupIndex, groupWidth)
     groupFrame:RegisterForDrag("LeftButton")
     CreateGroupDragHandlers(groupFrame, groupIndex)
     
+    -- Set up right-click context menu for keystone management
+    groupFrame:SetScript("OnMouseUp", function(frame, button)
+        if button == "RightButton" then
+            GroupFrameUI:ShowKeystoneContextMenu(groupFrame)
+        end
+    end)
+    
     GroupFrameUI.Debug("DEBUG", "GroupFrameUI: Group frame", groupIndex, "created successfully with width", groupWidth, "and group-level drag handling")
     
     -- Initialize with default title showing missing utilities
@@ -328,3 +393,173 @@ function GroupFrameUI:CreateGroupFrame(parent, groupIndex, groupWidth)
     
     return groupFrame
 end
+
+function GroupFrameUI:ShowKeystoneContextMenu(groupFrame)
+    if not addon.GroupStateManager or not addon.Keystone then
+        self.Debug("WARN", "Required modules not available for keystone context menu")
+        return
+    end
+    
+    local groupIndex = groupFrame.groupIndex
+    if not groupIndex then
+        self.Debug("WARN", "Group frame missing groupIndex")
+        return
+    end
+    
+    local currentKeystone = addon.GroupStateManager:GetGroupKeystone(groupIndex)
+    local availableKeystones = self:GetAvailableKeystones()
+    
+    local dropdownFrame = CreateFrame("Frame", "GrouperPlusKeystoneDropdown", UIParent, "UIDropDownMenuTemplate")
+    
+    local function InitializeKeystoneMenu(frame, level)
+        if level == 1 then
+            local info = UIDropDownMenu_CreateInfo()
+            
+            if currentKeystone and currentKeystone.hasKeystone then
+                info.text = "Current: " .. currentKeystone.dungeonName .. " +" .. currentKeystone.level
+                info.isTitle = true
+                info.notCheckable = true
+                UIDropDownMenu_AddButton(info, level)
+                
+                info = UIDropDownMenu_CreateInfo()
+                info.text = "Remove Keystone"
+                info.func = function()
+                    addon.GroupStateManager:RemoveKeystoneFromGroup(groupIndex)
+                    self:UpdateGroupTitle(groupFrame)
+                    self.Debug("INFO", "Removed keystone from group", groupIndex)
+                    CloseDropDownMenus()
+                end
+                info.notCheckable = true
+                UIDropDownMenu_AddButton(info, level)
+                
+                if #availableKeystones > 0 then
+                    info = UIDropDownMenu_CreateInfo()
+                    info.text = "Change Keystone"
+                    info.hasArrow = true
+                    info.notCheckable = true
+                    info.value = "change_keystone"
+                    UIDropDownMenu_AddButton(info, level)
+                end
+            else
+                info.text = "No Keystone Assigned"
+                info.isTitle = true
+                info.notCheckable = true
+                UIDropDownMenu_AddButton(info, level)
+                
+                if #availableKeystones > 0 then
+                    info = UIDropDownMenu_CreateInfo()
+                    info.text = "Assign Keystone"
+                    info.hasArrow = true
+                    info.notCheckable = true
+                    info.value = "assign_keystone"
+                    UIDropDownMenu_AddButton(info, level)
+                else
+                    info = UIDropDownMenu_CreateInfo()
+                    info.text = "No keystones available"
+                    info.disabled = true
+                    info.notCheckable = true
+                    UIDropDownMenu_AddButton(info, level)
+                end
+            end
+            
+            info = UIDropDownMenu_CreateInfo()
+            info.text = "Cancel"
+            info.func = function() CloseDropDownMenus() end
+            info.notCheckable = true
+            UIDropDownMenu_AddButton(info, level)
+            
+        elseif level == 2 then
+            local parentValue = UIDROPDOWNMENU_MENU_VALUE
+            if parentValue == "assign_keystone" or parentValue == "change_keystone" then
+                local assignedKeystones = addon.GroupStateManager:GetAllGroupKeystones()
+                
+                for _, keystoneData in ipairs(availableKeystones) do
+                    local isAssigned, assignedGroupId = false, nil
+                    
+                    for groupId, groupKeystone in pairs(assignedKeystones) do
+                        if groupKeystone.hasKeystone and 
+                           groupKeystone.mapID == keystoneData.mapID and 
+                           groupKeystone.level == keystoneData.level and
+                           groupId ~= groupFrame.groupIndex then
+                            isAssigned = true
+                            assignedGroupId = groupId
+                            break
+                        end
+                    end
+                    
+                    local info = UIDropDownMenu_CreateInfo()
+                    info.text = keystoneData.dungeonName .. " +" .. keystoneData.level .. " (" .. keystoneData.assignedPlayer .. ")"
+                    if isAssigned then
+                        info.text = info.text .. " [Assigned to Group " .. assignedGroupId .. "]"
+                        info.disabled = true
+                    else
+                        info.func = function()
+                            addon.GroupStateManager:AssignKeystoneToGroup(groupFrame.groupIndex, keystoneData)
+                            self:UpdateGroupTitle(groupFrame)
+                            self.Debug("INFO", "Manually assigned keystone", keystoneData.dungeonName, "+", keystoneData.level, "to group", groupFrame.groupIndex)
+                            CloseDropDownMenus()
+                        end
+                    end
+                    info.notCheckable = true
+                    UIDropDownMenu_AddButton(info, level)
+                end
+                
+                if #availableKeystones == 0 then
+                    local info = UIDropDownMenu_CreateInfo()
+                    info.text = "No keystones available"
+                    info.disabled = true
+                    info.notCheckable = true
+                    UIDropDownMenu_AddButton(info, level)
+                end
+            end
+        end
+    end
+    
+    UIDropDownMenu_Initialize(dropdownFrame, InitializeKeystoneMenu, "MENU")
+    ToggleDropDownMenu(1, nil, dropdownFrame, "cursor", 0, 0)
+end
+
+function GroupFrameUI:GetAvailableKeystones()
+    local keystones = {}
+    
+    if not addon.Keystone then
+        return keystones
+    end
+    
+    local playerInfo = addon.WoWAPIWrapper and addon.WoWAPIWrapper:GetPlayerInfo()
+    if playerInfo then
+        local playerKeystone = addon.Keystone:GetKeystoneInfo()
+        if playerKeystone and playerKeystone.hasKeystone then
+            table.insert(keystones, {
+                mapID = playerKeystone.mapID,
+                level = playerKeystone.level,
+                dungeonName = playerKeystone.dungeonName,
+                assignedPlayer = playerInfo.name,
+                source = "own"
+            })
+        end
+    end
+    
+    local receivedKeystones = addon.Keystone:GetReceivedKeystones()
+    for playerName, keystoneData in pairs(receivedKeystones) do
+        if keystoneData.mapID and keystoneData.level then
+            table.insert(keystones, {
+                mapID = keystoneData.mapID,
+                level = keystoneData.level,
+                dungeonName = keystoneData.dungeonName,
+                assignedPlayer = playerName,
+                source = "received"
+            })
+        end
+    end
+    
+    table.sort(keystones, function(a, b)
+        if a.level == b.level then
+            return a.dungeonName < b.dungeonName
+        end
+        return a.level > b.level
+    end)
+    
+    return keystones
+end
+

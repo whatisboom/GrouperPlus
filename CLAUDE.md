@@ -145,21 +145,30 @@ Defined in `constants.lua` with `CLASS_UTILITIES` and `UTILITY_INFO` tables:
 - Visual indicators in MainFrame show utility coverage per group
 - System integrates seamlessly with existing role balancing
 
-## Testing Commands
+## Commands
 
-### Core Addon Commands
+### User Commands
+Primary commands for everyday use:
 ```
-/reload - Reload the UI
-/grouperopt - Open options panel
-/grouper show - Show minimap icon
-/grouper hide - Hide minimap icon
-/grouper auto - Test auto-formation with utility distribution
+/grouper form - Auto-form balanced groups with utility distribution
+/grouper toggle - Show/hide main window
+/grouper config - Open addon settings
+/grouper minimap - Show/hide minimap icon
+/grouper help - Show command help
+/grouperopt - Quick access to options panel
 ```
 
-### New Unified State System Commands
+### Developer Commands
+Access advanced debugging and testing features with `/grouper dev` or use directly:
 ```
-/grouper test-unified - Comprehensive test of all new state management systems
+/grouper test-unified - Comprehensive test of all state management systems
 /grouper test-state - Alias for test-unified
+/grouper dev - Show all developer commands
+```
+
+### System Commands
+```
+/reload - Reload the UI (WoW built-in)
 ```
 
 ### State Management Test Coverage
@@ -264,3 +273,5 @@ The unified state system ensures:
 - **Real-time updates** - State changes immediately propagate to all connected clients
 - **Conflict resolution** - Admin permissions and session locks prevent conflicting edits
 - **Visual consistency** - All clients display identical member lists and group assignments
+- when running lua check, fix any and all warnings and errors and issues
+- instead of using a fallback if a global isn't defined use a local to redefine the global

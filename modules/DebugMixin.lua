@@ -77,7 +77,7 @@ function DebugMixin:InitDebug(moduleName)
     end
     
     self.ClearDebugCache = function()
-        wipe(self.debugCache)
+        table.wipe(self.debugCache)
     end
     
     for levelName, _ in pairs(addon.DEBUG_LEVELS or {}) do

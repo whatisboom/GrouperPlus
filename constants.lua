@@ -67,6 +67,81 @@ local UTILITY_INFO = {
     CHAOS_BRAND = { priority = 3, name = "Chaos Brand", color = {0.7, 0.7, 0.7} }
 }
 
+-- Damage type classification for DPS specializations
+-- PHYSICAL = primarily physical damage, benefits most from Mystic Touch
+-- MAGIC = primarily magic damage, benefits most from Chaos Brand
+-- HYBRID = significant mix of both, benefits from both debuffs
+local SPEC_DAMAGE_TYPE = {
+    -- Death Knight
+    [251] = "HYBRID",   -- Frost (physical auto attacks + magic spells)
+    [252] = "HYBRID",   -- Unholy (physical diseases + magic spells)
+    
+    -- Demon Hunter
+    [581] = "PHYSICAL", -- Havoc (mostly physical with some chaos magic)
+    
+    -- Druid
+    [102] = "MAGIC",    -- Balance (pure magic damage)
+    [103] = "PHYSICAL", -- Feral (pure physical damage)
+    
+    -- Evoker
+    [1467] = "MAGIC",   -- Devastation (pure magic damage)
+    [1473] = "MAGIC",   -- Augmentation (pure magic damage)
+    
+    -- Hunter
+    [253] = "PHYSICAL", -- Beast Mastery (physical shots + pet damage)
+    [254] = "PHYSICAL", -- Marksmanship (physical shots)
+    [255] = "HYBRID",   -- Survival (physical melee + magic bombs/traps)
+    
+    -- Mage
+    [62] = "MAGIC",     -- Arcane (pure magic damage)
+    [63] = "MAGIC",     -- Fire (pure magic damage)
+    [64] = "MAGIC",     -- Frost (pure magic damage)
+    
+    -- Monk
+    [269] = "PHYSICAL", -- Windwalker (pure physical damage)
+    
+    -- Paladin
+    [70] = "HYBRID",    -- Retribution (physical melee + holy magic)
+    
+    -- Priest
+    [258] = "MAGIC",    -- Shadow (pure magic damage)
+    
+    -- Rogue
+    [259] = "PHYSICAL", -- Assassination (pure physical + poisons)
+    [260] = "PHYSICAL", -- Outlaw (pure physical damage)
+    [261] = "PHYSICAL", -- Subtlety (pure physical damage)
+    
+    -- Shaman
+    [262] = "MAGIC",    -- Elemental (pure magic damage)
+    [263] = "HYBRID",   -- Enhancement (physical melee + magic spells)
+    
+    -- Warlock
+    [265] = "MAGIC",    -- Affliction (pure magic damage)
+    [266] = "MAGIC",    -- Demonology (pure magic damage)
+    [267] = "MAGIC",    -- Destruction (pure magic damage)
+    
+    -- Warrior
+    [71] = "PHYSICAL",  -- Arms (pure physical damage)
+    [72] = "PHYSICAL",  -- Fury (pure physical damage)
+}
+
+-- Class-based damage type fallback for when spec detection fails
+local CLASS_DAMAGE_TYPE = {
+    DEATHKNIGHT = "HYBRID",     -- Most DK specs are hybrid
+    DEMONHUNTER = "PHYSICAL",   -- Only DPS spec is mostly physical
+    DRUID = "MIXED",            -- Can be pure magic (Balance) or pure physical (Feral)
+    EVOKER = "MAGIC",           -- All DPS specs are pure magic
+    HUNTER = "PHYSICAL",        -- Most specs are physical (BM/MM), only SV is hybrid
+    MAGE = "MAGIC",             -- All specs are pure magic
+    MONK = "PHYSICAL",          -- Windwalker is pure physical
+    PALADIN = "HYBRID",         -- Retribution is hybrid
+    PRIEST = "MAGIC",           -- Shadow is pure magic
+    ROGUE = "PHYSICAL",         -- All specs are pure physical
+    SHAMAN = "MIXED",           -- Can be pure magic (Elemental) or hybrid (Enhancement)
+    WARLOCK = "MAGIC",          -- All specs are pure magic
+    WARRIOR = "PHYSICAL"        -- All specs are pure physical
+}
+
 local defaults = {
     profile = {
         debugLevel = "WARN",
@@ -134,4 +209,6 @@ addon.ROLE_DISPLAY = ROLE_DISPLAY
 addon.ITEM_QUALITY_COLORS = ITEM_QUALITY_COLORS
 addon.CLASS_UTILITIES = CLASS_UTILITIES
 addon.UTILITY_INFO = UTILITY_INFO
+addon.SPEC_DAMAGE_TYPE = SPEC_DAMAGE_TYPE
+addon.CLASS_DAMAGE_TYPE = CLASS_DAMAGE_TYPE
 addon.defaults = defaults

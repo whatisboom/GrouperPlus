@@ -18,6 +18,10 @@ local groupsContainer = nil
 local dynamicGroups = {}
 local draggedMember = nil
 local dragFrame = nil
+
+-- Flag variables for sync coordination
+local applySyncInProgress = false
+local bulkOperationInProgress = false
 local MAX_GROUP_SIZE = 5
 
 -- Forward declarations for drag frame functions
@@ -31,21 +35,18 @@ local function AddSessionPermissionIcons(memberName)
     local displayName = memberName
     
     -- Add session permission indicators
-    if addon.SessionManager and addon.SessionManager:IsInSession() then
-        local sessionInfo = addon.SessionManager:GetSessionInfo()
+    if addon.SessionStateManager and addon.SessionStateManager:IsInSession() then
+        local sessionInfo = addon.SessionStateManager:GetSessionInfo()
         if sessionInfo then
-            local fullName = memberName
-            if not string.find(fullName, "-") then
-                fullName = fullName .. "-" .. GetRealmName()
-            end
+            local fullName = addon.WoWAPIWrapper:NormalizePlayerName(memberName)
             
-            if sessionInfo.owner == fullName then
+            if sessionInfo.ownerId == fullName then
                 -- Session owner gets a crown icon
                 displayName = "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:14:14|t " .. displayName
             else
-                local whitelist = addon.SessionManager:GetWhitelist()
-                if whitelist[fullName] then
-                    -- Whitelisted players get an assist icon
+                local participants = addon.SessionStateManager:GetParticipants()
+                if participants[fullName] and participants[fullName].permissions then
+                    -- Participants with permissions get an assist icon
                     displayName = "|TInterface\\GroupFrame\\UI-Group-AssistantIcon:14:14|t " .. displayName
                 end
             end
@@ -61,13 +62,19 @@ end
 local function UpdateMemberDisplay()
     addon.MainFrame.Debug("DEBUG", "UpdateMemberDisplay: Updating member display - ENTRY")
     
+    -- Skip member display updates during bulk operations
+    if bulkOperationInProgress then
+        addon.MainFrame.Debug("DEBUG", "UpdateMemberDisplay: Skipping member display update - bulk operation in progress")
+        return
+    end
+    
     if not scrollChild then
         addon.MainFrame.Debug("WARN", "UpdateMemberDisplay: scrollChild not initialized")
         return
     end
     
-    local members = addon.MemberManager:UpdateMemberList()
-    addon.MainFrame.Debug("DEBUG", "UpdateMemberDisplay: Retrieved", #members, "available members from guild list")
+    local members = addon.MemberStateManager:GetAvailableMembers()
+    addon.MainFrame.Debug("DEBUG", "UpdateMemberDisplay: Retrieved", #members, "available members from unified state")
     
     -- Apply sorting if column headers are available
     if scrollFrame and scrollFrame:GetParent() then
@@ -341,39 +348,10 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                 -- Show tooltip if member exists in this slot
                 if groupFrame.members[i] then
                     local memberInfo = groupFrame.members[i]
-                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    GameTooltip:SetText(memberInfo.name, 1, 1, 1)
-                    
-                    -- Add keystone information if available
-                    if addon.Keystone then
-                        local playerName = UnitName("player")
-                        local playerFullName = UnitName("player") .. "-" .. GetRealmName()
-                        local isCurrentPlayer = (memberInfo.name == playerName or memberInfo.name == playerFullName)
-                        
-                        -- Always show the current player's keystone from their own data
-                        if isCurrentPlayer then
-                            local playerKeystoneInfo = addon.Keystone:GetKeystoneInfo()
-                            if playerKeystoneInfo.hasKeystone then
-                                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                                GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
-                                local keystoneString = addon.Keystone:GetKeystoneString()
-                                GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
-                            end
-                        else
-                            -- For other players, check received keystone data
-                            local receivedKeystones = addon.Keystone:GetReceivedKeystones()
-                            local keystoneData = receivedKeystones[memberInfo.name]
-                            
-                            if keystoneData and keystoneData.mapID and keystoneData.level then
-                                GameTooltip:AddLine(" ", 1, 1, 1) -- Spacer
-                                GameTooltip:AddLine("Keystone:", 0.8, 0.8, 0.8)
-                                local keystoneString = string.format("%s +%d", keystoneData.dungeonName or "Unknown Dungeon", keystoneData.level)
-                                GameTooltip:AddLine(keystoneString, 1, 0.8, 0)
-                            end
-                        end
+                    -- Use the shared tooltip function from MemberRowUI
+                    if addon.MemberRowUI and addon.MemberRowUI.CreateMemberTooltip then
+                        addon.MemberRowUI:CreateMemberTooltip(self, memberInfo.name)
                     end
-                    
-                    GameTooltip:Show()
                 end
             end
         end)
@@ -458,14 +436,12 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                 addon.MainFrame.Debug("DEBUG", "About to call AddMemberToGroup (manual) with:", memberName, groupIndex, slotIndex, "fromGroup:", fromGroup)
                 
                 local success = false
-                local errorMsg = nil
                 local status, result = pcall(AddMemberToGroup, memberName, groupIndex, slotIndex)
                 if status then
                     success = result
                     addon.MainFrame.Debug("DEBUG", "AddMemberToGroup (manual) returned:", success)
                 else
-                    errorMsg = result
-                    addon.MainFrame.Debug("ERROR", "AddMemberToGroup (manual) failed with error:", errorMsg)
+                    addon.MainFrame.Debug("ERROR", "AddMemberToGroup (manual) failed with error:", result)
                 end
                 
                 if success then
@@ -616,8 +592,8 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                 RemoveMemberFromGroup(draggedSourceGroup, draggedSourceSlot, true)
                 
                 -- Temporarily clear members from tracking to allow re-adding to different groups
-                addon.MemberManager:SetMemberInGroup(targetMemberInfo.name, false)
-                addon.MemberManager:SetMemberInGroup(draggedMemberName, false)
+                addon.MemberStateManager:RemoveMemberFromGroup(targetMemberInfo.name)
+                addon.MemberStateManager:RemoveMemberFromGroup(draggedMemberName)
                 addon.MainFrame.Debug("DEBUG", "Temporarily cleared both members from membersInGroups tracking for swap")
                 
                 -- Find available slots in both groups after reorganization
@@ -684,7 +660,7 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                 RemoveMemberFromGroup(groupIndex, slotIndex, true)
                 
                 -- Temporarily clear target member from tracking to allow replacement
-                addon.MemberManager:SetMemberInGroup(targetMemberInfo.name, false)
+                addon.MemberStateManager:RemoveMemberFromGroup(targetMemberInfo.name)
                 addon.MainFrame.Debug("DEBUG", "Temporarily cleared", targetMemberInfo.name, "from membersInGroups tracking for replacement")
                 
                 -- Find the first available slot in the group after reorganization
@@ -825,8 +801,8 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                     -- Remove both members and clear tracking
                     RemoveMemberFromGroup(groupIndex, lastSlot, true)
                     RemoveMemberFromGroup(draggedSourceGroup, draggedSourceSlot, true)
-                    addon.MemberManager:SetMemberInGroup(targetMember.name, false)
-                    addon.MemberManager:SetMemberInGroup(draggedMemberName, false)
+                    addon.MemberStateManager:RemoveMemberFromGroup(targetMember.name)
+                    addon.MemberStateManager:RemoveMemberFromGroup(draggedMemberName)
                     
                     -- Find available slots after reorganization
                     local targetGroupSlot = nil
@@ -877,7 +853,7 @@ local function CreateGroupFrame(parent, groupIndex, groupWidth)
                     
                     -- Remove target member and clear tracking
                     RemoveMemberFromGroup(groupIndex, lastSlot, true)
-                    addon.MemberManager:SetMemberInGroup(targetMember.name, false)
+                    addon.MemberStateManager:RemoveMemberFromGroup(targetMember.name)
                     
                     -- Find available slot after reorganization
                     local availableSlotAfterRemoval = nil
@@ -1125,8 +1101,9 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     
     -- Check if member is already in a group (unless being moved between groups)
     local isGroupToGroupMove = draggedMember and draggedMember.fromGroup
-    if addon.MemberManager:IsMemberInGroup(memberName) and not isGroupToGroupMove then
-        addon.MainFrame.Debug("ERROR", "AddMemberToGroup: Member", memberName, "is already in a group - RETURNING FALSE")
+    local member = addon.MemberStateManager:GetMember(memberName)
+    if member and member.groupId and not isGroupToGroupMove then
+        addon.MainFrame.Debug("ERROR", "AddMemberToGroup: Member", memberName, "is already in group", member.groupId, "- RETURNING FALSE")
         return false
     end
     
@@ -1151,16 +1128,8 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     end
     addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Slot is empty, proceeding")
     
-    local memberInfo = nil
-    local memberList = addon.MemberManager:GetMemberList()
-    addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Searching for member in memberList, count:", #memberList)
-    for _, member in ipairs(memberList) do
-        if member.name == memberName then
-            memberInfo = member
-            addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Found member in list:", member.name)
-            break
-        end
-    end
+    local memberInfo = addon.MemberStateManager:GetMember(memberName)
+    addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Retrieved member from unified state:", memberInfo and memberInfo.name or "nil")
     
     -- If not found in memberList, check if it's being moved from another group
     if not memberInfo and draggedMember and draggedMember.fromGroup and draggedMember.memberInfo then
@@ -1169,10 +1138,11 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     end
     
     if not memberInfo then
-        addon.MainFrame.Debug("ERROR", "AddMemberToGroup: Member", memberName, "not found in member list or draggedMember - RETURNING FALSE")
+        addon.MainFrame.Debug("ERROR", "AddMemberToGroup: Member", memberName, "not found in unified state or draggedMember - RETURNING FALSE")
         addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Available members:")
-        for i, member in ipairs(memberList) do
-            addon.MainFrame.Debug("DEBUG", "  ", i, ":", member.name)
+        local allMembers = addon.MemberStateManager:GetAllMembers()
+        for i, availableMember in ipairs(allMembers) do
+            addon.MainFrame.Debug("DEBUG", "  ", i, ":", availableMember.name)
         end
         return false
     end
@@ -1197,10 +1167,9 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Setting member info in group.members[", slotIndex, "]")
     group.members[slotIndex] = memberInfo
     
-    -- Add to tracking list
-    addon.MemberManager:SetMemberInGroup(memberName, true)
-    addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Added", memberName, "to membersInGroups tracking")
-    addon.MemberManager:DebugState()
+    -- Add to group via unified state management
+    addon.MemberStateManager:AssignMemberToGroup(memberName, groupIndex)
+    addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Assigned", memberName, "to group", groupIndex, "via unified state")
     addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Member info set successfully")
     
     local memberFrame = group.memberFrames[slotIndex]
@@ -1263,16 +1232,27 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
         end
     end
     
-    addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Calling EnsureEmptyGroupExists")
-    EnsureEmptyGroupExists()
+    -- Skip creating new empty groups during bulk operations
+    if not bulkOperationInProgress then
+        addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Calling EnsureEmptyGroupExists")
+        EnsureEmptyGroupExists()
+    else
+        addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Skipping EnsureEmptyGroupExists - bulk operation in progress")
+    end
     
-    -- Apply role-based positioning after adding the member
-    addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: About to call ReorganizeGroupByRole for group", groupIndex)
-    addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Member info before reorganize - name:", memberInfo and memberInfo.name or "nil", "role:", memberInfo and memberInfo.role or "nil", "score:", memberInfo and memberInfo.score or "nil")
-    ReorganizeGroupByRole(groupIndex)
+    -- Apply role-based positioning after adding the member (skip during bulk operations for performance)
+    if not bulkOperationInProgress then
+        addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: About to call ReorganizeGroupByRole for group", groupIndex)
+        addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Member info before reorganize - name:", memberInfo and memberInfo.name or "nil", "role:", memberInfo and memberInfo.role or "nil", "score:", memberInfo and memberInfo.score or "nil")
+        ReorganizeGroupByRole(groupIndex)
+    else
+        addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Skipping ReorganizeGroupByRole - bulk operation in progress, will reorganize at end")
+    end
     
-    -- Update group title to reflect utility availability
-    addon.GroupFrameUI:UpdateGroupTitle(group)
+    -- Update group title to reflect utility availability (skip during bulk operations)
+    if not bulkOperationInProgress then
+        addon.GroupFrameUI:UpdateGroupTitle(group)
+    end
     
     -- Ensure drag permissions are properly updated after adding member
     addon:UpdateEditPermissions()
@@ -1285,12 +1265,9 @@ AddMemberToGroup = function(memberName, groupIndex, slotIndex)
     
     -- Sync group changes with other addon users (only if not applying received sync and not in bulk operation)
     addon.MainFrame.Debug("TRACE", "AddMemberToGroup: Sync check - applySyncInProgress:", applySyncInProgress, "bulkOperationInProgress:", bulkOperationInProgress)
-    if not applySyncInProgress and not bulkOperationInProgress and addon.AddonComm and addon.AddonComm.SyncGroupFormation then
-        local currentGroups = addon:GetCurrentGroupFormation()
-        if currentGroups then
-            addon.AddonComm:SyncGroupFormation(currentGroups)
-            addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Synced group changes with other users")
-        end
+    -- Sync is handled automatically by StateSync system
+    if not applySyncInProgress and not bulkOperationInProgress then
+        addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Group changes synced automatically via StateSync")
     elseif applySyncInProgress then
         addon.MainFrame.Debug("DEBUG", "AddMemberToGroup: Skipping sync - applying received sync")
     elseif bulkOperationInProgress then
@@ -1447,12 +1424,12 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate, sk
     local memberName = memberInfo.name
     group.members[slotIndex] = nil
     
-    -- Only remove from tracking list if not moving to another group
+    -- Only remove from group tracking if not moving to another group
     if not skipPlayerListUpdate then
-        addon.MemberManager:SetMemberInGroup(memberName, false)
-        addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Removed", memberName, "from membersInGroups tracking")
+        addon.MemberStateManager:RemoveMemberFromGroup(memberName)
+        addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Removed", memberName, "from group via unified state")
     else
-        addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Keeping", memberName, "in membersInGroups tracking (moving between groups)")
+        addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Keeping", memberName, "in group tracking (moving between groups)")
     end
     
     local memberFrame = group.memberFrames[slotIndex]
@@ -1484,12 +1461,9 @@ RemoveMemberFromGroup = function(groupIndex, slotIndex, skipPlayerListUpdate, sk
     end
     
     -- Sync group changes with other addon users (only if not applying received sync and not skipping cleanup)
-    if not applySyncInProgress and not skipGroupCleanup and addon.AddonComm and addon.AddonComm.SyncGroupFormation then
-        local currentGroups = addon:GetCurrentGroupFormation()
-        if currentGroups then
-            addon.AddonComm:SyncGroupFormation(currentGroups)
-            addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Synced group changes with other users")
-        end
+    -- Sync is handled automatically by StateSync system
+    if not applySyncInProgress and not skipGroupCleanup then
+        addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Group changes synced automatically via StateSync")
     elseif applySyncInProgress then
         addon.MainFrame.Debug("DEBUG", "RemoveMemberFromGroup: Skipping sync - applying received sync")
     end
@@ -1500,6 +1474,12 @@ end
 
 RemoveMemberFromPlayerList = function(memberName)
     addon.MainFrame.Debug("INFO", "RemoveMemberFromPlayerList: Member", memberName, "now tracked in groups - will be excluded from next UpdateMemberDisplay")
+    
+    -- Skip UI updates during bulk operations
+    if bulkOperationInProgress then
+        addon.MainFrame.Debug("DEBUG", "RemoveMemberFromPlayerList: Skipping UpdateMemberDisplay - bulk operation in progress")
+        return
+    end
     
     addon.MainFrame.Debug("DEBUG", "RemoveMemberFromPlayerList: About to call UpdateMemberDisplay")
     -- Defer the display update to ensure drag operations are fully complete
@@ -1512,6 +1492,13 @@ end
 
 AddMemberBackToPlayerList = function(memberInfo)
     addon.MainFrame.Debug("INFO", "AddMemberBackToPlayerList: Member", memberInfo.name, "no longer tracked in groups - will appear in next UpdateMemberDisplay")
+    
+    -- Skip UI updates during bulk operations
+    if bulkOperationInProgress then
+        addon.MainFrame.Debug("DEBUG", "AddMemberBackToPlayerList: Skipping UpdateMemberDisplay - bulk operation in progress")
+        return
+    end
+    
     -- No need to manually add to memberList since UpdateGuildMemberList will handle this
     UpdateMemberDisplay()
 end
@@ -1678,8 +1665,8 @@ local function CreateMainFrame()
     startSessionBtn:SetText("Start Session")
     startSessionBtn:SetScript("OnClick", function()
         addon.MainFrame.Debug("INFO", "Start session button clicked")
-        if addon.SessionManager then
-            local success, result = addon.SessionManager:CreateSession()
+        if addon.SessionStateManager then
+            local success, result = addon.SessionStateManager:CreateSession()
             if success then
                 addon:Print("Started a new grouping session")
             else
@@ -1694,8 +1681,8 @@ local function CreateMainFrame()
     finalizeBtn:SetText("Finalize")
     finalizeBtn:SetScript("OnClick", function()
         addon.MainFrame.Debug("INFO", "Finalize button clicked")
-        if addon.SessionManager then
-            local success, result = addon.SessionManager:FinalizeGroups()
+        if addon.SessionStateManager then
+            local success, result = addon.SessionStateManager:LockSession()
             if success then
                 addon:Print("Groups have been finalized")
             else
@@ -1710,16 +1697,16 @@ local function CreateMainFrame()
     endSessionBtn:SetText("End Session")
     endSessionBtn:SetScript("OnClick", function()
         addon.MainFrame.Debug("INFO", "End session button clicked")
-        if addon.SessionManager then
-            if addon.SessionManager:IsSessionOwner() then
-                local success, result = addon.SessionManager:EndSession()
+        if addon.SessionStateManager then
+            if addon.SessionStateManager:IsSessionOwner() then
+                local success, result = addon.SessionStateManager:EndSession()
                 if success then
                     addon:Print("Session ended")
                 else
                     addon:Print("Failed to end session: " .. tostring(result))
                 end
             else
-                local success, result = addon.SessionManager:LeaveSession()
+                local success, result = addon.SessionStateManager:LeaveSession()
                 if success then
                     addon:Print("Left the session")
                 else
@@ -1914,17 +1901,74 @@ local function CreateMainFrame()
         end
     end
     
+    -- Register for unified state events
+    if addon.MemberStateManager then
+        addon.MemberStateManager:RegisterMessage("GROUPERPLUS_MEMBERS_REFRESHED", function(event, discovered)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: MEMBERS_REFRESHED event received with", #discovered, "members")
+            if #discovered > 0 then
+                addon.MainFrame.Debug("INFO", "CreateMainFrame: Updating display after member refresh")
+                UpdateMemberDisplay()
+                UpdateGroupsDisplay()
+            end
+        end)
+        
+        addon.MemberStateManager:RegisterMessage("GROUPERPLUS_MEMBER_ADDED", function(event, member)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: MEMBER_ADDED event received for", member.name)
+            UpdateMemberDisplay()
+        end)
+        
+        addon.MemberStateManager:RegisterMessage("GROUPERPLUS_MEMBER_UPDATED", function(event, member, oldData)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: MEMBER_UPDATED event received for", member.name)
+            UpdateMemberDisplay()
+            UpdateGroupsDisplay()
+        end)
+        
+        addon.MemberStateManager:RegisterMessage("GROUPERPLUS_MEMBER_REMOVED", function(event, member)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: MEMBER_REMOVED event received for", member.name)
+            UpdateMemberDisplay()
+        end)
+    end
+    
+    -- Register for session state events
+    if addon.SessionStateManager then
+        addon.SessionStateManager:RegisterMessage("GROUPERPLUS_SESSION_CREATED", function(event, sessionInfo)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: SESSION_CREATED event received")
+            addon.MainFrame:UpdateSessionUI()
+        end)
+        
+        addon.SessionStateManager:RegisterMessage("GROUPERPLUS_SESSION_JOINED", function(event, sessionInfo)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: SESSION_JOINED event received")
+            addon.MainFrame:UpdateSessionUI()
+        end)
+        
+        addon.SessionStateManager:RegisterMessage("GROUPERPLUS_SESSION_LEFT", function(event, sessionInfo)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: SESSION_LEFT event received")
+            addon.MainFrame:UpdateSessionUI()
+        end)
+        
+        addon.SessionStateManager:RegisterMessage("GROUPERPLUS_SESSION_ENDED", function(event, sessionInfo)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: SESSION_ENDED event received")
+            addon.MainFrame:UpdateSessionUI()
+        end)
+        
+        addon.SessionStateManager:RegisterMessage("GROUPERPLUS_SESSION_LOCKED", function(event)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: SESSION_LOCKED event received")
+            addon.MainFrame:UpdateSessionUI()
+        end)
+        
+        addon.SessionStateManager:RegisterMessage("GROUPERPLUS_SESSION_UNLOCKED", function(event)
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: SESSION_UNLOCKED event received")
+            addon.MainFrame:UpdateSessionUI()
+        end)
+    end
+    
+    -- Still register for guild roster updates to trigger refresh
     mainFrame:RegisterEvent("GUILD_ROSTER_UPDATE")
     mainFrame:SetScript("OnEvent", function(self, event)
         if event == "GUILD_ROSTER_UPDATE" then
-            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: GUILD_ROSTER_UPDATE event received")
-            local members = addon.MemberManager:UpdateMemberList()
-            if #members > 0 then
-                addon.MainFrame.Debug("INFO", "CreateMainFrame: GUILD_ROSTER_UPDATE found", #members, "members - updating display")
-                UpdateMemberDisplay()
-                UpdateGroupsDisplay()
-            else
-                addon.MainFrame.Debug("DEBUG", "CreateMainFrame: GUILD_ROSTER_UPDATE still shows 0 members")
+            addon.MainFrame.Debug("DEBUG", "CreateMainFrame: GUILD_ROSTER_UPDATE event received - triggering member refresh")
+            if addon.MemberStateManager then
+                addon.MemberStateManager:RefreshFromSources()
             end
         end
     end)
@@ -1945,8 +1989,8 @@ local function CreateMainFrame()
         draggedMember = nil
         HideDragFrame()
         
-        -- Initialize MemberManager
-        addon.MemberManager:Initialize()
+        -- Refresh members from unified state
+        addon.MemberStateManager:RefreshFromSources()
         
         -- Rebuild membersInGroups tracking from existing dynamic groups
         addon.MainFrame.Debug("DEBUG", "CreateMainFrame: Rebuilding group membership tracking from", #dynamicGroups, "existing groups")
@@ -1954,7 +1998,7 @@ local function CreateMainFrame()
             if group and group.members then
                 for slotIndex, member in pairs(group.members) do
                     if member and member.name then
-                        addon.MemberManager:SetMemberInGroup(member.name, true)
+                        addon.MemberStateManager:AssignMemberToGroup(member.name, groupIndex)
                         addon.MainFrame.Debug("TRACE", "CreateMainFrame: Marked", member.name, "as in group", groupIndex, "slot", slotIndex)
                     end
                 end
@@ -1968,6 +2012,7 @@ local function CreateMainFrame()
         addon.MainFrame.Debug("DEBUG", "CreateMainFrame: Forcing immediate member list update from OnShow")
         UpdateMemberDisplay()
         UpdateGroupsDisplay()
+        addon.MainFrame:UpdateSessionUI()
         
         addon.MainFrame.Debug("DEBUG", "CreateMainFrame: OnShow complete, update performed (loading message shown if needed)")
     end)
@@ -1983,6 +2028,7 @@ local function CreateMainFrame()
     C_GuildInfo.GuildRoster()
     UpdateMemberDisplay()
     UpdateGroupsDisplay()
+    addon.MainFrame:UpdateSessionUI()
     
     addon.MainFrame.Debug("INFO", "CreateMainFrame: Main frame created successfully")
     addon.MainFrame.Debug("DEBUG", "CreateMainFrame: Frame size:", mainFrame:GetWidth(), "x", mainFrame:GetHeight())
@@ -2032,9 +2078,105 @@ function addon:ToggleMainFrame()
     end
 end
 
+function addon:RefreshUIFromBackendState()
+    addon.MainFrame.Debug("INFO", "RefreshUIFromBackendState: Starting complete UI refresh from backend state")
+    
+    if not addon.GroupStateManager then
+        addon.MainFrame.Debug("WARN", "RefreshUIFromBackendState: GroupStateManager not available")
+        UpdateMemberDisplay()
+        return
+    end
+    
+    -- Get all groups from state manager BEFORE clearing UI
+    local stateGroups = addon.GroupStateManager:GetAllGroups()
+    
+    -- Clear all existing UI groups only (not backend state)
+    self:ClearAllGroupsUIOnly()
+    local groupCount = 0
+    for _ in pairs(stateGroups) do
+        groupCount = groupCount + 1
+    end
+    
+    addon.MainFrame.Debug("DEBUG", "RefreshUIFromBackendState: Found", groupCount, "groups in backend state")
+    
+    if groupCount == 0 then
+        -- No groups in state, just refresh member display and ensure empty group
+        UpdateMemberDisplay()
+        EnsureEmptyGroupExists()
+        return
+    end
+    
+    -- Create UI group frames to match state
+    local uiGroupIndex = 1
+    for groupId, groupData in pairs(stateGroups) do
+        local memberCount = #groupData.members
+        
+        if memberCount > 0 then -- Only create UI for groups with members
+            -- Find or create group frame
+            local groupFrame = dynamicGroups[uiGroupIndex]
+            if not groupFrame then
+                CreateNewGroup()
+                groupFrame = dynamicGroups[uiGroupIndex]
+            end
+            local groupIndex = uiGroupIndex
+            
+            addon.MainFrame.Debug("DEBUG", "RefreshUIFromBackendState: Created UI group", groupIndex, "for state group", groupId, "with", memberCount, "members")
+            
+            -- Add members to UI group
+            for slotIndex, memberName in ipairs(groupData.members) do
+                if slotIndex <= MAX_GROUP_SIZE then
+                    local memberInfo = addon.MemberStateManager:GetMember(memberName)
+                    if memberInfo then
+                        -- Direct UI update without state changes (state is already correct)
+                        local memberFrame = groupFrame.memberFrames[slotIndex]
+                        if memberFrame then
+                            -- Update member display
+                            memberFrame.text:SetText(memberInfo.name)
+                            
+                            -- Set role using centralized display logic
+                            local roleDisplay, roleColor = addon:GetRoleDisplay(memberInfo.role)
+                            memberFrame.roleText:SetText(roleDisplay)
+                            memberFrame.roleText:SetTextColor(roleColor.r, roleColor.g, roleColor.b)
+                            
+                            -- Set class color
+                            if memberInfo.class then
+                                local classColor = addon.WoWAPIWrapper:GetClassColor(memberInfo.class)
+                                if classColor then
+                                    memberFrame.text:SetTextColor(classColor.r, classColor.g, classColor.b)
+                                end
+                            end
+                            
+                            -- Store member info and show remove button
+                            groupFrame.members[slotIndex] = memberInfo
+                            memberFrame.removeBtn:Show()
+                            memberFrame:EnableMouse(true)
+                            
+                            addon.MainFrame.Debug("DEBUG", "RefreshUIFromBackendState: Added", memberName, "to UI group", groupIndex, "slot", slotIndex)
+                        end
+                    end
+                end
+            end
+            
+            -- Update group title with utilities and keystones
+            if addon.GroupFrameUI then
+                addon.GroupFrameUI:UpdateGroupTitle(groupFrame)
+            end
+            
+            uiGroupIndex = uiGroupIndex + 1
+        end
+    end
+    
+    -- Ensure we have an empty group and update member display
+    EnsureEmptyGroupExists()
+    RepositionAllGroups()
+    UpdateMemberDisplay()
+    
+    addon.MainFrame.Debug("INFO", "RefreshUIFromBackendState: UI refresh complete")
+end
+
 function addon:AutoFormGroups()
     addon.MainFrame.Debug(addon.LOG_LEVEL.INFO, "AutoFormGroups function called")
-    addon.MainFrame.Debug("INFO", "AutoFormGroups: Starting auto-formation process")
+    addon.MainFrame.Debug("INFO", "AutoFormGroups: Starting backend-only auto-formation process")
     
     if not self.AutoFormation then
         addon.MainFrame.Debug("ERROR", "AutoFormGroups: AutoFormation module not loaded")
@@ -2042,111 +2184,142 @@ function addon:AutoFormGroups()
         return
     end
     
-    -- Set bulk operation flag to prevent individual syncs
+    -- Set bulk operation flag to prevent individual syncs and UI updates
     bulkOperationInProgress = true
-    addon.MainFrame.Debug("INFO", "AutoFormGroups: Set bulk operation flag to prevent individual syncs - flag is now:", bulkOperationInProgress)
+    addon.MainFrame.Debug("INFO", "AutoFormGroups: Set bulk operation flag - all operations will be backend-only")
     
-    -- Clear existing groups before auto-formation
-    addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Clearing existing groups")
-    self:ClearAllGroups()
-    
-    -- Get available members from the member list
-    local memberList = addon.MemberManager:GetMemberList()
+    -- Get available members from the unified state (backend operation)
+    local memberList = addon.MemberStateManager:GetAllMembers()
     if not memberList or #memberList == 0 then
         addon.MainFrame.Debug("WARN", "AutoFormGroups: No members available for auto-formation")
         addon.MainFrame.Debug(addon.LOG_LEVEL.WARN, "No guild members available. Please wait for the guild roster to load, then try again.")
-        -- Clear bulk operation flag before returning
         bulkOperationInProgress = false
-        -- Try to refresh the guild roster
         C_GuildInfo.GuildRoster()
         return
     end
     
     addon.MainFrame.Debug("INFO", "AutoFormGroups: Found", #memberList, "available members")
     
-    -- Create balanced groups using the auto-formation algorithm
-    local groups = self.AutoFormation:CreateBalancedGroups(memberList, 5)
+    -- BACKEND ONLY: Create balanced groups using the auto-formation algorithm with keystone assignment
+    local groups = self.AutoFormation:CreateBalancedGroupsWithKeystones(memberList, 5)
     
     if not groups or #groups == 0 then
         addon.MainFrame.Debug("WARN", "AutoFormGroups: No valid groups could be formed")
         addon.MainFrame.Debug(addon.LOG_LEVEL.WARN, "Unable to form balanced groups with current members")
-        -- Clear bulk operation flag before returning
         bulkOperationInProgress = false
         return
     end
     
-    addon.MainFrame.Debug("INFO", "AutoFormGroups: Created", #groups, "balanced groups")
-    
-    -- Apply the groups to the UI
-    for i, group in ipairs(groups) do
-        addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Processing group", i, "with", #group, "members")
-        
-        -- Ensure we have enough group frames
-        while #dynamicGroups < i do
-            CreateNewGroup()
-            addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Created new group frame, total groups:", #dynamicGroups)
+    -- BACKEND ONLY: Clear existing groups and create new state
+    if addon.GroupStateManager then
+        -- Clear all existing groups in the state manager
+        local existingGroups = addon.GroupStateManager:GetAllGroups()
+        for groupId, _ in pairs(existingGroups) do
+            addon.GroupStateManager:RemoveGroup(groupId)
         end
+        addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Cleared existing groups from state manager")
         
-        -- Add members to the group  
-        for j, member in ipairs(group) do
-            addon.MainFrame.Debug("INFO", "AutoFormGroups: Adding member", j, ":", member.name, "to group", i, "slot", j)
-            addon.MainFrame.Debug("DEBUG", "Member details - name:", member.name, "class:", member.class, "score:", member.score, "role:", member.role)
-            
-            local success = AddMemberToGroup(member.name, i, j)
-            addon.MainFrame.Debug("DEBUG", "AddMemberToGroup result:", success)
-            
-            if not success then
-                addon.MainFrame.Debug("ERROR", "Failed to add", member.name, "to group", i, "slot", j)
+        -- Create groups in state manager and assign members
+        for i, group in ipairs(groups) do
+            local stateGroup = addon.GroupStateManager:CreateGroup({ name = "Group " .. i })
+            if stateGroup then
+                addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Created state group", i, "with ID", stateGroup.id)
+                
+                -- Add all members to this group in state
+                for j, member in ipairs(group) do
+                    local memberInfo = {
+                        name = member.name,
+                        class = member.class,
+                        role = member.role,
+                        score = member.score,
+                        source = member.source or "GUILD"
+                    }
+                    
+                    -- Add member to state manager
+                    local memberAdded = addon.MemberStateManager:AddMember(memberInfo)
+                    if memberAdded then
+                        -- Assign member to group in state
+                        addon.GroupStateManager:AddMemberToGroup(memberInfo.name, stateGroup.id)
+                        addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Added", member.name, "to state group", stateGroup.id)
+                    end
+                end
+                
+                -- Assign keystone if available
+                local keystoneInfo = addon.GroupStateManager:GetGroupKeystone(i)
+                if keystoneInfo and keystoneInfo.hasKeystone then
+                    addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Group", i, "has keystone:", keystoneInfo.dungeonName, "+", keystoneInfo.level)
+                end
             end
         end
-        
-        addon.MainFrame.Debug("INFO", "AutoFormGroups: Completed group", i, "- members should now be visible")
     end
     
-    -- Update the UI
-    UpdateMemberDisplay()
-    RepositionAllGroups()
+    addon.MainFrame.Debug("INFO", "AutoFormGroups: Backend operations completed -", #groups, "balanced groups created in state")
+    
+    -- Clear bulk operation flag to allow UI updates
+    bulkOperationInProgress = false
+    addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Cleared bulk operation flag - ready for UI refresh")
+    
+    -- SINGLE UI REFRESH: Rebuild entire UI from backend state
+    addon.MainFrame.Debug("INFO", "AutoFormGroups: Refreshing UI from backend state")
+    self:RefreshUIFromBackendState()
     
     addon.MainFrame.Debug(addon.LOG_LEVEL.INFO, "Auto-formed", #groups, "balanced groups")
     addon.MainFrame.Debug("INFO", "AutoFormGroups: Auto-formation completed successfully")
     
-    -- Clear bulk operation flag and sync the complete group formation
-    bulkOperationInProgress = false
-    addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Cleared bulk operation flag")
+    -- Sync is handled automatically by StateSync system
+    addon.MainFrame.Debug("INFO", "AutoFormGroups: Group formation synced automatically via StateSync")
+end
+
+function addon:ClearAllGroupsUIOnly()
+    addon.MainFrame.Debug("INFO", "ClearAllGroupsUIOnly: Clearing UI group displays only (preserving backend state)")
     
-    addon.MainFrame.Debug("INFO", "AutoFormGroups: About to attempt sync - AddonComm available:", addon.AddonComm ~= nil, "SyncGroupFormation available:", addon.AddonComm and addon.AddonComm.SyncGroupFormation ~= nil)
-    
-    if addon.AddonComm and addon.AddonComm.SyncGroupFormation then
-        local status, result = pcall(function()
-            local currentGroups = addon:GetCurrentGroupFormation()
-            if currentGroups and #currentGroups > 0 then
-                -- Debug the actual groups data being sent
-                addon.MainFrame.Debug("INFO", "AutoFormGroups: About to sync", #currentGroups, "groups:")
-                for i, group in ipairs(currentGroups) do
-                    addon.MainFrame.Debug("INFO", "  Group", i, "has", #group.members, "members:")
-                    for j, member in ipairs(group.members) do
-                        addon.MainFrame.Debug("INFO", "    Member", j, ":", member.name, "role:", member.role)
+    -- Clear all group member frames (UI only)
+    for groupIndex, groupFrame in ipairs(dynamicGroups) do
+        if groupFrame then
+            for memberIndex = 1, MAX_GROUP_SIZE do
+                if groupFrame.memberFrames and groupFrame.memberFrames[memberIndex] then
+                    local memberFrame = groupFrame.memberFrames[memberIndex]
+                    
+                    -- Clear the member frame display
+                    memberFrame.memberName = nil
+                    memberFrame.memberInfo = nil
+                    
+                    -- Update member frame appearance
+                    if memberFrame.nameText then
+                        memberFrame.nameText:SetText("")
                     end
+                    if memberFrame.classIcon then
+                        memberFrame.classIcon:Hide()
+                    end
+                    if memberFrame.roleIcon then
+                        memberFrame.roleIcon:Hide()
+                    end
+                    if memberFrame.background then
+                        memberFrame.background:SetColorTexture(0.2, 0.2, 0.2, 0.8)
+                    end
+                    if memberFrame.removeBtn then
+                        memberFrame.removeBtn:Hide()
+                    end
+                    
+                    memberFrame:SetAlpha(0.7)
                 end
-                
-                addon.AddonComm:SyncGroupFormation(currentGroups, true)  -- Bypass throttle for auto-formation final sync
-                addon.MainFrame.Debug("DEBUG", "AutoFormGroups: Synced complete group formation with other users -", #currentGroups, "groups")
-            else
-                addon.MainFrame.Debug("WARN", "AutoFormGroups: No groups to sync - currentGroups:", currentGroups, "count:", currentGroups and #currentGroups or "nil")
             end
-        end)
-        
-        if not status then
-            addon.MainFrame.Debug("ERROR", "AutoFormGroups: Error during sync:", result or "unknown error")
+            
+            -- Update group title
+            if addon.GroupFrameUI then
+                addon.GroupFrameUI:UpdateGroupTitle(groupFrame)
+            end
         end
     end
+    
+    addon.MainFrame.Debug("DEBUG", "ClearAllGroupsUIOnly: UI cleared, backend state preserved")
 end
 
 function addon:ClearAllGroups()
     addon.MainFrame.Debug("INFO", "ClearAllGroups: Clearing all group assignments")
     
     -- Move all members back to the available pool
-    addon.MemberManager:ClearAllGroupMemberships()
+    addon.MemberStateManager:ClearAllGroupAssignments()
     addon.MainFrame.Debug("DEBUG", "ClearAllGroups: All members returned to available pool")
     
     -- Clear all group member frames
@@ -2201,10 +2374,9 @@ function addon:ClearAllGroups()
     RepositionAllGroups()
     
     -- Sync group clear with other addon users (only if not applying received sync and not in bulk operation)
-    if not applySyncInProgress and not bulkOperationInProgress and addon.AddonComm and addon.AddonComm.SyncGroupFormation then
-        -- Send empty groups array to sync the cleared state
-        addon.AddonComm:SyncGroupFormation({})
-        addon.MainFrame.Debug("DEBUG", "ClearAllGroups: Synced group clear with other users")
+    -- Sync is handled automatically by StateSync system
+    if not applySyncInProgress and not bulkOperationInProgress then
+        addon.MainFrame.Debug("DEBUG", "ClearAllGroups: Group clear synced automatically via StateSync")
     elseif applySyncInProgress then
         addon.MainFrame.Debug("DEBUG", "ClearAllGroups: Skipping sync - applying received sync")
     elseif bulkOperationInProgress then
@@ -2214,11 +2386,6 @@ function addon:ClearAllGroups()
     addon.MainFrame.Debug("DEBUG", "ClearAllGroups: All groups cleared and pruned successfully - remaining groups:", #dynamicGroups)
 end
 
--- Flag to prevent sync loops during sync application
-local applySyncInProgress = false
-
--- Flag to prevent individual syncs during bulk operations like auto-formation
-local bulkOperationInProgress = false
 
 -- Function to check if sync is in progress (for other modules)
 function addon.MainFrame:IsSyncInProgress()
@@ -2247,7 +2414,7 @@ function addon:OnGroupSyncReceived(data, sender)
     if not data.groups or #data.groups == 0 then
         addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Received empty group sync - clearing groups without triggering new sync")
         -- Clear existing groups manually without calling ClearAllGroups to avoid sync loop
-        addon.MemberManager:ClearAllGroupMemberships()
+        addon.MemberStateManager:ClearAllGroupAssignments()
         
         -- Clear all group member frames
         for _, groupFrame in ipairs(dynamicGroups) do
@@ -2317,15 +2484,8 @@ function addon:OnGroupSyncReceived(data, sender)
                 -- Add members to the group
                 for j, memberData in ipairs(groupData.members) do
                     if memberData.name and j <= MAX_GROUP_SIZE then
-                        -- Check if member exists in member list (including shared members)
-                        local foundMember = nil
-                        local memberList = addon.MemberManager:GetMemberList()
-                        for _, member in ipairs(memberList) do
-                            if member.name == memberData.name then
-                                foundMember = member
-                                break
-                            end
-                        end
+                        -- Check if member exists in unified state (including shared members)
+                        local foundMember = addon.MemberStateManager:GetMember(memberData.name)
                         
                         -- If not found in current member list, check if it's a known member from roster sharing
                         if not foundMember then
@@ -2456,8 +2616,7 @@ function addon:OnPlayerDataReceived(data, sender)
     }
     
     -- Update local member data if we have this player
-    local memberList = addon.MemberManager:GetMemberList()
-    local member = FindMemberByName(memberList, data.player)
+    local member = addon.MemberStateManager:GetMember(data.player)
     local memberFound = member ~= nil
     
     if memberFound then
@@ -2546,24 +2705,23 @@ function addon:OnRaiderIODataReceived(data, sender)
         addon.MainFrame.Debug(addon.LOG_LEVEL.DEBUG, "Cached shared RaiderIO data for", data.player)
     end
     
-    -- Update member data
-    local memberList = addon.MemberManager:GetMemberList()
-    for _, member in ipairs(memberList) do
-        if member.name == data.player then
-            member.rating = data.mythicPlusScore
-            member.role = data.mainRole
-            break
-        end
+    -- Update member data via unified state
+    local member = addon.MemberStateManager:GetMember(data.player)
+    if member then
+        addon.MemberStateManager:UpdateMember(data.player, {
+            rating = data.mythicPlusScore,
+            role = data.mainRole
+        })
     end
     
     -- Update any existing group assignments with new score data
     for _, group in ipairs(dynamicGroups) do
         if group and group.members then
-            for slotIndex, member in pairs(group.members) do
-                if member and member.name == data.player then
+            for slotIndex, groupMember in pairs(group.members) do
+                if groupMember and groupMember.name == data.player then
                     -- Update member data
-                    member.rating = data.mythicPlusScore
-                    member.role = data.mainRole
+                    groupMember.rating = data.mythicPlusScore
+                    groupMember.role = data.mainRole
                     
                     -- Update the group display text and background with new score
                     local memberFrame = group.memberFrames[slotIndex]
@@ -2619,15 +2777,21 @@ end
 function addon.MainFrame:UpdateSessionUI()
     addon.MainFrame.Debug("TRACE", "MainFrame:UpdateSessionUI", "Updating session UI")
     
-    if not addon.SessionManager then
+    if not addon.SessionStateManager then
         return
     end
     
-    local sessionInfo = addon.SessionManager:GetSessionInfo()
+    local sessionInfo = addon.SessionStateManager:GetSessionInfo()
     local startBtn = _G["GrouperPlusStartSessionBtn"]
     local finalizeBtn = _G["GrouperPlusFinalizeBtn"]
     local endBtn = _G["GrouperPlusEndSessionBtn"]
     local statusLabel = addon.sessionStatusLabel
+    
+    -- Safety check: ensure buttons exist
+    if not startBtn or not finalizeBtn or not endBtn then
+        addon.MainFrame.Debug("WARN", "UpdateSessionUI: One or more session buttons not found")
+        return
+    end
     
     if sessionInfo then
         -- In a session
@@ -2638,30 +2802,12 @@ function addon.MainFrame:UpdateSessionUI()
             finalizeBtn:SetEnabled(not sessionInfo.isFinalized)
             endBtn:SetText("End Session")
             
-            local statusText = string.format("Session Leader | %d participants", sessionInfo.participantCount)
-            if sessionInfo.isFinalized then
-                statusText = statusText .. " | FINALIZED"
-            end
-            statusLabel:SetText(statusText)
-            statusLabel:SetTextColor(0.2, 1, 0.2)
+            statusLabel:SetText("")
         else
             finalizeBtn:SetEnabled(false)
             endBtn:SetText("Leave Session")
             
-            local canEdit = addon.SessionManager:CanEdit()
-            local statusText = string.format("Session: %s | %s", 
-                sessionInfo.owner or "Unknown",
-                canEdit and "Can Edit" or "View Only")
-            if sessionInfo.isFinalized then
-                statusText = statusText .. " | FINALIZED"
-            end
-            statusLabel:SetText(statusText)
-            
-            if canEdit then
-                statusLabel:SetTextColor(0.8, 0.8, 0.2)
-            else
-                statusLabel:SetTextColor(0.8, 0.8, 0.8)
-            end
+            statusLabel:SetText("")
         end
         
         endBtn:SetEnabled(true)
@@ -2672,8 +2818,7 @@ function addon.MainFrame:UpdateSessionUI()
         finalizeBtn:SetEnabled(false)
         endBtn:SetEnabled(false)
         endBtn:SetText("End Session")
-        statusLabel:SetText("No active session")
-        statusLabel:SetTextColor(0.8, 0.8, 0.8)
+        statusLabel:SetText("")
     end
     
     -- Update edit permissions for drag/drop and other controls
@@ -2689,17 +2834,17 @@ function addon.MainFrame:RefreshMemberDisplay()
 end
 
 function addon:UpdateEditPermissions()
-    if not addon.SessionManager then
+    if not addon.SessionStateManager then
         addon.MainFrame.Debug("DEBUG", "UpdateEditPermissions - SessionManager not available, allowing all edits")
         return
     end
     
-    local sessionInfo = addon.SessionManager:GetSessionInfo()
+    local sessionInfo = addon.SessionStateManager:GetSessionInfo()
     local canEdit = true
     
     if sessionInfo then
         -- We're in a session, apply session permissions
-        canEdit = addon.SessionManager:CanEdit()
+        canEdit = addon.SessionStateManager:CanEditGroups()
         addon.MainFrame.Debug("DEBUG", "UpdateEditPermissions - In session, canEdit:", canEdit)
     else
         -- No session, allow all editing

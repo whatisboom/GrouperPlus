@@ -1,7 +1,6 @@
 local addonName, addon = ...
 
 local LibStub = LibStub
-local AceEvent = LibStub("AceEvent-3.0")
 
 local SessionStateManager = {}
 addon.SessionStateManager = SessionStateManager
@@ -11,7 +10,7 @@ for k, v in pairs(addon.DebugMixin) do
 end
 SessionStateManager:InitDebug("SessionState")
 
-AceEvent:Embed(SessionStateManager)
+-- AceEvent will be embedded safely during initialization
 
 local sessionState = {
     sessionId = nil,
@@ -34,10 +33,17 @@ local SESSION_PERMISSIONS = {
 function SessionStateManager:OnInitialize()
     self.Debug("INFO", "Initializing SessionStateManager")
     
+    -- Safely embed required Ace3 libraries
+    if not self:EmbedLibraries() then
+        self.Debug("ERROR", "Failed to embed required libraries")
+        return false
+    end
+    
     self.sessionState = sessionState
     self.SESSION_PERMISSIONS = SESSION_PERMISSIONS
     
     self.Debug("DEBUG", "SessionStateManager initialized successfully")
+    return true
 end
 
 function SessionStateManager:CreateSession(sessionData)
@@ -476,7 +482,50 @@ function SessionStateManager:GetTableSize(tbl)
     return count
 end
 
+function SessionStateManager:EmbedLibraries()
+    local LibraryManager = addon.LibraryManager
+    if not LibraryManager then
+        self.Debug("ERROR", "LibraryManager not available")
+        return false
+    end
+    
+    -- Embed AceEvent-3.0
+    if not LibraryManager:SafeEmbed(self, "AceEvent-3.0") then
+        self.Debug("ERROR", "Failed to embed AceEvent-3.0")
+        return false
+    end
+    
+    return true
+end
+
+function SessionStateManager:OnDisable()
+    self.Debug("INFO", "Disabling SessionStateManager")
+    
+    -- End any active session
+    if self:IsInSession() and self:IsSessionOwner() then
+        self:EndSession()
+    elseif self:IsInSession() then
+        self:LeaveSession()
+    end
+    
+    -- Unregister all messages
+    if self.UnregisterAllMessages then
+        self:UnregisterAllMessages()
+        self.Debug("DEBUG", "Unregistered all message handlers")
+    end
+    
+    -- Clear session state
+    self:ClearSessionState()
+    
+    self.Debug("DEBUG", "SessionStateManager disabled successfully")
+end
+
 function SessionStateManager:FireEvent(eventName, ...)
+    if not self.SendMessage then
+        self.Debug("WARN", "Cannot fire event - AceEvent not available:", eventName)
+        return
+    end
+    
     self.Debug("TRACE", "Firing event:", eventName)
     self:SendMessage("GROUPERPLUS_" .. eventName, ...)
 end

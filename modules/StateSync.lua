@@ -1,9 +1,6 @@
 local addonName, addon = ...
 
 local LibStub = LibStub
-local AceEvent = LibStub("AceEvent-3.0")
-local AceTimer = LibStub("AceTimer-3.0")
-local AceComm = LibStub("AceComm-3.0")
 
 local StateSync = {}
 addon.StateSync = StateSync
@@ -13,9 +10,7 @@ for k, v in pairs(addon.DebugMixin) do
 end
 StateSync:InitDebug("StateSync")
 
-AceEvent:Embed(StateSync)
-AceTimer:Embed(StateSync)
-AceComm:Embed(StateSync)
+-- Libraries will be embedded safely during initialization
 
 local syncState = {
     isInitialized = false,
@@ -35,14 +30,27 @@ local SYNC_CHANNELS = {
 function StateSync:OnInitialize()
     self.Debug("INFO", "Initializing StateSync")
     
+    -- Safely embed required Ace3 libraries
+    if not self:EmbedLibraries() then
+        self.Debug("ERROR", "Failed to embed required libraries")
+        return false
+    end
+    
     self.syncState = syncState
     self.SYNC_CHANNELS = SYNC_CHANNELS
     
-    self:RegisterComm(addon.MessageProtocol.COMM_PREFIX, "OnCommReceived")
-    self:RegisterMessages()
+    -- Only proceed if embedding was successful
+    if self.RegisterComm and self.RegisterMessage then
+        self:RegisterComm(addon.MessageProtocol.COMM_PREFIX, "OnCommReceived")
+        self:RegisterMessages()
+    else
+        self.Debug("ERROR", "Required Ace3 methods not available after embedding")
+        return false
+    end
     
     syncState.isInitialized = true
     self.Debug("DEBUG", "StateSync initialized successfully")
+    return true
 end
 
 function StateSync:RegisterMessages()
@@ -196,6 +204,42 @@ function StateSync:SendMessage(message, distribution, target)
         self:AddToSyncHistory(message.type, "SENT", distribution, target)
     else
         self.Debug("ERROR", "Failed to send message:", message.type, "via:", distribution)
+    end
+    
+    return success
+end
+
+function StateSync:BroadcastMessage(messageType, data, target)
+    if not messageType or not data then
+        self.Debug("ERROR", "BroadcastMessage requires messageType and data")
+        return false
+    end
+    
+    local message = nil
+    
+    -- Use specific message creation functions when available
+    if messageType == "KEYSTONE_DATA" then
+        message = addon.MessageProtocol:CreateKeystoneData(data)
+    elseif messageType == "RAIDERIO_DATA" then
+        message = addon.MessageProtocol:CreateRaiderIOData(data)
+    else
+        -- Fall back to generic message creation
+        message = addon.MessageProtocol:CreateMessage(messageType, data, target or "broadcast")
+    end
+    
+    if not message then
+        self.Debug("ERROR", "Failed to create message for type:", messageType)
+        return false
+    end
+    
+    local distribution = target and "WHISPER" or self:GetBestDistribution()
+    local success = self:SendMessage(message, distribution, target)
+    
+    if success then
+        self.Debug("DEBUG", "Sent custom message:", messageType, "to:", target or "broadcast")
+        self:AddToSyncHistory(messageType, "SENT", distribution, target)
+    else
+        self.Debug("ERROR", "Failed to send custom message:", messageType)
     end
     
     return success
@@ -444,6 +488,65 @@ end
 function StateSync:OnSessionStateChanged(event, ...)
     self.Debug("TRACE", "Session state changed, scheduling sync")
     self:ScheduleTimer("BroadcastSessionState", 1.0)
+end
+
+function StateSync:EmbedLibraries()
+    local LibraryManager = addon.LibraryManager
+    if not LibraryManager then
+        self.Debug("ERROR", "LibraryManager not available")
+        return false
+    end
+    
+    local success = true
+    
+    -- Embed AceEvent-3.0
+    if not LibraryManager:SafeEmbed(self, "AceEvent-3.0") then
+        self.Debug("ERROR", "Failed to embed AceEvent-3.0")
+        success = false
+    end
+    
+    -- Embed AceTimer-3.0
+    if not LibraryManager:SafeEmbed(self, "AceTimer-3.0") then
+        self.Debug("ERROR", "Failed to embed AceTimer-3.0")
+        success = false
+    end
+    
+    -- Embed AceComm-3.0
+    if not LibraryManager:SafeEmbed(self, "AceComm-3.0") then
+        self.Debug("ERROR", "Failed to embed AceComm-3.0")
+        success = false
+    end
+    
+    return success
+end
+
+function StateSync:OnDisable()
+    self.Debug("INFO", "Disabling StateSync")
+    
+    -- Unregister all communications
+    if self.UnregisterAllComm then
+        self:UnregisterAllComm()
+        self.Debug("DEBUG", "Unregistered all comm handlers")
+    end
+    
+    -- Cancel all timers
+    if self.CancelAllTimers then
+        self:CancelAllTimers()
+        self.Debug("DEBUG", "Cancelled all timers")
+    end
+    
+    -- Unregister all messages
+    if self.UnregisterAllMessages then
+        self:UnregisterAllMessages()
+        self.Debug("DEBUG", "Unregistered all message handlers")
+    end
+    
+    -- Clear sync state
+    syncState.isInitialized = false
+    syncState.isSyncing = false
+    syncState.pendingRequests = {}
+    
+    self.Debug("DEBUG", "StateSync disabled successfully")
 end
 
 return StateSync

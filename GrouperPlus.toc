@@ -1,7 +1,7 @@
 ## Interface: 110200
 ## Title: GrouperPlus
 ## Notes: A basic World of Warcraft addon
-## Author: YourName
+## Author: whatisboom
 ## Version: 0.10.0
 ## IconTexture: Interface\AddOns\GrouperPlus\textures\icon
 ## SavedVariables: GrouperDB
@@ -31,15 +31,12 @@ modules\SessionStateManager.lua
 modules\StateSync.lua
 GrouperPlus.lua
 modules\Utilities.lua
-modules\AddonComm.lua
-modules\SessionManager.lua
 modules\Keystone.lua
 modules\MinimapMenu.lua
 modules\OptionsPanel.lua
 modules\RaiderIOIntegration.lua
 modules\AutoFormation.lua
 modules\VersionWarning.lua
-modules\MemberManager.lua
 modules\MemberRowUI.lua
 modules\GroupFrameUI.lua
 modules\MainFrame.lua

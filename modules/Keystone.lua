@@ -68,7 +68,7 @@ function Keystone:Initialize()
     frame:RegisterEvent("MYTHIC_PLUS_NEW_WEEKLY_RECORD")
     frame:RegisterEvent("GROUP_ROSTER_UPDATE")
     
-    frame:SetScript("OnEvent", function(self, event, ...)
+    frame:SetScript("OnEvent", function(eventFrame, event, ...)
         addon.Debug(addon.LOG_LEVEL.DEBUG, "Keystone event:", event)
         
         if event == "GROUP_ROSTER_UPDATE" then
@@ -178,8 +178,8 @@ function Keystone:UpdateKeystoneInfo()
         -- Notify listeners
         self:NotifyListeners()
         
-        -- Transmit to other addon users
-        if addon.AddonComm and addon.AddonComm.initialized then
+        -- Transmit to other addon users via StateSync
+        if addon.StateSync then
             self:TransmitKeystoneData()
         end
     end
@@ -204,21 +204,30 @@ function Keystone:GetKeystoneString()
 end
 
 function Keystone:TransmitKeystoneData()
-    if not addon.AddonComm then
-        addon.Debug(addon.LOG_LEVEL.WARN, "AddonComm not available for keystone transmission")
+    if not addon.StateSync then
+        addon.Debug(addon.LOG_LEVEL.WARN, "StateSync not available for keystone transmission")
+        return
+    end
+    
+    local playerName = addon.WoWAPIWrapper:NormalizePlayerName(UnitName("player"))
+    if not playerName then
+        addon.Debug(addon.LOG_LEVEL.ERROR, "Failed to get normalized player name for keystone data")
         return
     end
     
     local keystoneData = {
-        player = UnitName("player") .. "-" .. GetRealmName(),
-        mapID = keystoneInfo.mapID,
-        level = keystoneInfo.level,
-        dungeonName = keystoneInfo.dungeonName,
-        timestamp = keystoneInfo.lastUpdate
+        player = playerName,
+        mapID = keystoneInfo.mapID or 0,
+        level = keystoneInfo.level or 0,
+        dungeonName = keystoneInfo.dungeonName or "Unknown",
+        timestamp = keystoneInfo.lastUpdate or addon.WoWAPIWrapper:GetServerTime()
     }
     
     addon.Debug(addon.LOG_LEVEL.INFO, "Broadcasting keystone data:", self:GetKeystoneString())
-    addon.AddonComm:BroadcastMessage("KEYSTONE_DATA", keystoneData)
+    -- Send keystone data via StateSync
+    if addon.StateSync then
+        addon.StateSync:BroadcastMessage("KEYSTONE_DATA", keystoneData)
+    end
 end
 
 function Keystone:RebroadcastKeystoneData()
@@ -234,21 +243,29 @@ function Keystone:RebroadcastKeystoneData()
         return
     end
     
-    if not addon.AddonComm or not addon.AddonComm.initialized then
-        addon.Debug(addon.LOG_LEVEL.DEBUG, "AddonComm not available for keystone rebroadcast")
+    if not addon.StateSync then
+        addon.Debug(addon.LOG_LEVEL.DEBUG, "StateSync not available for keystone rebroadcast")
+        return
+    end
+    
+    local playerName = addon.WoWAPIWrapper:NormalizePlayerName(UnitName("player"))
+    if not playerName then
+        addon.Debug(addon.LOG_LEVEL.ERROR, "Failed to get normalized player name for keystone rebroadcast")
         return
     end
     
     local keystoneData = {
-        player = UnitName("player") .. "-" .. GetRealmName(),
-        mapID = keystoneInfo.mapID,
-        level = keystoneInfo.level,
-        dungeonName = keystoneInfo.dungeonName,
-        timestamp = keystoneInfo.lastUpdate
+        player = playerName,
+        mapID = keystoneInfo.mapID or 0,
+        level = keystoneInfo.level or 0,
+        dungeonName = keystoneInfo.dungeonName or "Unknown",
+        timestamp = keystoneInfo.lastUpdate or addon.WoWAPIWrapper:GetServerTime()
     }
     
     addon.Debug(addon.LOG_LEVEL.DEBUG, "Rebroadcasting keystone data:", self:GetKeystoneString())
-    addon.AddonComm:BroadcastMessage("KEYSTONE_DATA", keystoneData)
+    if addon.StateSync then
+        addon.StateSync:BroadcastMessage("KEYSTONE_DATA", keystoneData)
+    end
 end
 
 function Keystone:HandleKeystoneData(data, sender)

@@ -1,7 +1,6 @@
 local addonName, addon = ...
 
 local LibStub = LibStub
-local AceSerializer = LibStub("AceSerializer-3.0")
 
 local MessageProtocol = {}
 addon.MessageProtocol = MessageProtocol
@@ -18,7 +17,10 @@ local MESSAGE_TYPES = {
     FULL_STATE_SYNC = "FULL_STATE_SYNC",
     STATE_REQUEST = "STATE_REQUEST",
     PING = "PING",
-    PONG = "PONG"
+    PONG = "PONG",
+    -- Custom message types
+    KEYSTONE_DATA = "KEYSTONE_DATA",
+    RAIDERIO_DATA = "RAIDERIO_DATA"
 }
 
 local MESSAGE_VERSION = "1.0"
@@ -27,11 +29,29 @@ local COMM_PREFIX = "GrouperPlus"
 function MessageProtocol:OnInitialize()
     self.Debug("INFO", "Initializing MessageProtocol")
     
+    -- Get AceSerializer library safely
+    local LibraryManager = addon.LibraryManager
+    if LibraryManager then
+        self.AceSerializer = LibraryManager:GetLibrary("AceSerializer-3.0")
+        if not self.AceSerializer then
+            self.Debug("ERROR", "AceSerializer-3.0 not available")
+            return false
+        end
+    else
+        -- Fallback to direct LibStub call
+        self.AceSerializer = LibStub and LibStub("AceSerializer-3.0", true)
+        if not self.AceSerializer then
+            self.Debug("ERROR", "AceSerializer-3.0 not available via LibStub")
+            return false
+        end
+    end
+    
     self.MESSAGE_TYPES = MESSAGE_TYPES
     self.MESSAGE_VERSION = MESSAGE_VERSION
     self.COMM_PREFIX = COMM_PREFIX
     
     self.Debug("DEBUG", "MessageProtocol initialized successfully")
+    return true
 end
 
 function MessageProtocol:CreateMessage(messageType, data, target)
@@ -70,9 +90,19 @@ function MessageProtocol:SerializeMessage(message)
         return nil
     end
     
-    local success, serialized = pcall(AceSerializer.Serialize, AceSerializer, message)
+    if not self.AceSerializer then
+        self.Debug("ERROR", "AceSerializer not available")
+        return nil
+    end
+    
+    local success, serialized = pcall(self.AceSerializer.Serialize, self.AceSerializer, message)
     if not success then
         self.Debug("ERROR", "Failed to serialize message:", serialized)
+        return nil
+    end
+    
+    if not serialized then
+        self.Debug("ERROR", "Serialization returned nil")
         return nil
     end
     
@@ -86,14 +116,31 @@ function MessageProtocol:DeserializeMessage(serialized)
         return nil
     end
     
-    local success, message = pcall(AceSerializer.Deserialize, AceSerializer, serialized)
-    if not success then
-        self.Debug("ERROR", "Failed to deserialize message:", message)
+    if not self.AceSerializer then
+        self.Debug("ERROR", "AceSerializer not available")
         return nil
     end
     
+    self.Debug("TRACE", "Attempting to deserialize message of length:", string.len(serialized))
+    
+    local success, message = pcall(self.AceSerializer.Deserialize, self.AceSerializer, serialized)
+    if not success then
+        self.Debug("ERROR", "Failed to deserialize message:", message)
+        self.Debug("ERROR", "Serialized data type:", type(serialized), "length:", string.len(serialized))
+        self.Debug("ERROR", "First 100 chars:", string.sub(serialized, 1, 100))
+        return nil
+    end
+    
+    if not message then
+        self.Debug("ERROR", "Deserialization returned nil")
+        return nil
+    end
+    
+    self.Debug("TRACE", "Deserialization successful, validating message")
+    
     if not self:ValidateMessage(message) then
         self.Debug("ERROR", "Deserialized message failed validation")
+        self.Debug("ERROR", "Message type:", type(message), "content:", message)
         return nil
     end
     
@@ -148,6 +195,10 @@ function MessageProtocol:ValidateMessageData(messageType, data)
         return self:ValidateStateRequestData(data)
     elseif messageType == MESSAGE_TYPES.PING or messageType == MESSAGE_TYPES.PONG then
         return true
+    elseif messageType == MESSAGE_TYPES.KEYSTONE_DATA then
+        return self:ValidateKeystoneData(data)
+    elseif messageType == MESSAGE_TYPES.RAIDERIO_DATA then
+        return self:ValidateRaiderIOData(data)
     end
     
     self.Debug("WARN", "Unknown message type for validation:", messageType)
@@ -280,6 +331,14 @@ function MessageProtocol:CreatePong(originalPingData, target)
     }, target)
 end
 
+function MessageProtocol:CreateKeystoneData(keystoneData)
+    return self:CreateMessage(MESSAGE_TYPES.KEYSTONE_DATA, keystoneData or {})
+end
+
+function MessageProtocol:CreateRaiderIOData(raiderIOData)
+    return self:CreateMessage(MESSAGE_TYPES.RAIDERIO_DATA, raiderIOData or {})
+end
+
 function MessageProtocol:IsMessageFromSelf(message)
     if not message or not message.sender then
         return false
@@ -341,6 +400,50 @@ function MessageProtocol:LogMessageSent(message, distribution, target)
     end
     
     self.Debug("DEBUG", "Sent message:", message.type, "via:", distribution, "to:", target or "broadcast")
+end
+
+function MessageProtocol:ValidateKeystoneData(data)
+    if not data.player or type(data.player) ~= "string" then
+        self.Debug("WARN", "Keystone data missing or invalid player field")
+        return false
+    end
+    
+    if not data.mapID or type(data.mapID) ~= "number" then
+        self.Debug("WARN", "Keystone data missing or invalid mapID field")
+        return false
+    end
+    
+    if not data.level or type(data.level) ~= "number" then
+        self.Debug("WARN", "Keystone data missing or invalid level field")
+        return false
+    end
+    
+    -- Optional fields - validate if present but don't require them
+    if data.dungeonName and type(data.dungeonName) ~= "string" then
+        self.Debug("WARN", "Keystone data has invalid dungeonName field type")
+        return false
+    end
+    
+    if data.timestamp and type(data.timestamp) ~= "number" then
+        self.Debug("WARN", "Keystone data has invalid timestamp field type")
+        return false
+    end
+    
+    return true
+end
+
+function MessageProtocol:ValidateRaiderIOData(data)
+    if not data.player or type(data.player) ~= "string" then
+        self.Debug("WARN", "RaiderIO data missing or invalid player field")
+        return false
+    end
+    
+    if not data.data or type(data.data) ~= "table" then
+        self.Debug("WARN", "RaiderIO data missing or invalid data field")
+        return false
+    end
+    
+    return true
 end
 
 return MessageProtocol
