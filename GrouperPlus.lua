@@ -146,6 +146,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
                 initSuccess = false
             end
             
+            
             if not initSuccess then
                 Debug(addon.LOG_LEVEL.WARN, "Some core modules failed to initialize - addon may have reduced functionality")
             end
@@ -180,6 +181,26 @@ frame:SetScript("OnEvent", function(self, event, ...)
             Debug(addon.LOG_LEVEL.INFO, "GrouperPlus addon loaded successfully!")
             Debug(addon.LOG_LEVEL.DEBUG, "Settings initialized with debugLevel:", settings.debugLevel)
             InitializeMinimap()
+            
+            -- Initialize SessionNotificationUI (needs to be done after settings are available)
+            if addon.SessionNotificationUI then
+                local success = addon.SessionNotificationUI:OnInitialize()
+                if success then
+                    Debug(addon.LOG_LEVEL.INFO, "SessionNotificationUI initialized successfully")
+                else
+                    Debug(addon.LOG_LEVEL.ERROR, "SessionNotificationUI initialization failed")
+                end
+            end
+            
+            -- Initialize SessionNotificationManager (needs to be done after settings are available)
+            if addon.SessionNotificationManager then
+                local success = addon.SessionNotificationManager:OnInitialize()
+                if success then
+                    Debug(addon.LOG_LEVEL.INFO, "SessionNotificationManager initialized successfully")
+                else
+                    Debug(addon.LOG_LEVEL.ERROR, "SessionNotificationManager initialization failed")
+                end
+            end
             
             -- Register modules with ModuleManager
             addon.ModuleManager:RegisterModule("SessionManager", addon.SessionManager, {})
@@ -248,6 +269,23 @@ SlashCmdList["GROUPER"] = function(msg)
                 LibDBIcon:Hide("GrouperPlus")
                 Debug(addon.LOG_LEVEL.INFO, "Minimap button hidden")
             end
+        end
+    elseif command == "test-recruitment" then
+        Debug(addon.LOG_LEVEL.INFO, "SLASH COMMAND - Testing recruitment system")
+        if addon.SessionNotificationManager then
+            -- Create a test session
+            if addon.SessionStateManager then
+                local success, sessionId = addon.SessionStateManager:CreateSession({})
+                if success then
+                    print("|cFF00FF00GrouperPlus:|r Started test recruitment for session " .. sessionId)
+                else
+                    print("|cFFFF0000GrouperPlus:|r Failed to start test session")
+                end
+            else
+                print("|cFFFF0000GrouperPlus:|r SessionStateManager not available")
+            end
+        else
+            print("|cFFFF0000GrouperPlus:|r SessionNotificationManager not available")
         end
     elseif command == "help" or command == "" then
         addon:ShowUserHelp()
@@ -525,6 +563,14 @@ function addon:OnDisable()
         addon.SessionStateManager:OnDisable()
     end
     
+    if addon.SessionNotificationManager and addon.SessionNotificationManager.OnDisable then
+        addon.SessionNotificationManager:OnDisable()
+    end
+    
+    if addon.SessionNotificationUI and addon.SessionNotificationUI.OnDisable then
+        addon.SessionNotificationUI:OnDisable()
+    end
+    
     Debug(addon.LOG_LEVEL.INFO, "GrouperPlus shutdown complete")
 end
 
@@ -533,6 +579,7 @@ function addon:ShowDeveloperHelp()
     Debug(addon.LOG_LEVEL.INFO, "/grouper test-unified - Test all state management systems")
     Debug(addon.LOG_LEVEL.INFO, "/grouper test-state - Alias for test-unified")
     Debug(addon.LOG_LEVEL.INFO, "/grouper test-keystone - Test keystone assignment system")
+    Debug(addon.LOG_LEVEL.INFO, "/grouper test-recruitment - Test session recruitment system")
     Debug(addon.LOG_LEVEL.INFO, "/grouper comm - Check connected users")
     Debug(addon.LOG_LEVEL.INFO, "/grouper broadcast - Send version check")
     Debug(addon.LOG_LEVEL.INFO, "/grouper share - Share RaiderIO data")

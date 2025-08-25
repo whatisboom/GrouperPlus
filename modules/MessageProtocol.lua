@@ -18,6 +18,10 @@ local MESSAGE_TYPES = {
     STATE_REQUEST = "STATE_REQUEST",
     PING = "PING",
     PONG = "PONG",
+    -- Session notification types
+    SESSION_RECRUITMENT = "SESSION_RECRUITMENT",
+    SESSION_JOIN_REQUEST = "SESSION_JOIN_REQUEST",
+    SESSION_JOIN_RESPONSE = "SESSION_JOIN_RESPONSE",
     -- Custom message types
     KEYSTONE_DATA = "KEYSTONE_DATA",
     RAIDERIO_DATA = "RAIDERIO_DATA"
@@ -195,6 +199,10 @@ function MessageProtocol:ValidateMessageData(messageType, data)
         return self:ValidateStateRequestData(data)
     elseif messageType == MESSAGE_TYPES.PING or messageType == MESSAGE_TYPES.PONG then
         return true
+    elseif messageType == MESSAGE_TYPES.SESSION_RECRUITMENT then
+        return self:ValidateSessionRecruitmentData(data)
+    elseif messageType == MESSAGE_TYPES.SESSION_JOIN_REQUEST or messageType == MESSAGE_TYPES.SESSION_JOIN_RESPONSE then
+        return self:ValidateSessionJoinData(data)
     elseif messageType == MESSAGE_TYPES.KEYSTONE_DATA then
         return self:ValidateKeystoneData(data)
     elseif messageType == MESSAGE_TYPES.RAIDERIO_DATA then
@@ -444,6 +452,58 @@ function MessageProtocol:ValidateRaiderIOData(data)
     end
     
     return true
+end
+
+function MessageProtocol:ValidateSessionRecruitmentData(data)
+    if not data.sessionId or type(data.sessionId) ~= "string" then
+        self.Debug("WARN", "Session recruitment data missing or invalid sessionId")
+        return false
+    end
+    
+    if not data.leaderId or type(data.leaderId) ~= "string" then
+        self.Debug("WARN", "Session recruitment data missing or invalid leaderId")
+        return false
+    end
+    
+    if data.timeout and type(data.timeout) ~= "number" then
+        self.Debug("WARN", "Session recruitment data has invalid timeout field")
+        return false
+    end
+    
+    return true
+end
+
+function MessageProtocol:ValidateSessionJoinData(data)
+    if not data.sessionId or type(data.sessionId) ~= "string" then
+        self.Debug("WARN", "Session join data missing or invalid sessionId")
+        return false
+    end
+    
+    if data.accepted ~= nil and type(data.accepted) ~= "boolean" then
+        self.Debug("WARN", "Session join data has invalid accepted field")
+        return false
+    end
+    
+    return true
+end
+
+function MessageProtocol:CreateSessionRecruitment(recruitmentData)
+    return self:CreateMessage(MESSAGE_TYPES.SESSION_RECRUITMENT, recruitmentData or {})
+end
+
+function MessageProtocol:CreateSessionJoinRequest(sessionId, playerName)
+    return self:CreateMessage(MESSAGE_TYPES.SESSION_JOIN_REQUEST, {
+        sessionId = sessionId,
+        playerName = playerName or ""
+    })
+end
+
+function MessageProtocol:CreateSessionJoinResponse(sessionId, accepted, playerName)
+    return self:CreateMessage(MESSAGE_TYPES.SESSION_JOIN_RESPONSE, {
+        sessionId = sessionId,
+        accepted = accepted,
+        playerName = playerName or ""
+    })
 end
 
 return MessageProtocol

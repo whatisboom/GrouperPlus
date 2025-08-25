@@ -285,6 +285,12 @@ function StateSync:ProcessMessage(message, sender)
         self:ProcessPing(message, sender)
     elseif messageType == addon.MessageProtocol.MESSAGE_TYPES.PONG then
         self:ProcessPong(message, sender)
+    elseif messageType == addon.MessageProtocol.MESSAGE_TYPES.SESSION_RECRUITMENT then
+        self:ProcessSessionRecruitment(message, sender)
+    elseif messageType == addon.MessageProtocol.MESSAGE_TYPES.SESSION_JOIN_REQUEST then
+        self:ProcessSessionJoinRequest(message, sender)
+    elseif messageType == addon.MessageProtocol.MESSAGE_TYPES.SESSION_JOIN_RESPONSE then
+        self:ProcessSessionJoinResponse(message, sender)
     else
         self.Debug("WARN", "Unknown message type:", messageType, "from:", sender)
     end
@@ -395,6 +401,11 @@ function StateSync:ProcessPong(message, sender)
     end
     
     self.Debug("DEBUG", "Received pong from:", sender, "latency:", latency and (latency * 1000) .. "ms" or "unknown")
+    
+    -- Notify SessionNotificationManager about addon presence
+    if addon.SessionNotificationManager and addon.SessionNotificationManager.HandlePongResponse then
+        addon.SessionNotificationManager:HandlePongResponse(sender)
+    end
 end
 
 function StateSync:GetBestDistribution()
@@ -518,6 +529,48 @@ function StateSync:EmbedLibraries()
     end
     
     return success
+end
+
+function StateSync:ProcessSessionRecruitment(message, sender)
+    if not message.data then
+        self.Debug("WARN", "Invalid session recruitment message from:", sender)
+        return
+    end
+    
+    self.Debug("DEBUG", "Received session recruitment from:", sender, "session:", message.data.sessionId)
+    
+    -- Forward to SessionNotificationManager for UI handling
+    if addon.SessionNotificationManager and addon.SessionNotificationManager.HandleRecruitmentNotification then
+        addon.SessionNotificationManager:HandleRecruitmentNotification(message.data, sender)
+    end
+end
+
+function StateSync:ProcessSessionJoinRequest(message, sender)
+    if not message.data or not message.data.sessionId then
+        self.Debug("WARN", "Invalid session join request from:", sender)
+        return
+    end
+    
+    self.Debug("DEBUG", "Received join request from:", sender, "for session:", message.data.sessionId)
+    
+    -- Forward to SessionNotificationManager
+    if addon.SessionNotificationManager and addon.SessionNotificationManager.HandleJoinRequest then
+        addon.SessionNotificationManager:HandleJoinRequest(message.data, sender)
+    end
+end
+
+function StateSync:ProcessSessionJoinResponse(message, sender)
+    if not message.data or not message.data.sessionId then
+        self.Debug("WARN", "Invalid session join response from:", sender)
+        return
+    end
+    
+    self.Debug("DEBUG", "Received join response from:", sender, "for session:", message.data.sessionId, "accepted:", message.data.accepted)
+    
+    -- Forward to SessionNotificationManager
+    if addon.SessionNotificationManager and addon.SessionNotificationManager.HandleJoinResponse then
+        addon.SessionNotificationManager:HandleJoinResponse(message.data, sender)
+    end
 end
 
 function StateSync:OnDisable()

@@ -191,6 +191,18 @@ local defaults = {
         debug = {
             enabled = false,
             ignoreMaxLevel = false
+        },
+        sessionNotifications = {
+            enabled = true,
+            style = "POPUP_AND_CHAT",
+            responseTimeout = 60,
+            snoozeDuration = 300,
+            channels = {
+                GUILD = true,
+                PARTY = false,
+                RAID = false
+            },
+            messageTemplate = "GrouperPlus session starting! Join through your addon or whisper me '1' to join the session"
         }
     }
 }

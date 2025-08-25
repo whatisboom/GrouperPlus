@@ -2,7 +2,7 @@
 ## Title: GrouperPlus
 ## Notes: A basic World of Warcraft addon
 ## Author: whatisboom
-## Version: 0.10.0
+## Version: 0.11.0
 ## IconTexture: Interface\AddOns\GrouperPlus\textures\icon
 ## SavedVariables: GrouperDB
 
@@ -28,6 +28,8 @@ modules\MessageProtocol.lua
 modules\MemberStateManager.lua
 modules\GroupStateManager.lua
 modules\SessionStateManager.lua
+modules\SessionNotificationUI.lua
+modules\SessionNotificationManager.lua
 modules\StateSync.lua
 GrouperPlus.lua
 modules\Utilities.lua

@@ -344,6 +344,149 @@ local options = {
                 },
             },
         },
+        sessionNotificationHeader = {
+            order = 30,
+            type = "header",
+            name = "Session Notification Settings",
+        },
+        sessionNotificationGroup = {
+            order = 31,
+            type = "group",
+            name = "Session Recruitment",
+            inline = true,
+            args = {
+                enabled = {
+                    order = 1,
+                    type = "toggle",
+                    name = "Enable Session Notifications",
+                    desc = "Enable notifications when other players start GrouperPlus sessions",
+                    width = "full",
+                    get = function()
+                        return addon.settings.sessionNotifications.enabled
+                    end,
+                    set = function(info, value)
+                        addon.settings.sessionNotifications.enabled = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Session notifications changed to", value)
+                    end,
+                },
+                notificationStyle = {
+                    order = 2,
+                    type = "select",
+                    name = "Notification Style",
+                    desc = "Choose how to receive session notifications",
+                    values = {
+                        POPUP_AND_CHAT = "Popup + Chat Messages",
+                        CHAT_ONLY = "Chat Messages Only"
+                    },
+                    disabled = function()
+                        return not addon.settings.sessionNotifications.enabled
+                    end,
+                    get = function()
+                        return addon.settings.sessionNotifications.style
+                    end,
+                    set = function(info, value)
+                        addon.settings.sessionNotifications.style = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Notification style changed to", value)
+                    end,
+                },
+                responseTimeout = {
+                    order = 3,
+                    type = "range",
+                    name = "Response Timeout",
+                    desc = "How long to wait for responses when starting a session (seconds)",
+                    min = 30,
+                    max = 300,
+                    step = 15,
+                    disabled = function()
+                        return not addon.settings.sessionNotifications.enabled
+                    end,
+                    get = function()
+                        return addon.settings.sessionNotifications.responseTimeout
+                    end,
+                    set = function(info, value)
+                        addon.settings.sessionNotifications.responseTimeout = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Response timeout changed to", value)
+                    end,
+                },
+                channelsDesc = {
+                    order = 4,
+                    type = "description",
+                    name = "\n|cFFFFD700Announcement Channels|r\nSelect which channels to announce your sessions in:",
+                    disabled = function()
+                        return not addon.settings.sessionNotifications.enabled
+                    end,
+                },
+                announcementGuild = {
+                    order = 5,
+                    type = "toggle",
+                    name = "Announce in Guild",
+                    desc = "Post session announcements in guild chat",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.sessionNotifications.enabled
+                    end,
+                    get = function()
+                        return addon.settings.sessionNotifications.channels.GUILD
+                    end,
+                    set = function(info, value)
+                        addon.settings.sessionNotifications.channels.GUILD = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Guild announcements changed to", value)
+                    end,
+                },
+                announcementParty = {
+                    order = 6,
+                    type = "toggle",
+                    name = "Announce in Party",
+                    desc = "Post session announcements in party chat",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.sessionNotifications.enabled
+                    end,
+                    get = function()
+                        return addon.settings.sessionNotifications.channels.PARTY
+                    end,
+                    set = function(info, value)
+                        addon.settings.sessionNotifications.channels.PARTY = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Party announcements changed to", value)
+                    end,
+                },
+                announcementRaid = {
+                    order = 7,
+                    type = "toggle",
+                    name = "Announce in Raid",
+                    desc = "Post session announcements in raid chat",
+                    width = "full",
+                    disabled = function()
+                        return not addon.settings.sessionNotifications.enabled
+                    end,
+                    get = function()
+                        return addon.settings.sessionNotifications.channels.RAID
+                    end,
+                    set = function(info, value)
+                        addon.settings.sessionNotifications.channels.RAID = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Raid announcements changed to", value)
+                    end,
+                },
+                messageTemplate = {
+                    order = 8,
+                    type = "input",
+                    name = "Announcement Message",
+                    desc = "Customize the message posted in chat channels",
+                    width = "full",
+                    multiline = 2,
+                    disabled = function()
+                        return not addon.settings.sessionNotifications.enabled
+                    end,
+                    get = function()
+                        return addon.settings.sessionNotifications.messageTemplate
+                    end,
+                    set = function(info, value)
+                        addon.settings.sessionNotifications.messageTemplate = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Message template updated")
+                    end,
+                },
+            },
+        },
     },
 }
 
