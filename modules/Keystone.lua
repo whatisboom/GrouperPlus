@@ -52,7 +52,8 @@ local DUNGEON_NAMES = {
     [503] = "Ara-Kara, City of Echoes",
     [504] = "The Dawnbreaker",
     [505] = "Cinderbrew Meadery",
-    [506] = "Darkflame Cleft"
+    [506] = "Darkflame Cleft",
+    [542] = "Eco-Dome Al'dani"
 }
 
 function Keystone:Initialize()

@@ -59,7 +59,16 @@ function MessageProtocol:OnInitialize()
 end
 
 function MessageProtocol:CreateMessage(messageType, data, target)
-    if not MESSAGE_TYPES[messageType] then
+    -- Check if messageType exists as a value in MESSAGE_TYPES
+    local validType = false
+    for _, validMessageType in pairs(MESSAGE_TYPES) do
+        if messageType == validMessageType then
+            validType = true
+            break
+        end
+    end
+    
+    if not validType then
         self.Debug("ERROR", "Invalid message type:", messageType)
         return nil
     end
