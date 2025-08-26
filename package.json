@@ -1,6 +1,6 @@
 {
   "name": "grouperplus",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "World of Warcraft addon for enhanced group management",
   "main": "build.js",
   "scripts": {
