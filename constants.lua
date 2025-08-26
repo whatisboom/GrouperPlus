@@ -192,6 +192,9 @@ local defaults = {
             enabled = false,
             ignoreMaxLevel = false
         },
+        memberTracking = {
+            disablePartyRaidTracking = false
+        },
         sessionNotifications = {
             enabled = true,
             style = "POPUP_AND_CHAT",

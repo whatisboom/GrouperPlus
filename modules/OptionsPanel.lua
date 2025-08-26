@@ -107,13 +107,63 @@ local options = {
                 },
             },
         },
-        integrationHeader = {
+        memberTrackingHeader = {
             order = 10,
+            type = "header",
+            name = "Member Tracking Settings",
+        },
+        memberTrackingGroup = {
+            order = 11,
+            type = "group",
+            name = "Member Sources",
+            inline = true,
+            args = {
+                description = {
+                    order = 1,
+                    type = "description",
+                    name = "Control which sources are used to populate the member list:",
+                },
+                disablePartyRaidTracking = {
+                    order = 2,
+                    type = "toggle",
+                    name = "Disable Party/Raid Tracking",
+                    desc = "Prevent party and raid members from being automatically added to the member list (temporary workaround)",
+                    width = "full",
+                    get = function()
+                        return addon.settings.memberTracking and addon.settings.memberTracking.disablePartyRaidTracking or false
+                    end,
+                    set = function(info, value)
+                        if not addon.settings.memberTracking then
+                            addon.settings.memberTracking = {}
+                        end
+                        addon.settings.memberTracking.disablePartyRaidTracking = value
+                        OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "OptionsPanel: Party/Raid tracking disabled changed to", value)
+                        
+                        -- Clear existing party/raid members if disabling
+                        if value and addon.MemberStateManager then
+                            local removed = 0
+                            local members = addon.MemberStateManager:GetAllMembers()
+                            for _, member in ipairs(members) do
+                                if member.source == "PARTY" or member.source == "RAID" then
+                                    addon.MemberStateManager:RemoveMember(member.name)
+                                    removed = removed + 1
+                                end
+                            end
+                            if removed > 0 then
+                                OptionsPanel.Debug(addon.LOG_LEVEL.INFO, "Removed", removed, "party/raid members from list")
+                            end
+                        end
+                    end,
+                },
+            },
+        },
+        integrationHeader = {
+            order = 15,
             type = "header",
             name = "Integration Settings",
         },
         raiderIOGroup = {
-            order = 11,
+            order = 16,
             type = "group",
             name = "RaiderIO",
             inline = true,

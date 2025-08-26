@@ -240,13 +240,22 @@ function MemberStateManager:RefreshFromSources()
     local discovered = {}
     local channels = addon.WoWAPIWrapper:GetEnabledChannels()
     
+    -- Check if party/raid tracking is disabled (temporary workaround)
+    local skipPartyRaid = addon.settings and addon.settings.memberTracking and 
+                         addon.settings.memberTracking.disablePartyRaidTracking
+    
     for _, channel in ipairs(channels) do
         local members = {}
         
         if channel == "GUILD" then
             members = addon.WoWAPIWrapper:GetGuildMembers()
         elseif channel == "PARTY" or channel == "RAID" then
-            members = addon.WoWAPIWrapper:GetGroupMembers()
+            -- Skip party/raid members if disabled
+            if not skipPartyRaid then
+                members = addon.WoWAPIWrapper:GetGroupMembers()
+            else
+                self.Debug("DEBUG", "Skipping party/raid member tracking (disabled in settings)")
+            end
         end
         
         for _, memberData in ipairs(members) do

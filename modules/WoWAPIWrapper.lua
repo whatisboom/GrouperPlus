@@ -32,13 +32,8 @@ function WoWAPIWrapper:GetPlayerRole()
     end
     
     local role = GetSpecializationRole(currentSpec)
-    if role == "TANK" then
-        return "TANK"
-    elseif role == "HEALER" then
-        return "HEALER"
-    else
-        return "DPS"
-    end
+    -- WoW API returns "DAMAGER" for DPS specs, translate to our internal "DPS" terminology
+    return role == "DAMAGER" and "DPS" or role
 end
 
 function WoWAPIWrapper:IsInGuild()
