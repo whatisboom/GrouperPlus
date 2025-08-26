@@ -11,10 +11,7 @@ function ModuleBase:New(moduleName)
     module.initialized = false
     module.dependencies = {}
     
-    for k, v in pairs(addon.DebugMixin) do
-        module[k] = v
-    end
-    module:InitDebug(module.moduleName)
+    addon.DebugMixin:InjectInto(module, module.moduleName)
     
     return module
 end

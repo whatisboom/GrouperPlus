@@ -3,10 +3,7 @@ local addonName, addon = ...
 local WoWAPIWrapper = {}
 addon.WoWAPIWrapper = WoWAPIWrapper
 
-for k, v in pairs(addon.DebugMixin) do
-    WoWAPIWrapper[k] = v
-end
-WoWAPIWrapper:InitDebug("WoWAPI")
+addon.DebugMixin:InjectInto(WoWAPIWrapper, "WoWAPI")
 
 function WoWAPIWrapper:GetPlayerInfo()
     local name = UnitName("player")

@@ -71,6 +71,24 @@ function DebugMixin:InitDebug(moduleName)
     
     self.DebugOnce = function(level, key, ...)
         if not self.debugCache[key] then
+            -- Implement simple cache size limit to prevent memory leaks
+            local cacheSize = 0
+            for _ in pairs(self.debugCache) do
+                cacheSize = cacheSize + 1
+            end
+            
+            -- If cache is getting too large, clear oldest entries (simple approach)
+            if cacheSize >= 100 then
+                local cleared = 0
+                for k, _ in pairs(self.debugCache) do
+                    self.debugCache[k] = nil
+                    cleared = cleared + 1
+                    if cleared >= 50 then -- Clear half the cache
+                        break
+                    end
+                end
+            end
+            
             self.debugCache[key] = true
             self.Debug(level, ...)
         end
@@ -87,6 +105,35 @@ end
 
 function DebugMixin:SetModuleName(name)
     self.moduleName = name
+end
+
+-- New injection method to replace manual copying
+function DebugMixin:InjectInto(target, moduleName)
+    for k, v in pairs(self) do
+        if k ~= "InjectInto" then  -- Don't inject self-reference
+            target[k] = v
+        end
+    end
+    target:InitDebug(moduleName)
+end
+
+-- Add lazy evaluation helper
+function DebugMixin:ShouldLog(level)
+    if not addon.settings then return false end
+    
+    level = level or "DEBUG"
+    level = string.upper(level)
+    
+    if not addon.DEBUG_LEVELS[level] then
+        level = "DEBUG"
+    end
+    
+    local currentLevel = string.upper(addon.settings.debugLevel)
+    if not addon.DEBUG_LEVELS[currentLevel] then
+        currentLevel = "INFO"
+    end
+    
+    return addon.DEBUG_LEVELS[level] <= addon.DEBUG_LEVELS[currentLevel]
 end
 
 addon.DebugMixin = DebugMixin

@@ -3,10 +3,7 @@ local addonName, addon = ...
 local SessionNotificationUI = {}
 addon.SessionNotificationUI = SessionNotificationUI
 
-for k, v in pairs(addon.DebugMixin) do
-    SessionNotificationUI[k] = v
-end
-SessionNotificationUI:InitDebug("SessionNotificationUI")
+addon.DebugMixin:InjectInto(SessionNotificationUI, "SessionNotificationUI")
 
 local activeNotifications = {}
 local NOTIFICATION_WIDTH = 300

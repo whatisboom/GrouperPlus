@@ -3,10 +3,7 @@ local addonName, addon = ...
 local AddonComm = {}
 addon.AddonComm = AddonComm
 
-for k, v in pairs(addon.DebugMixin) do
-    AddonComm[k] = v
-end
-AddonComm:InitDebug("Comm")
+addon.DebugMixin:InjectInto(AddonComm, "Comm")
 
 -- Simple serialization functions for addon communication
 function addon:Serialize(data)

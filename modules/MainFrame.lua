@@ -5,10 +5,7 @@ local AceDB = LibStub("AceDB-3.0")
 -- Create MainFrame module
 addon.MainFrame = addon.MainFrame or {}
 
-for k, v in pairs(addon.DebugMixin) do
-    addon.MainFrame[k] = v
-end
-addon.MainFrame:InitDebug("MainFrame")
+addon.DebugMixin:InjectInto(addon.MainFrame, "MainFrame")
 
 local mainFrame = nil
 local scrollFrame = nil

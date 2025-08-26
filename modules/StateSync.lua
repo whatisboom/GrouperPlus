@@ -5,10 +5,7 @@ local LibStub = LibStub
 local StateSync = {}
 addon.StateSync = StateSync
 
-for k, v in pairs(addon.DebugMixin) do
-    StateSync[k] = v
-end
-StateSync:InitDebug("StateSync")
+addon.DebugMixin:InjectInto(StateSync, "StateSync")
 
 -- Libraries will be embedded safely during initialization
 

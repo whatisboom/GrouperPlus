@@ -7,10 +7,7 @@ local addonName, addon = ...
 local MemberManager = {}
 addon.MemberManager = MemberManager
 
-for k, v in pairs(addon.DebugMixin) do
-    MemberManager[k] = v
-end
-MemberManager:InitDebug("MemberMgr")
+addon.DebugMixin:InjectInto(MemberManager, "MemberMgr")
 
 -- Private state
 local memberList = {}

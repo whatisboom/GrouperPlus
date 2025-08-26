@@ -6,10 +6,7 @@ local AceEvent = LibStub("AceEvent-3.0")
 local GroupStateManager = {}
 addon.GroupStateManager = GroupStateManager
 
-for k, v in pairs(addon.DebugMixin) do
-    GroupStateManager[k] = v
-end
-GroupStateManager:InitDebug("GroupState")
+addon.DebugMixin:InjectInto(GroupStateManager, "GroupState")
 
 AceEvent:Embed(GroupStateManager)
 

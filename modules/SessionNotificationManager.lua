@@ -3,10 +3,7 @@ local addonName, addon = ...
 local SessionNotificationManager = {}
 addon.SessionNotificationManager = SessionNotificationManager
 
-for k, v in pairs(addon.DebugMixin) do
-    SessionNotificationManager[k] = v
-end
-SessionNotificationManager:InitDebug("SessionNotification")
+addon.DebugMixin:InjectInto(SessionNotificationManager, "SessionNotification")
 
 -- AceEvent will be embedded safely during initialization
 

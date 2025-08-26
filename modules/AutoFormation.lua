@@ -2,10 +2,7 @@ local addonName, addon = ...
 
 local AutoFormation = {}
 
-for k, v in pairs(addon.DebugMixin) do
-    AutoFormation[k] = v
-end
-AutoFormation:InitDebug("AutoForm")
+addon.DebugMixin:InjectInto(AutoFormation, "AutoForm")
 
 -- Role mapping for all specializations
 local SPEC_ROLE_MAP = {

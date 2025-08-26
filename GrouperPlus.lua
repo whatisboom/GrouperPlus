@@ -2,10 +2,7 @@ local addonName, addon = ...
 addon = addon or {}
 
 local mainModule = {}
-for k, v in pairs(addon.DebugMixin) do
-    mainModule[k] = v
-end
-mainModule:InitDebug("Main")
+addon.DebugMixin:InjectInto(mainModule, "Main")
 
 local Debug = function(...) return mainModule.Debug(...) end
 

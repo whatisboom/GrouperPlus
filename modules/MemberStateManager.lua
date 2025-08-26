@@ -7,10 +7,7 @@ local AceTimer = LibStub("AceTimer-3.0")
 local MemberStateManager = {}
 addon.MemberStateManager = MemberStateManager
 
-for k, v in pairs(addon.DebugMixin) do
-    MemberStateManager[k] = v
-end
-MemberStateManager:InitDebug("MemberState")
+addon.DebugMixin:InjectInto(MemberStateManager, "MemberState")
 
 AceEvent:Embed(MemberStateManager)
 AceTimer:Embed(MemberStateManager)

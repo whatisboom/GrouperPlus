@@ -5,10 +5,7 @@ local LibStub = LibStub
 local MessageProtocol = {}
 addon.MessageProtocol = MessageProtocol
 
-for k, v in pairs(addon.DebugMixin) do
-    MessageProtocol[k] = v
-end
-MessageProtocol:InitDebug("MsgProtocol")
+addon.DebugMixin:InjectInto(MessageProtocol, "MsgProtocol")
 
 local MESSAGE_TYPES = {
     MEMBER_STATE_SYNC = "MEMBER_STATE_SYNC",

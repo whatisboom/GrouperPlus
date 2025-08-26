@@ -5,10 +5,7 @@ local LibStub = LibStub
 local SessionStateManager = {}
 addon.SessionStateManager = SessionStateManager
 
-for k, v in pairs(addon.DebugMixin) do
-    SessionStateManager[k] = v
-end
-SessionStateManager:InitDebug("SessionState")
+addon.DebugMixin:InjectInto(SessionStateManager, "SessionState")
 
 -- AceEvent will be embedded safely during initialization
 
