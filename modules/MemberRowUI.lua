@@ -65,7 +65,7 @@ function MemberRowUI:CreateMemberTooltip(frame, memberName)
     -- Add keystone information if available
     if addon.Keystone then
         local playerName = UnitName("player")
-        local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+        local playerFullName = addon.WoWAPIWrapper:NormalizePlayerName(UnitName("player"))
         local isCurrentPlayer = (memberName == playerName or memberName == playerFullName)
         
         -- Always show the current player's keystone from their own data
@@ -348,9 +348,7 @@ function MemberRowUI:UpdateMemberRow(row, member, index)
         local sessionInfo = addon.SessionStateManager:GetSessionInfo()
         if sessionInfo then
             local fullName = member.name
-            if not string.find(fullName, "-") then
-                fullName = fullName .. "-" .. GetRealmName()
-            end
+            fullName = addon.WoWAPIWrapper:NormalizePlayerName(fullName)
             
             if sessionInfo.ownerId == fullName then
                 -- Session owner gets a crown icon

@@ -2527,7 +2527,7 @@ function addon:UpdatePlayerRoleInUI()
         
         -- Also update player's role in any existing dynamic groups
         local playerName = UnitName("player")
-        local playerFullName = playerName .. "-" .. GetRealmName()
+        local playerFullName = addon.WoWAPIWrapper:NormalizePlayerName(playerName)
         
         -- Get current role
         local currentRole = nil

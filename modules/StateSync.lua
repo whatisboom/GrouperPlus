@@ -499,33 +499,7 @@ function StateSync:OnSessionStateChanged(event, ...)
 end
 
 function StateSync:EmbedLibraries()
-    local LibraryManager = addon.LibraryManager
-    if not LibraryManager then
-        self.Debug("ERROR", "LibraryManager not available")
-        return false
-    end
-    
-    local success = true
-    
-    -- Embed AceEvent-3.0
-    if not LibraryManager:SafeEmbed(self, "AceEvent-3.0") then
-        self.Debug("ERROR", "Failed to embed AceEvent-3.0")
-        success = false
-    end
-    
-    -- Embed AceTimer-3.0
-    if not LibraryManager:SafeEmbed(self, "AceTimer-3.0") then
-        self.Debug("ERROR", "Failed to embed AceTimer-3.0")
-        success = false
-    end
-    
-    -- Embed AceComm-3.0
-    if not LibraryManager:SafeEmbed(self, "AceComm-3.0") then
-        self.Debug("ERROR", "Failed to embed AceComm-3.0")
-        success = false
-    end
-    
-    return success
+    return addon.SharedUtilities.LibraryEmbedding:EmbedRequired(self, {"AceEvent-3.0", "AceTimer-3.0", "AceComm-3.0"})
 end
 
 function StateSync:ProcessSessionRecruitment(message, sender)

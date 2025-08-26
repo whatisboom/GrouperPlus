@@ -19,6 +19,8 @@ local groupState = {
 function GroupStateManager:OnInitialize()
     self.Debug("INFO", "Initializing GroupStateManager")
     
+    addon.SharedUtilities:MixinEventHandling(self)
+    
     self.groupState = groupState
     self:RegisterMessages()
     
@@ -478,9 +480,5 @@ function GroupStateManager:IsKeystoneAssigned(mapID, level)
     return false, nil
 end
 
-function GroupStateManager:FireEvent(eventName, ...)
-    self.Debug("TRACE", "Firing event:", eventName)
-    self:SendMessage("GROUPERPLUS_" .. eventName, ...)
-end
 
 return GroupStateManager

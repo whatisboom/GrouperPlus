@@ -29,6 +29,8 @@ local MEMBER_SOURCES = {
 function MemberStateManager:OnInitialize()
     self.Debug("INFO", "Initializing MemberStateManager")
     
+    addon.SharedUtilities:MixinEventHandling(self)
+    
     self.memberState = memberState
     self.MEMBER_SOURCES = MEMBER_SOURCES
     
@@ -105,7 +107,7 @@ function MemberStateManager:UpdateMember(memberName, updates)
     
     if changed then
         member.lastSeen = addon.WoWAPIWrapper:GetServerTime()
-        self.Debug("DEBUG", "Updated member:", normalizedName, "changed fields:", self:TableToString(oldData))
+        self.Debug("DEBUG", "Updated member:", normalizedName, "changed fields:", addon.SharedUtilities:TableToString(oldData))
         self:FireEvent("MEMBER_UPDATED", member, oldData)
     end
     
@@ -382,21 +384,6 @@ function MemberStateManager:OnSpecializationChanged(event, unitID)
     end
 end
 
-function MemberStateManager:TableToString(tbl)
-    if not tbl or type(tbl) ~= "table" then
-        return tostring(tbl)
-    end
-    
-    local parts = {}
-    for k, v in pairs(tbl) do
-        table.insert(parts, tostring(k) .. "=" .. tostring(v))
-    end
-    return "{" .. table.concat(parts, ", ") .. "}"
-end
 
-function MemberStateManager:FireEvent(eventName, ...)
-    self.Debug("TRACE", "Firing event:", eventName)
-    self:SendMessage("GROUPERPLUS_" .. eventName, ...)
-end
 
 return MemberStateManager

@@ -108,7 +108,7 @@ function AutoFormation:GetPlayerRole(unitOrNameOrMember)
         -- Try to find the player by name
         playerName = unit
         local currentPlayerName = UnitName("player")
-        local currentPlayerFullName = currentPlayerName .. "-" .. GetRealmName()
+        local currentPlayerFullName = addon.WoWAPIWrapper:NormalizePlayerName(currentPlayerName)
         if playerName == currentPlayerName or playerName == currentPlayerFullName then
             unit = "player"
         else

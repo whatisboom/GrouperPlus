@@ -30,6 +30,8 @@ local SESSION_PERMISSIONS = {
 function SessionStateManager:OnInitialize()
     self.Debug("INFO", "Initializing SessionStateManager")
     
+    addon.SharedUtilities:MixinEventHandling(self)
+    
     -- Safely embed required Ace3 libraries
     if not self:EmbedLibraries() then
         self.Debug("ERROR", "Failed to embed required libraries")
@@ -371,8 +373,8 @@ function SessionStateManager:GetSessionInfo()
         isActive = sessionState.isActive,
         isLocked = sessionState.isLocked,
         createdTime = sessionState.createdTime,
-        participantCount = self:GetTableSize(sessionState.participants),
-        adminCount = self:GetTableSize(sessionState.admins)
+        participantCount = addon.SharedUtilities:GetTableSize(sessionState.participants),
+        adminCount = addon.SharedUtilities:GetTableSize(sessionState.admins)
     }
 end
 
@@ -469,30 +471,9 @@ function SessionStateManager:GenerateSessionId()
     return string.format("%s-%d-%d", playerName, time, random)
 end
 
-function SessionStateManager:GetTableSize(tbl)
-    local count = 0
-    if tbl then
-        for _ in pairs(tbl) do
-            count = count + 1
-        end
-    end
-    return count
-end
 
 function SessionStateManager:EmbedLibraries()
-    local LibraryManager = addon.LibraryManager
-    if not LibraryManager then
-        self.Debug("ERROR", "LibraryManager not available")
-        return false
-    end
-    
-    -- Embed AceEvent-3.0
-    if not LibraryManager:SafeEmbed(self, "AceEvent-3.0") then
-        self.Debug("ERROR", "Failed to embed AceEvent-3.0")
-        return false
-    end
-    
-    return true
+    return addon.SharedUtilities.LibraryEmbedding:EmbedRequired(self, {"AceEvent-3.0"})
 end
 
 function SessionStateManager:OnDisable()
@@ -517,14 +498,5 @@ function SessionStateManager:OnDisable()
     self.Debug("DEBUG", "SessionStateManager disabled successfully")
 end
 
-function SessionStateManager:FireEvent(eventName, ...)
-    if not self.SendMessage then
-        self.Debug("WARN", "Cannot fire event - AceEvent not available:", eventName)
-        return
-    end
-    
-    self.Debug("TRACE", "Firing event:", eventName)
-    self:SendMessage("GROUPERPLUS_" .. eventName, ...)
-end
 
 return SessionStateManager

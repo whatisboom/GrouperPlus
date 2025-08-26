@@ -22,6 +22,7 @@ constants.lua
 modules\DebugMixin.lua
 modules\ModuleBase.lua
 modules\LibraryManager.lua
+modules\SharedUtilities.lua
 modules\ModuleManager.lua
 modules\WoWAPIWrapper.lua
 modules\MessageProtocol.lua

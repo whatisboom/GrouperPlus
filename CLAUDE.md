@@ -51,6 +51,20 @@ GrouperPlus now uses a completely redesigned unified state management architectu
 9. **Auto-Formation with Utility Distribution** - Intelligent group creation that balances roles, skill levels, and utility coverage
 10. **Comprehensive Testing** - Built-in test command to verify all systems
 
+### Build System
+GrouperPlus uses a **consolidated Node.js build and deployment system** (`build.js`) that replaces the previous multi-script approach:
+
+- **Single Script**: All build and deployment logic consolidated into one cross-platform Node.js script
+- **Cross-Platform**: Works identically on Windows, macOS, and Linux
+- **Commands**:
+  - `npm run build` or `node build.js build` - Build addon package only
+  - `npm run deploy` or `node build.js deploy` - Build and deploy to CurseForge
+  - `node build.js --help` - Show usage information
+
+**Environment Variables** (for deployment):
+- `CURSEFORGE_API_TOKEN` - Your CurseForge API token
+- `CURSEFORGE_PROJECT_ID` - Your CurseForge project ID
+
 ## Development Guidelines
 
 ### Debug Logging
@@ -213,6 +227,7 @@ To properly test cross-realm functionality:
 - **Release Workflow**:
   - Before building, update the version number in the repository in all applicable places, following semantic versioning rules
   - Include all the changes in the release
+  - Use the consolidated build system: `npm run deploy` or `node build.js deploy`
   - Afterwards, tag, push, and release on GitHub as well
 - **Important Note**: When creating a release, publish the full release on GitHub, not just create a tag
 
@@ -231,7 +246,7 @@ To properly test cross-realm functionality:
 - Update the version in the issue configs when we update it in the toc and other places
 
 ## Release Process Memory
-- When asked to do a release, you will update the version, prompting for major/minor/patch increments if you are not sure based on the changes, update the changelog, commit the change to git, create a git tag, push to origin, and then publish a release on github, and then using ./deploy-full.sh you will publish a release to curseforge
+- When asked to do a release, you will update the version, prompting for major/minor/patch increments if you are not sure based on the changes, update the changelog, commit the change to git, create a git tag, push to origin, and then publish a release on github, and then using `npm run deploy` or `node build.js deploy` you will publish a release to curseforge
 
 ## Unified State Management Architecture
 
@@ -275,3 +290,4 @@ The unified state system ensures:
 - **Visual consistency** - All clients display identical member lists and group assignments
 - when running lua check, fix any and all warnings and errors and issues
 - instead of using a fallback if a global isn't defined use a local to redefine the global
+- I want you to handle the versioning and changelogs before the build pipeline is executed
